@@ -63,15 +63,17 @@ def test_content_extract_unsupported() -> None:
 
 
 def test_web_search_no_api_key() -> None:
-    """POST /tools/web-search without BING_API_KEY should return error info."""
+    """POST /tools/web-search without Bing key should fall back to DuckDuckGo."""
     response = client.post(
         "/tools/web-search",
         json={"query": "test query", "count": 3},
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["result_count"] == 0
-    assert "error" in data or data["results"] == []
+    # DuckDuckGo fallback should return results even without Bing key
+    assert "results" in data
+    assert isinstance(data["results"], list)
+    assert data["result_count"] == len(data["results"])
 
 
 def test_similarity_endpoint() -> None:
