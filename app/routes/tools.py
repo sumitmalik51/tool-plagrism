@@ -61,6 +61,31 @@ class ChunkRequest(BaseModel):
     overlap: int | None = Field(default=None, ge=0, description="Overlap between chunks")
 
 
+class FlaggedPassageInput(BaseModel):
+    """A single flagged passage for report generation."""
+    text: str = Field(..., description="The flagged text passage")
+    similarity_score: float = Field(..., ge=0.0, le=1.0, description="Similarity score")
+    source: str | None = Field(default=None, description="Source URL or reference")
+    reason: str = Field(default="", description="Why this passage was flagged")
+
+
+class DetectedSourceInput(BaseModel):
+    """A detected source for report generation."""
+    url: str | None = Field(default=None, description="URL of the matched source")
+    title: str | None = Field(default=None, description="Title of the matched source")
+    similarity: float = Field(..., ge=0.0, le=1.0, description="Similarity with the source")
+
+
+class GenerateReportRequest(BaseModel):
+    """Input for the report generation endpoint."""
+    document_id: str = Field(..., description="Unique identifier for the document")
+    plagiarism_score: float = Field(..., ge=0.0, le=100.0, description="Overall plagiarism score (0-100)")
+    confidence_score: float = Field(..., ge=0.0, le=1.0, description="Overall confidence (0-1)")
+    ai_score: float | None = Field(default=None, ge=0.0, le=100.0, description="AI detection score (0-100)")
+    flagged_passages: list[FlaggedPassageInput] = Field(default_factory=list, description="Flagged passages")
+    detected_sources: list[DetectedSourceInput] = Field(default_factory=list, description="Detected sources")
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -159,3 +184,118 @@ async def ai_detect_endpoint(request: AIDetectRequest) -> dict:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"AI detection failed: {exc}",
         )
+
+
+@router.post("/generate-report", summary="Generate structured plagiarism report")
+async def generate_report_endpoint(request: GenerateReportRequest) -> dict:
+    """Generate a structured plagiarism report from pre-computed analysis results.
+
+    Accepts plagiarism scores, confidence, flagged passages, and detected
+    sources, then produces a structured JSON report with risk level,
+    human-readable explanation, and all flagged passages.
+    """
+    from datetime import datetime, timezone
+
+    logger.info(
+        "tool_api_generate_report",
+        document_id=request.document_id,
+        plagiarism_score=request.plagiarism_score,
+    )
+
+    # --- Determine risk level -------------------------------------------------
+    if request.plagiarism_score >= 70:
+        risk_level = "HIGH"
+    elif request.plagiarism_score >= 35:
+        risk_level = "MEDIUM"
+    else:
+        risk_level = "LOW"
+
+    # --- Build explanation ----------------------------------------------------
+    explanation_parts: list[str] = []
+
+    explanation_parts.append(
+        f"Plagiarism analysis complete for document '{request.document_id}'."
+    )
+    explanation_parts.append(
+        f"Overall plagiarism score: {request.plagiarism_score:.1f}/100 "
+        f"(confidence: {request.confidence_score:.0%})."
+    )
+    explanation_parts.append(f"Risk level: {risk_level}.")
+
+    if request.ai_score is not None:
+        explanation_parts.append(
+            f"AI-generated content likelihood: {request.ai_score:.1f}/100."
+        )
+
+    if request.flagged_passages:
+        explanation_parts.append(
+            f"{len(request.flagged_passages)} passage(s) flagged for review."
+        )
+        top_score = max(p.similarity_score for p in request.flagged_passages)
+        explanation_parts.append(
+            f"Highest passage similarity: {top_score:.0%}."
+        )
+
+    if request.detected_sources:
+        explanation_parts.append(
+            f"{len(request.detected_sources)} potential source(s) identified."
+        )
+
+    if risk_level == "HIGH":
+        explanation_parts.append(
+            "Recommendation: Manual review strongly recommended. "
+            "Multiple passages show high similarity to external sources."
+        )
+    elif risk_level == "MEDIUM":
+        explanation_parts.append(
+            "Recommendation: Review flagged passages. Some sections may "
+            "require paraphrasing or proper citation."
+        )
+    else:
+        explanation_parts.append(
+            "Recommendation: No significant plagiarism detected. "
+            "The document appears to be largely original."
+        )
+
+    explanation = " ".join(explanation_parts)
+
+    # --- Assemble report ------------------------------------------------------
+    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    report = {
+        "document_id": request.document_id,
+        "plagiarism_score": request.plagiarism_score,
+        "confidence_score": request.confidence_score,
+        "risk_level": risk_level,
+        "flagged_passages": [
+            {
+                "text": p.text,
+                "similarity_score": p.similarity_score,
+                "source": p.source,
+                "reason": p.reason,
+            }
+            for p in request.flagged_passages
+        ],
+        "detected_sources": [
+            {
+                "url": s.url,
+                "title": s.title,
+                "similarity": s.similarity,
+            }
+            for s in request.detected_sources
+        ],
+        "explanation": explanation,
+        "generated_at": generated_at,
+    }
+
+    if request.ai_score is not None:
+        report["ai_score"] = request.ai_score
+
+    logger.info(
+        "report_generated",
+        document_id=request.document_id,
+        risk_level=risk_level,
+        flagged_count=len(request.flagged_passages),
+    )
+
+    return report
