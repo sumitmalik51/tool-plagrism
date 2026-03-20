@@ -17,6 +17,7 @@ from app.tools.content_extractor_tool import chunk_text, extract_text
 from app.tools.embedding_tool import generate_embeddings_sync
 from app.tools.similarity_tool import run_similarity_analysis
 from app.tools.web_search_tool import search_web
+from app.tools.scholar_tool import search_scholar
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -52,6 +53,12 @@ class AIDetectRequest(BaseModel):
     """Input for the AI detection endpoint."""
     text: str = Field(..., min_length=1, description="Text to analyse")
     chunks: list[str] | None = Field(default=None, description="Optional pre-split chunks")
+
+
+class ScholarSearchRequest(BaseModel):
+    """Input for the Google Scholar search endpoint."""
+    query: str = Field(..., min_length=1, description="Search query for academic papers")
+    max_results: int = Field(default=5, ge=1, le=20, description="Maximum number of results")
 
 
 class ChunkRequest(BaseModel):
@@ -139,6 +146,24 @@ async def web_search_endpoint(request: WebSearchRequest) -> dict:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Web search failed: {exc}",
+        )
+
+
+@router.post("/scholar-search", summary="Search Google Scholar for academic papers")
+async def scholar_search_endpoint(request: ScholarSearchRequest) -> dict:
+    """Search Google Scholar for academic papers matching the query.
+
+    Returns titles, authors, year, abstract snippets, citation counts,
+    and URLs for matching publications.
+    """
+    logger.info("tool_api_scholar_search", query=request.query[:80])
+    try:
+        return await search_scholar(request.query, max_results=request.max_results)
+    except Exception as exc:
+        logger.error("tool_api_scholar_search_error", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Scholar search failed: {exc}",
         )
 
 

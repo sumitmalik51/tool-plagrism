@@ -128,6 +128,35 @@
         }
       }
     },
+    "/tools/scholar-search": {
+      "post": {
+        "summary": "Search Google Scholar for academic papers",
+        "description": "Search Google Scholar for academic papers matching the query. Returns titles, authors, year, abstract snippets, citation counts, and URLs. Use this to check if text passages match published academic literature.",
+        "operationId": "scholarSearch",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScholarSearchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Google Scholar search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScholarSearchResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tools/ai-detect": {
       "post": {
         "summary": "Detect AI-generated text",
@@ -453,6 +482,61 @@
             "type": "array",
             "items": { "type": "string" },
             "description": "Optional pre-split text chunks for per-chunk AI detection analysis"
+          }
+        }
+      },
+      "ScholarSearchRequest": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Search query for finding matching academic papers on Google Scholar"
+          },
+          "max_results": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20,
+            "description": "Maximum number of results to return. Default: 5"
+          }
+        }
+      },
+      "ScholarSearchResponse": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The original search query"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": { "type": "string", "description": "Title of the academic paper" },
+                "authors": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "List of paper authors"
+                },
+                "year": { "type": "string", "description": "Publication year" },
+                "abstract": { "type": "string", "description": "Abstract snippet (up to 500 chars)" },
+                "venue": { "type": "string", "description": "Publication venue (journal/conference)" },
+                "citation_count": { "type": "integer", "description": "Number of citations" },
+                "url": { "type": "string", "description": "URL to the paper" },
+                "scholar_url": { "type": "string", "description": "Google Scholar search URL" }
+              }
+            },
+            "description": "List of matching academic papers"
+          },
+          "result_count": {
+            "type": "integer",
+            "description": "Number of results returned"
+          },
+          "elapsed_s": {
+            "type": "number",
+            "description": "Search time in seconds"
           }
         }
       },

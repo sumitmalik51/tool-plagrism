@@ -76,6 +76,36 @@ def test_web_search_no_api_key() -> None:
     assert data["result_count"] == len(data["results"])
 
 
+def test_scholar_search_endpoint() -> None:
+    """POST /tools/scholar-search should return structured results."""
+    response = client.post(
+        "/tools/scholar-search",
+        json={"query": "machine learning neural networks", "max_results": 3},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "results" in data
+    assert isinstance(data["results"], list)
+    assert data["result_count"] == len(data["results"])
+    assert "query" in data
+    assert "elapsed_s" in data
+    # If results returned, verify structure
+    if data["results"]:
+        r = data["results"][0]
+        assert "title" in r
+        assert "authors" in r
+        assert "url" in r
+
+
+def test_scholar_search_empty_query_rejected() -> None:
+    """POST /tools/scholar-search with empty query should fail validation."""
+    response = client.post(
+        "/tools/scholar-search",
+        json={"query": ""},
+    )
+    assert response.status_code == 422
+
+
 def test_similarity_endpoint() -> None:
     """POST /tools/similarity should compute similarity."""
     import numpy as np
