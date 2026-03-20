@@ -55,7 +55,7 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.app == 'true'
+    if: needs.changes.outputs.app == 'true' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout code
@@ -82,8 +82,7 @@ jobs:
     needs: changes
     if: >-
       github.ref == 'refs/heads/main' &&
-      github.event_name == 'push' &&
-      needs.changes.outputs.infra == 'true'
+      (github.event_name == 'workflow_dispatch' || needs.changes.outputs.infra == 'true')
 
     outputs:
       webAppName: ${{ steps.deploy-bicep.outputs.webAppName }}
@@ -149,8 +148,9 @@ jobs:
     if: >-
       always() &&
       github.ref == 'refs/heads/main' &&
-      github.event_name == 'push' &&
-      (needs.changes.outputs.app == 'true' || needs.changes.outputs.infra == 'true') &&
+      (github.event_name == 'workflow_dispatch' ||
+       needs.changes.outputs.app == 'true' ||
+       needs.changes.outputs.infra == 'true') &&
       !contains(needs.*.result, 'failure')
     outputs:
       webAppName: ${{ steps.resolve-name.outputs.webAppName }}
