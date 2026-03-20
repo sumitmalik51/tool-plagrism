@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PlagiarismGuard</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #242836;
+      --border: #2e3348;
+      --text: #e1e4ed;
+      --text-muted: #8b8fa3;
+      --accent: #6c5ce7;
+      --accent-light: #a29bfe;
+      --green: #00b894;
+      --yellow: #fdcb6e;
+      --red: #e17055;
+      --radius: 12px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header .logo {
+      width: 36px; height: 36px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: grid; place-items: center;
+      font-size: 18px; font-weight: 700;
+    }
+    header h1 { font-size: 20px; font-weight: 600; }
+    header span.version {
+      font-size: 12px;
+      color: var(--text-muted);
+      background: var(--surface2);
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────── */
+    main {
+      max-width: 960px;
+      margin: 40px auto;
+      padding: 0 24px;
+    }
+
+    /* ── Upload Zone ────────────────────────────────────────── */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      background: var(--surface);
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--accent);
+      background: var(--surface2);
+    }
+    .upload-zone .icon { font-size: 48px; margin-bottom: 12px; }
+    .upload-zone p { color: var(--text-muted); margin-top: 8px; font-size: 14px; }
+    .upload-zone .file-types { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .upload-zone input[type="file"] { display: none; }
+
+    .selected-file {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      margin-top: 20px;
+      padding: 12px 16px;
+      background: var(--surface2);
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    .selected-file .name { flex: 1; }
+    .selected-file .size { color: var(--text-muted); font-size: 12px; }
+    .selected-file .remove {
+      background: none; border: none; color: var(--red);
+      cursor: pointer; font-size: 18px;
+    }
+
+    /* ── Button ─────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 28px;
+      background: var(--accent);
+      color: #fff;
+      border: none; border-radius: 8px;
+      font-size: 15px; font-weight: 600;
+      cursor: pointer;
+      margin-top: 20px;
+      transition: opacity .2s;
+    }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn:hover:not(:disabled) { opacity: .85; }
+
+    /* ── Loader ─────────────────────────────────────────────── */
+    .loader-wrap {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 4px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loader-wrap p { color: var(--text-muted); font-size: 14px; }
+
+    /* ── Error ──────────────────────────────────────────────── */
+    .error-box {
+      display: none;
+      margin-top: 24px;
+      padding: 14px 18px;
+      background: rgba(225,112,85,.12);
+      border: 1px solid var(--red);
+      border-radius: 8px;
+      color: var(--red);
+      font-size: 14px;
+    }
+
+    /* ── Results ────────────────────────────────────────────── */
+    #results { display: none; margin-top: 36px; }
+
+    .score-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      display: flex;
+      gap: 32px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .score-ring {
+      position: relative;
+      width: 120px; height: 120px;
+      flex-shrink: 0;
+    }
+    .score-ring svg { transform: rotate(-90deg); }
+    .score-ring .value {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      font-size: 28px; font-weight: 700;
+    }
+    .score-ring .value small { font-size: 12px; color: var(--text-muted); font-weight: 400; }
+    .score-meta { flex: 1; min-width: 200px; }
+    .score-meta h2 { font-size: 22px; margin-bottom: 6px; }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .badge.LOW  { background: rgba(0,184,148,.15); color: var(--green); }
+    .badge.MEDIUM { background: rgba(253,203,110,.15); color: var(--yellow); }
+    .badge.HIGH { background: rgba(225,112,85,.15); color: var(--red); }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .meta-item {
+      background: var(--surface2);
+      padding: 12px;
+      border-radius: 8px;
+    }
+    .meta-item .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+    .meta-item .val { font-size: 18px; font-weight: 600; margin-top: 4px; }
+
+    /* ── Sections ───────────────────────────────────────────── */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-top: 20px;
+      overflow: hidden;
+    }
+    .section-header {
+      padding: 16px 20px;
+      font-size: 15px;
+      font-weight: 600;
+      background: var(--surface2);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .section-header .count {
+      background: var(--accent);
+      color: #fff;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+    .section-header .arrow { margin-left: auto; transition: transform .2s; }
+    .section.collapsed .section-body { display: none; }
+    .section.collapsed .arrow { transform: rotate(-90deg); }
+    .section-body { padding: 16px 20px; }
+
+    /* flagged passages */
+    .passage {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .passage:last-child { border-bottom: none; }
+    .passage .text {
+      font-size: 14px;
+      line-height: 1.6;
+      background: rgba(108,92,231,.08);
+      padding: 10px 14px;
+      border-left: 3px solid var(--accent);
+      border-radius: 0 6px 6px 0;
+      margin-bottom: 8px;
+    }
+    .passage .meta-row {
+      display: flex; gap: 16px; font-size: 12px; color: var(--text-muted);
+    }
+    .passage .sim {
+      font-weight: 600;
+      color: var(--accent-light);
+    }
+
+    /* agent results */
+    .agent-row {
+      display: flex;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+      gap: 12px;
+    }
+    .agent-row:last-child { border-bottom: none; }
+    .agent-row .agent-name {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .agent-bar-wrap {
+      flex: 2;
+      height: 8px;
+      background: var(--surface2);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .agent-bar {
+      height: 100%;
+      border-radius: 4px;
+      transition: width .6s ease;
+    }
+    .agent-score { width: 50px; text-align: right; font-size: 14px; font-weight: 600; }
+
+    /* explanation */
+    .explanation-text {
+      font-size: 14px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      color: var(--text-muted);
+    }
+
+    /* sources */
+    .source-item {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+    .source-item:last-child { border-bottom: none; }
+    .source-item a { color: var(--accent-light); text-decoration: none; }
+    .source-item a:hover { text-decoration: underline; }
+    .source-item .sim-badge {
+      font-size: 12px; color: var(--text-muted);
+    }
+
+    /* ── JSON toggle ────────────────────────────────────────── */
+    .json-toggle {
+      display: flex; justify-content: flex-end; margin-top: 20px;
+    }
+    .json-toggle button {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .json-toggle button:hover { color: var(--text); border-color: var(--accent); }
+    .json-raw {
+      display: none;
+      margin-top: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      overflow-x: auto;
+    }
+    .json-raw pre {
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text-muted);
+    }
+
+    /* ── Responsive ─────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .score-card { flex-direction: column; align-items: stretch; text-align: center; }
+      .score-ring { margin: 0 auto; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">P</div>
+  <h1>PlagiarismGuard</h1>
+  <span class="version">v0.1.0</span>
+</header>
+
+<main>
+  <!-- Upload -->
+  <div class="upload-zone" id="dropZone">
+    <div class="icon">📄</div>
+    <p><strong>Drop your document here</strong> or click to browse</p>
+    <p class="file-types">Supports PDF, DOCX, TXT &bull; Max 20 MB</p>
+    <input type="file" id="fileInput" accept=".pdf,.docx,.txt" />
+  </div>
+
+  <div class="selected-file" id="selectedFile">
+    <span>📎</span>
+    <span class="name" id="fileName"></span>
+    <span class="size" id="fileSize"></span>
+    <button class="remove" id="removeFile" title="Remove">&times;</button>
+  </div>
+
+  <div style="text-align:center">
+    <button class="btn" id="analyzeBtn" disabled>
+      <span id="btnText">Analyze Document</span>
+    </button>
+  </div>
+
+  <!-- Loader -->
+  <div class="loader-wrap" id="loader">
+    <div class="spinner"></div>
+    <p>Running multi-agent analysis&hellip;</p>
+  </div>
+
+  <!-- Error -->
+  <div class="error-box" id="errorBox"></div>
+
+  <!-- Results -->
+  <div id="results">
+    <!-- Score Card -->
+    <div class="score-card">
+      <div class="score-ring">
+        <svg viewBox="0 0 120 120" width="120" height="120">
+          <circle cx="60" cy="60" r="52" fill="none" stroke="var(--surface2)" stroke-width="10"/>
+          <circle id="scoreArc" cx="60" cy="60" r="52" fill="none" stroke="var(--accent)" stroke-width="10"
+                  stroke-linecap="round" stroke-dasharray="326.73" stroke-dashoffset="326.73"/>
+        </svg>
+        <div class="value">
+          <span id="scoreValue">0</span>
+          <small>/ 100</small>
+        </div>
+      </div>
+      <div class="score-meta">
+        <h2>Plagiarism Score</h2>
+        <span class="badge" id="riskBadge">LOW</span>
+        <div class="meta-grid">
+          <div class="meta-item">
+            <div class="label">Confidence</div>
+            <div class="val" id="confidenceVal">—</div>
+          </div>
+          <div class="meta-item">
+            <div class="label">Document ID</div>
+            <div class="val" id="docIdVal" style="font-size:12px;word-break:break-all;">—</div>
+          </div>
+          <div class="meta-item">
+            <div class="label">Agents Used</div>
+            <div class="val" id="agentCountVal">—</div>
+          </div>
+          <div class="meta-item">
+            <div class="label">Flagged Passages</div>
+            <div class="val" id="flaggedCountVal">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent Results -->
+    <div class="section" id="agentSection">
+      <div class="section-header" onclick="toggleSection('agentSection')">
+        🤖 Agent Breakdown <span class="count" id="agentSectionCount">0</span>
+        <span class="arrow">▼</span>
+      </div>
+      <div class="section-body" id="agentBody"></div>
+    </div>
+
+    <!-- Flagged Passages -->
+    <div class="section" id="passageSection">
+      <div class="section-header" onclick="toggleSection('passageSection')">
+        🚩 Flagged Passages <span class="count" id="passageSectionCount">0</span>
+        <span class="arrow">▼</span>
+      </div>
+      <div class="section-body" id="passageBody"></div>
+    </div>
+
+    <!-- Detected Sources -->
+    <div class="section" id="sourceSection">
+      <div class="section-header" onclick="toggleSection('sourceSection')">
+        🔗 Detected Sources <span class="count" id="sourceSectionCount">0</span>
+        <span class="arrow">▼</span>
+      </div>
+      <div class="section-body" id="sourceBody"></div>
+    </div>
+
+    <!-- Explanation -->
+    <div class="section" id="explanationSection">
+      <div class="section-header" onclick="toggleSection('explanationSection')">
+        📝 Explanation
+        <span class="arrow">▼</span>
+      </div>
+      <div class="section-body">
+        <div class="explanation-text" id="explanationText"></div>
+      </div>
+    </div>
+
+    <!-- Raw JSON -->
+    <div class="json-toggle">
+      <button onclick="toggleJson()">{ } View Raw JSON</button>
+    </div>
+    <div class="json-raw" id="jsonRaw">
+      <pre id="jsonPre"></pre>
+    </div>
+  </div>
+</main>
+
+<script>
+  const dropZone     = document.getElementById('dropZone');
+  const fileInput    = document.getElementById('fileInput');
+  const selectedFile = document.getElementById('selectedFile');
+  const fileName     = document.getElementById('fileName');
+  const fileSize     = document.getElementById('fileSize');
+  const removeFile   = document.getElementById('removeFile');
+  const analyzeBtn   = document.getElementById('analyzeBtn');
+  const loader       = document.getElementById('loader');
+  const errorBox     = document.getElementById('errorBox');
+  const results      = document.getElementById('results');
+
+  let currentFile = null;
+
+  /* ── File selection ──────────────────────────────────────── */
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => setFile(e.target.files[0]));
+
+  dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+  });
+
+  removeFile.addEventListener('click', clearFile);
+
+  function setFile(file) {
+    if (!file) return;
+    currentFile = file;
+    fileName.textContent = file.name;
+    fileSize.textContent = formatBytes(file.size);
+    selectedFile.style.display = 'flex';
+    analyzeBtn.disabled = false;
+    results.style.display = 'none';
+    errorBox.style.display = 'none';
+  }
+
+  function clearFile() {
+    currentFile = null;
+    fileInput.value = '';
+    selectedFile.style.display = 'none';
+    analyzeBtn.disabled = true;
+  }
+
+  function formatBytes(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+    return (b / 1048576).toFixed(1) + ' MB';
+  }
+
+  /* ── Analyze ─────────────────────────────────────────────── */
+  analyzeBtn.addEventListener('click', runAnalysis);
+
+  async function runAnalysis() {
+    if (!currentFile) return;
+
+    analyzeBtn.disabled = true;
+    loader.style.display = 'flex';
+    results.style.display = 'none';
+    errorBox.style.display = 'none';
+
+    const form = new FormData();
+    form.append('file', currentFile);
+
+    try {
+      const res = await fetch('/api/v1/analyze', { method: 'POST', body: form });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || 'Analysis failed');
+      }
+      const data = await res.json();
+      renderResults(data);
+    } catch (err) {
+      errorBox.textContent = '⚠ ' + err.message;
+      errorBox.style.display = 'block';
+    } finally {
+      loader.style.display = 'none';
+      analyzeBtn.disabled = false;
+    }
+  }
+
+  /* ── Render ──────────────────────────────────────────────── */
+  function renderResults(data) {
+    results.style.display = 'block';
+
+    // Score ring
+    const score = data.plagiarism_score;
+    const circumference = 2 * Math.PI * 52;
+    const offset = circumference - (score / 100) * circumference;
+    const arc = document.getElementById('scoreArc');
+    arc.style.strokeDashoffset = offset;
+    arc.style.stroke = scoreColor(score);
+    document.getElementById('scoreValue').textContent = Math.round(score);
+
+    // Risk badge
+    const badge = document.getElementById('riskBadge');
+    badge.textContent = data.risk_level;
+    badge.className = 'badge ' + data.risk_level;
+
+    // Meta
+    document.getElementById('confidenceVal').textContent = (data.confidence_score * 100).toFixed(0) + '%';
+    document.getElementById('docIdVal').textContent = data.document_id;
+    document.getElementById('agentCountVal').textContent = data.agent_results.length;
+    document.getElementById('flaggedCountVal').textContent = data.flagged_passages.length;
+
+    // Agent breakdown
+    const agentBody = document.getElementById('agentBody');
+    agentBody.innerHTML = '';
+    document.getElementById('agentSectionCount').textContent = data.agent_results.length;
+    data.agent_results.forEach(a => {
+      const color = scoreColor(a.score);
+      agentBody.innerHTML += `
+        <div class="agent-row">
+          <span class="agent-name">${escHtml(a.agent_name)}</span>
+          <div class="agent-bar-wrap">
+            <div class="agent-bar" style="width:${a.score}%;background:${color}"></div>
+          </div>
+          <span class="agent-score" style="color:${color}">${a.score.toFixed(1)}</span>
+        </div>`;
+    });
+
+    // Flagged passages
+    const passageBody = document.getElementById('passageBody');
+    passageBody.innerHTML = '';
+    document.getElementById('passageSectionCount').textContent = data.flagged_passages.length;
+    if (data.flagged_passages.length === 0) {
+      passageBody.innerHTML = '<p style="color:var(--text-muted);font-size:14px;">No passages flagged.</p>';
+    } else {
+      data.flagged_passages.forEach(fp => {
+        passageBody.innerHTML += `
+          <div class="passage">
+            <div class="text">${escHtml(fp.text)}</div>
+            <div class="meta-row">
+              <span class="sim">Similarity: ${(fp.similarity_score * 100).toFixed(0)}%</span>
+              ${fp.source ? `<span>Source: ${escHtml(fp.source)}</span>` : ''}
+              ${fp.reason ? `<span>${escHtml(fp.reason)}</span>` : ''}
+            </div>
+          </div>`;
+      });
+    }
+
+    // Detected sources
+    const sourceBody = document.getElementById('sourceBody');
+    sourceBody.innerHTML = '';
+    document.getElementById('sourceSectionCount').textContent = data.detected_sources.length;
+    if (data.detected_sources.length === 0) {
+      sourceBody.innerHTML = '<p style="color:var(--text-muted);font-size:14px;">No external sources detected.</p>';
+    } else {
+      data.detected_sources.forEach(s => {
+        const link = s.url ? `<a href="${escHtml(s.url)}" target="_blank">${escHtml(s.title || s.url)}</a>` : (s.title || 'Unknown');
+        sourceBody.innerHTML += `
+          <div class="source-item">
+            ${link}
+            <span class="sim-badge">&nbsp;&bull; ${(s.similarity * 100).toFixed(0)}% match</span>
+          </div>`;
+      });
+    }
+
+    // Explanation
+    document.getElementById('explanationText').textContent = data.explanation;
+
+    // Raw JSON
+    document.getElementById('jsonPre').textContent = JSON.stringify(data, null, 2);
+  }
+
+  function scoreColor(score) {
+    if (score < 30) return 'var(--green)';
+    if (score < 60) return 'var(--yellow)';
+    return 'var(--red)';
+  }
+
+  function escHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  /* ── Toggles ─────────────────────────────────────────────── */
+  function toggleSection(id) {
+    document.getElementById(id).classList.toggle('collapsed');
+  }
+
+  function toggleJson() {
+    const el = document.getElementById('jsonRaw');
+    el.style.display = el.style.display === 'block' ? 'none' : 'block';
+  }
+</script>
+
+</body>
+</html>
