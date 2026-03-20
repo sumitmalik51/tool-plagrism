@@ -230,7 +230,7 @@ jobs:
             --src-path deploy.zip \
             --type zip \
             --clean true \
-            --timeout 120
+            --async true
 
           echo "🔄 Restarting app..."
           az webapp restart \
@@ -248,12 +248,12 @@ jobs:
         run: |
           url="${{ steps.deploy-app.outputs.webapp-url }}/health"
           echo "Waiting for app at: $url"
-          echo "⏳ First deploy installs deps (~5-8 min). Polling for 10 min..."
+          echo "⏳ First deploy installs deps (~10-16 min). Polling for 20 min..."
 
-          for i in $(seq 1 60); do
+          for i in $(seq 1 120); do
             sleep 10
             status=$(curl -s -o /dev/null -w "%{http_code}" "$url" || echo "000")
-            echo "  Attempt $i/60 → HTTP $status  ($(( i * 10 ))s elapsed)"
+            echo "  Attempt $i/120 → HTTP $status  ($(( i * 10 ))s elapsed)"
             if [ "$status" = "200" ]; then
               echo "✅ Health check passed!"
               curl -s "$url" | head -5
@@ -261,7 +261,7 @@ jobs:
             fi
           done
 
-          echo "⚠️ App did not return 200 after 600s"
+          echo "⚠️ App did not return 200 after 1200s"
           echo "   This may be normal for the first deploy (installing ML deps)."
           echo "   Check Docker logs: az webapp log tail -g ${{ env.AZURE_RESOURCE_GROUP }} -n ${{ steps.resolve-name.outputs.webAppName }}"
 
