@@ -17,8 +17,6 @@ httpx==0.28.1
 # Web Search (DuckDuckGo fallback — no API key needed)
 ddgs>=9.0.0
 
-# Academic Search (Google Scholar)
-scholarly>=1.7.0
 
 # Embeddings & ML
 sentence-transformers>=3.0.0

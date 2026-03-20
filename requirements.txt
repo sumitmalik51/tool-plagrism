@@ -16,7 +16,6 @@ httpx==0.28.1
 
 # Web & Academic Search
 ddgs>=9.0.0
-scholarly>=1.7.0
 
 # Embeddings & ML
 sentence-transformers>=3.0.0
