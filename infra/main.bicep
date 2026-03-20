@@ -70,10 +70,6 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
           value: 'false'
         }
         {
-          name: 'WEBSITE_RUN_FROM_PACKAGE'
-          value: '1'
-        }
-        {
           name: 'PYTHONPATH'
           value: '/home/site/wwwroot/.python_packages/lib/site-packages'
         }

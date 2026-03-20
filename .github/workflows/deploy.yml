@@ -301,15 +301,19 @@ jobs:
           ZIP_SIZE=$(du -h deploy.zip | cut -f1)
           echo "Uploading deploy.zip ($ZIP_SIZE)..."
 
+          # Log zip contents (top-level) for debugging
+          echo "📋 Zip contents (top-level):"
+          unzip -l deploy.zip | head -30
+
           az webapp deploy \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --name ${{ steps.resolve-name.outputs.webAppName }} \
             --src-path deploy.zip \
             --type zip \
-            --async true \
             --timeout 600
 
           # Restart the app so it picks up the new package
+          echo "🔄 Restarting app..."
           az webapp restart \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --name ${{ steps.resolve-name.outputs.webAppName }}
