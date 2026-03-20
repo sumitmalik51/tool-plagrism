@@ -8,6 +8,7 @@ from typing import AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
@@ -17,7 +18,6 @@ from app.routes.upload import router as upload_router
 from app.utils.logger import setup_logging
 
 STATIC_DIR = Path(__file__).parent / "static"
-
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -37,6 +37,19 @@ app = FastAPI(
 app.include_router(upload_router)
 app.include_router(analyze_router)
 app.include_router(tools_router)
+
+
+# --- OpenAPI Foundry spec -----------------------------------------------------
+@app.get("/openai-foundry.json", include_in_schema=False)
+async def get_openapi_foundry() -> JSONResponse:
+    """Serve the OpenAPI spec for Azure Foundry Agent."""
+    import json
+
+    spec_path = Path(__file__).parent.parent / "openai-foundry.json"
+    with open(spec_path, "r") as f:
+        data = json.load(f)
+    return JSONResponse(content=data)
+
 
 # --- Static files & UI -------------------------------------------------------
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
