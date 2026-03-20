@@ -1,0 +1,158 @@
+# ---------------------------------------------------------------------------
+# PlagiarismGuard — CI/CD Pipeline
+# Runs tests, provisions Azure infra via Bicep, and deploys to Azure Web App
+# ---------------------------------------------------------------------------
+
+name: CI/CD — Build, Test & Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.13"
+  AZURE_RESOURCE_GROUP: "rg-plagiarismguard"
+  AZURE_LOCATION: "eastus"
+
+jobs:
+  # -----------------------------------------------------------------------
+  # Job 1: Lint & Test
+  # -----------------------------------------------------------------------
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m pytest tests/ -v --tb=short
+
+  # -----------------------------------------------------------------------
+  # Job 2: Provision Azure Infrastructure (Bicep)
+  # -----------------------------------------------------------------------
+  infra:
+    name: Provision Infrastructure
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    outputs:
+      webAppName: ${{ steps.deploy-bicep.outputs.webAppName }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create Resource Group (if needed)
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az group create \
+              --name ${{ env.AZURE_RESOURCE_GROUP }} \
+              --location ${{ env.AZURE_LOCATION }} \
+              --tags project=plagiarismguard environment=production
+
+      - name: Validate Bicep template
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az deployment group validate \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --template-file infra/main.bicep \
+              --parameters @infra/parameters.json
+
+      - name: Deploy Bicep template
+        id: deploy-bicep
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            result=$(az deployment group create \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --template-file infra/main.bicep \
+              --parameters @infra/parameters.json \
+              --parameters bingApiKey='${{ secrets.PG_BING_API_KEY }}' \
+              --query 'properties.outputs' \
+              --output json)
+
+            webAppName=$(echo $result | jq -r '.webAppName.value')
+            webAppUrl=$(echo $result | jq -r '.webAppUrl.value')
+
+            echo "webAppName=$webAppName" >> "$GITHUB_OUTPUT"
+            echo "webAppUrl=$webAppUrl" >> "$GITHUB_OUTPUT"
+            echo "### 🚀 Infrastructure Deployed" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Web App**: $webAppName" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **URL**: $webAppUrl" >> "$GITHUB_STEP_SUMMARY"
+
+  # -----------------------------------------------------------------------
+  # Job 3: Deploy Application to Azure Web App
+  # -----------------------------------------------------------------------
+  deploy:
+    name: Deploy to Azure Web App
+    runs-on: ubuntu-latest
+    needs: infra
+
+    environment:
+      name: production
+      url: ${{ steps.deploy-app.outputs.webapp-url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Web App
+        id: deploy-app
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ needs.infra.outputs.webAppName }}
+
+      - name: Verify deployment
+        run: |
+          echo "Waiting for app to start..."
+          sleep 30
+
+          url="${{ steps.deploy-app.outputs.webapp-url }}/health"
+          echo "Checking health at: $url"
+
+          status=$(curl -s -o /dev/null -w "%{http_code}" "$url" || echo "000")
+          if [ "$status" = "200" ]; then
+            echo "✅ Health check passed (HTTP $status)"
+          else
+            echo "⚠️ Health check returned HTTP $status (app may still be starting)"
+          fi
+
+          echo "### 🏥 Deployment Health Check" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **URL**: $url" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Status**: HTTP $status" >> "$GITHUB_STEP_SUMMARY"
