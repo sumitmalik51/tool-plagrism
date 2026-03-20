@@ -1,9 +1,16 @@
 # ---------------------------------------------------------------------------
-# PlagiarismGuard — CI/CD Pipeline
+# PlagiarismGuard — CI/CD Pipeline (Optimized)
 # Smart conditional execution based on what changed:
 #   - infra/** changed  → provision infra + deploy app (skip tests)
 #   - app/tests/etc     → run tests + deploy app (skip infra)
 #   - both changed      → tests + infra + deploy
+#
+# Speed optimisations:
+#   1. .python_packages/ cached across runs (keyed on requirements-prod.txt)
+#   2. Bloat stripped from packages (tests, docs, *.dist-info) → smaller zip
+#   3. resolve job merged into deploy (one fewer runner spin-up)
+#   4. Prod-only deps (no pytest in deploy package)
+#   5. Health-check uses retry loop instead of blind sleep 30
 # ---------------------------------------------------------------------------
 
 name: CI/CD — Build, Test & Deploy to Azure
@@ -45,8 +52,10 @@ jobs:
               - 'app/**'
               - 'tests/**'
               - 'requirements.txt'
+              - 'requirements-prod.txt'
               - 'startup.sh'
               - 'static/**'
+              - 'openai-foundry.json'
 
   # -----------------------------------------------------------------------
   # Job 1: Test (only when app code changed)
@@ -138,11 +147,13 @@ jobs:
             echo "- **URL**: $webAppUrl" >> "$GITHUB_STEP_SUMMARY"
 
   # -----------------------------------------------------------------------
-  # Job 3: Resolve Web App name
-  # Uses infra output if infra ran, otherwise fetches from Azure directly
+  # Job 3: Deploy Application to Azure Web App
+  # - Caches .python_packages/ (skip pip install when deps unchanged)
+  # - Strips bloat (tests, docs, *.dist-info) → smaller zip + faster upload
+  # - Resolves app name inline (no separate job)
   # -----------------------------------------------------------------------
-  resolve:
-    name: Resolve Web App Name
+  deploy:
+    name: Deploy to Azure Web App
     runs-on: ubuntu-latest
     needs: [changes, test, infra]
     if: >-
@@ -152,23 +163,25 @@ jobs:
        needs.changes.outputs.app == 'true' ||
        needs.changes.outputs.infra == 'true') &&
       !contains(needs.*.result, 'failure')
-    outputs:
-      webAppName: ${{ steps.resolve-name.outputs.webAppName }}
+
+    environment:
+      name: production
+      url: ${{ steps.deploy-app.outputs.webapp-url }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # -- Resolve Web App name (from infra output or Azure query) ---------
       - name: Login to Azure
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
           auth-type: SERVICE_PRINCIPAL
 
-      - name: Resolve app name
+      - name: Resolve Web App name
         id: resolve-name
         run: |
-          # Use infra output if available, otherwise query Azure
           INFRA_NAME="${{ needs.infra.outputs.webAppName }}"
           if [ -n "$INFRA_NAME" ] && [ "$INFRA_NAME" != "" ]; then
             echo "webAppName=$INFRA_NAME" >> "$GITHUB_OUTPUT"
@@ -182,71 +195,90 @@ jobs:
             echo "Resolved from Azure: $APP_NAME"
           fi
 
-  # -----------------------------------------------------------------------
-  # Job 4: Deploy Application to Azure Web App
-  # Pre-builds deps on runner → zips production files → zip-deploys to Azure
-  # Skips Oryx remote build for ~10 min faster deploys
-  # -----------------------------------------------------------------------
-  deploy:
-    name: Deploy to Azure Web App
-    runs-on: ubuntu-latest
-    needs: resolve
-
-    environment:
-      name: production
-      url: ${{ steps.deploy-app.outputs.webapp-url }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
+      # -- Build dependencies (cached) ------------------------------------
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: "pip"
 
-      - name: Install dependencies (pre-build for Azure)
+      - name: Cache pre-built packages
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: .python_packages
+          key: python-packages-${{ env.PYTHON_VERSION }}-${{ hashFiles('requirements-prod.txt') }}
+
+      - name: Install production dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
         run: |
-          pip install -r requirements.txt --target=.python_packages/lib/site-packages --quiet
+          pip install -r requirements-prod.txt \
+            --target=.python_packages/lib/site-packages \
+            --quiet
 
+      # -- Slim down packages (strip tests, docs, large extras) -----------
+      - name: Strip bloat from packages
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: |
+          SITE=".python_packages/lib/site-packages"
+          echo "Before cleanup: $(du -sh $SITE | cut -f1)"
+
+          # Remove test suites, docs, type stubs, build artifacts
+          find $SITE -type d -name "tests"        -exec rm -rf {} + 2>/dev/null || true
+          find $SITE -type d -name "test"         -exec rm -rf {} + 2>/dev/null || true
+          find $SITE -type d -name "__pycache__"  -exec rm -rf {} + 2>/dev/null || true
+          find $SITE -type d -name "docs"         -exec rm -rf {} + 2>/dev/null || true
+          find $SITE -type d -name "doc"          -exec rm -rf {} + 2>/dev/null || true
+          find $SITE -type d -name "examples"     -exec rm -rf {} + 2>/dev/null || true
+          find $SITE -type d -name "benchmarks"   -exec rm -rf {} + 2>/dev/null || true
+          find $SITE -name "*.dist-info" -type d  -exec rm -rf {} + 2>/dev/null || true
+          find $SITE -name "*.egg-info" -type d   -exec rm -rf {} + 2>/dev/null || true
+
+          # Remove PyTorch extras we don't need (CUDA kernels, etc.)
+          rm -rf $SITE/torch/test 2>/dev/null || true
+          rm -rf $SITE/torch/_inductor 2>/dev/null || true
+          rm -rf $SITE/torch/include 2>/dev/null || true
+          rm -rf $SITE/caffe2 2>/dev/null || true
+          rm -rf $SITE/functorch 2>/dev/null || true
+
+          # Remove .pyc files
+          find $SITE -name "*.pyc" -delete 2>/dev/null || true
+
+          echo "After cleanup:  $(du -sh $SITE | cut -f1)"
+
+      # -- Package & Deploy -----------------------------------------------
       - name: Create deployment package
         run: |
-          zip -r deploy.zip \
+          zip -r -q deploy.zip \
             app/ \
             .python_packages/ \
-            requirements.txt \
+            openai-foundry.json \
+            requirements-prod.txt \
             startup.sh \
             -x "app/__pycache__/*" "app/**/__pycache__/*" "*.pyc"
           echo "📦 Package size: $(du -h deploy.zip | cut -f1)"
-
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-          auth-type: SERVICE_PRINCIPAL
 
       - name: Deploy to Azure Web App
         id: deploy-app
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ needs.resolve.outputs.webAppName }}
+          app-name: ${{ steps.resolve-name.outputs.webAppName }}
           package: deploy.zip
 
       - name: Verify deployment
         run: |
-          echo "Waiting for app to start..."
-          sleep 30
-
           url="${{ steps.deploy-app.outputs.webapp-url }}/health"
           echo "Checking health at: $url"
 
-          status=$(curl -s -o /dev/null -w "%{http_code}" "$url" || echo "000")
-          if [ "$status" = "200" ]; then
-            echo "✅ Health check passed (HTTP $status)"
-          else
-            echo "⚠️ Health check returned HTTP $status (app may still be starting)"
-          fi
+          for i in 1 2 3 4 5 6; do
+            sleep 10
+            status=$(curl -s -o /dev/null -w "%{http_code}" "$url" || echo "000")
+            echo "  Attempt $i → HTTP $status"
+            if [ "$status" = "200" ]; then
+              echo "✅ Health check passed"
+              exit 0
+            fi
+          done
+          echo "⚠️ App did not return 200 after 60s (may still be starting)"
 
           echo "### 🏥 Deployment Health Check" >> "$GITHUB_STEP_SUMMARY"
           echo "- **URL**: $url" >> "$GITHUB_STEP_SUMMARY"
