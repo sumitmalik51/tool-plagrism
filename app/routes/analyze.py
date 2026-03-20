@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, HTTPException, UploadFile, status
+from pydantic import BaseModel, Field
 
 from app.models.schemas import PlagiarismReport
 from app.services.ingestion import ingest_file
@@ -14,6 +17,19 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["analysis"])
 
+
+# ---------------------------------------------------------------------------
+# Request schema for text-based analysis
+# ---------------------------------------------------------------------------
+
+class AnalyzeTextRequest(BaseModel):
+    """JSON body for the /analyze-agent endpoint."""
+    text: str = Field(..., min_length=1, description="Plain text to analyse for plagiarism")
+
+
+# ---------------------------------------------------------------------------
+# File-based analysis (existing)
+# ---------------------------------------------------------------------------
 
 @router.post(
     "/analyze",
@@ -51,6 +67,45 @@ async def analyze_document(file: UploadFile) -> PlagiarismReport:
 
     logger.info(
         "analysis_complete",
+        document_id=report.document_id,
+        plagiarism_score=report.plagiarism_score,
+    )
+
+    return report
+
+
+# ---------------------------------------------------------------------------
+# Text-based analysis (for Foundry agents & frontend)
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/analyze-agent",
+    response_model=PlagiarismReport,
+    status_code=status.HTTP_200_OK,
+    summary="Analyse pasted text for plagiarism",
+)
+async def analyze_text(request: AnalyzeTextRequest) -> PlagiarismReport:
+    """Accept raw text, run every detection agent in parallel, and return
+    a structured plagiarism report.
+
+    This is the primary endpoint used by the frontend text-paste flow
+    and by Azure Foundry agents.
+    """
+    document_id = uuid.uuid4().hex
+
+    logger.info(
+        "analyze_agent_started",
+        document_id=document_id,
+        text_length=len(request.text),
+    )
+
+    report = await run_pipeline(
+        document_id=document_id,
+        text=request.text,
+    )
+
+    logger.info(
+        "analyze_agent_complete",
         document_id=report.document_id,
         plagiarism_score=report.plagiarism_score,
     )

@@ -4,650 +4,498 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PlagiarismGuard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bg:       '#0f1117',
+            surface:  '#1a1d27',
+            surface2: '#242836',
+            border:   '#2e3348',
+            txt:      '#e1e4ed',
+            muted:    '#8b8fa3',
+            accent:   '#6c5ce7',
+            'accent-l':'#a29bfe',
+            ok:       '#00b894',
+            warn:     '#fdcb6e',
+            danger:   '#e17055',
+          }
+        }
+      }
+    }
+  </script>
   <style>
-    :root {
-      --bg: #0f1117;
-      --surface: #1a1d27;
-      --surface2: #242836;
-      --border: #2e3348;
-      --text: #e1e4ed;
-      --text-muted: #8b8fa3;
-      --accent: #6c5ce7;
-      --accent-light: #a29bfe;
-      --green: #00b894;
-      --yellow: #fdcb6e;
-      --red: #e17055;
-      --radius: 12px;
-    }
-
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-    }
-
-    /* ── Header ─────────────────────────────────────────────── */
-    header {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 16px 32px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    header .logo {
-      width: 36px; height: 36px;
-      background: var(--accent);
-      border-radius: 8px;
-      display: grid; place-items: center;
-      font-size: 18px; font-weight: 700;
-    }
-    header h1 { font-size: 20px; font-weight: 600; }
-    header span.version {
-      font-size: 12px;
-      color: var(--text-muted);
-      background: var(--surface2);
-      padding: 2px 8px;
-      border-radius: 6px;
-    }
-
-    /* ── Layout ─────────────────────────────────────────────── */
-    main {
-      max-width: 960px;
-      margin: 40px auto;
-      padding: 0 24px;
-    }
-
-    /* ── Upload Zone ────────────────────────────────────────── */
-    .upload-zone {
-      border: 2px dashed var(--border);
-      border-radius: var(--radius);
-      padding: 48px 24px;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color .2s, background .2s;
-      background: var(--surface);
-    }
-    .upload-zone:hover, .upload-zone.drag-over {
-      border-color: var(--accent);
-      background: var(--surface2);
-    }
-    .upload-zone .icon { font-size: 48px; margin-bottom: 12px; }
-    .upload-zone p { color: var(--text-muted); margin-top: 8px; font-size: 14px; }
-    .upload-zone .file-types { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
-    .upload-zone input[type="file"] { display: none; }
-
-    .selected-file {
-      display: none;
-      align-items: center;
-      gap: 12px;
-      margin-top: 20px;
-      padding: 12px 16px;
-      background: var(--surface2);
-      border-radius: 8px;
-      font-size: 14px;
-    }
-    .selected-file .name { flex: 1; }
-    .selected-file .size { color: var(--text-muted); font-size: 12px; }
-    .selected-file .remove {
-      background: none; border: none; color: var(--red);
-      cursor: pointer; font-size: 18px;
-    }
-
-    /* ── Button ─────────────────────────────────────────────── */
-    .btn {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 12px 28px;
-      background: var(--accent);
-      color: #fff;
-      border: none; border-radius: 8px;
-      font-size: 15px; font-weight: 600;
-      cursor: pointer;
-      margin-top: 20px;
-      transition: opacity .2s;
-    }
-    .btn:disabled { opacity: .4; cursor: not-allowed; }
-    .btn:hover:not(:disabled) { opacity: .85; }
-
-    /* ── Loader ─────────────────────────────────────────────── */
-    .loader-wrap {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
-      margin-top: 32px;
-    }
-    .spinner {
-      width: 40px; height: 40px;
-      border: 4px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin .8s linear infinite;
-    }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .loader-wrap p { color: var(--text-muted); font-size: 14px; }
-
-    /* ── Error ──────────────────────────────────────────────── */
-    .error-box {
-      display: none;
-      margin-top: 24px;
-      padding: 14px 18px;
-      background: rgba(225,112,85,.12);
-      border: 1px solid var(--red);
-      border-radius: 8px;
-      color: var(--red);
-      font-size: 14px;
-    }
-
-    /* ── Results ────────────────────────────────────────────── */
-    #results { display: none; margin-top: 36px; }
-
-    .score-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 28px;
-      display: flex;
-      gap: 32px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-    .score-ring {
-      position: relative;
-      width: 120px; height: 120px;
-      flex-shrink: 0;
-    }
-    .score-ring svg { transform: rotate(-90deg); }
-    .score-ring .value {
-      position: absolute; inset: 0;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      font-size: 28px; font-weight: 700;
-    }
-    .score-ring .value small { font-size: 12px; color: var(--text-muted); font-weight: 400; }
-    .score-meta { flex: 1; min-width: 200px; }
-    .score-meta h2 { font-size: 22px; margin-bottom: 6px; }
-    .badge {
-      display: inline-block;
-      padding: 4px 12px;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 600;
-    }
-    .badge.LOW  { background: rgba(0,184,148,.15); color: var(--green); }
-    .badge.MEDIUM { background: rgba(253,203,110,.15); color: var(--yellow); }
-    .badge.HIGH { background: rgba(225,112,85,.15); color: var(--red); }
-
-    .meta-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 12px;
-      margin-top: 16px;
-    }
-    .meta-item {
-      background: var(--surface2);
-      padding: 12px;
-      border-radius: 8px;
-    }
-    .meta-item .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
-    .meta-item .val { font-size: 18px; font-weight: 600; margin-top: 4px; }
-
-    /* ── Sections ───────────────────────────────────────────── */
-    .section {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      margin-top: 20px;
-      overflow: hidden;
-    }
-    .section-header {
-      padding: 16px 20px;
-      font-size: 15px;
-      font-weight: 600;
-      background: var(--surface2);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      user-select: none;
-    }
-    .section-header .count {
-      background: var(--accent);
-      color: #fff;
-      font-size: 11px;
-      padding: 2px 8px;
-      border-radius: 10px;
-    }
-    .section-header .arrow { margin-left: auto; transition: transform .2s; }
-    .section.collapsed .section-body { display: none; }
-    .section.collapsed .arrow { transform: rotate(-90deg); }
-    .section-body { padding: 16px 20px; }
-
-    /* flagged passages */
-    .passage {
-      padding: 12px 0;
-      border-bottom: 1px solid var(--border);
-    }
-    .passage:last-child { border-bottom: none; }
-    .passage .text {
-      font-size: 14px;
-      line-height: 1.6;
-      background: rgba(108,92,231,.08);
-      padding: 10px 14px;
-      border-left: 3px solid var(--accent);
-      border-radius: 0 6px 6px 0;
-      margin-bottom: 8px;
-    }
-    .passage .meta-row {
-      display: flex; gap: 16px; font-size: 12px; color: var(--text-muted);
-    }
-    .passage .sim {
-      font-weight: 600;
-      color: var(--accent-light);
-    }
-
-    /* agent results */
-    .agent-row {
-      display: flex;
-      align-items: center;
-      padding: 12px 0;
-      border-bottom: 1px solid var(--border);
-      gap: 12px;
-    }
-    .agent-row:last-child { border-bottom: none; }
-    .agent-row .agent-name {
-      flex: 1;
-      font-size: 14px;
-      font-weight: 500;
-    }
-    .agent-bar-wrap {
-      flex: 2;
-      height: 8px;
-      background: var(--surface2);
-      border-radius: 4px;
-      overflow: hidden;
-    }
-    .agent-bar {
-      height: 100%;
-      border-radius: 4px;
-      transition: width .6s ease;
-    }
-    .agent-score { width: 50px; text-align: right; font-size: 14px; font-weight: 600; }
-
-    /* explanation */
-    .explanation-text {
-      font-size: 14px;
-      line-height: 1.7;
-      white-space: pre-wrap;
-      color: var(--text-muted);
-    }
-
-    /* sources */
-    .source-item {
-      padding: 10px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 14px;
-    }
-    .source-item:last-child { border-bottom: none; }
-    .source-item a { color: var(--accent-light); text-decoration: none; }
-    .source-item a:hover { text-decoration: underline; }
-    .source-item .sim-badge {
-      font-size: 12px; color: var(--text-muted);
-    }
-
-    /* ── JSON toggle ────────────────────────────────────────── */
-    .json-toggle {
-      display: flex; justify-content: flex-end; margin-top: 20px;
-    }
-    .json-toggle button {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      padding: 8px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 13px;
-    }
-    .json-toggle button:hover { color: var(--text); border-color: var(--accent); }
-    .json-raw {
-      display: none;
-      margin-top: 12px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
-      overflow-x: auto;
-    }
-    .json-raw pre {
-      font-family: 'Cascadia Code', 'Fira Code', monospace;
-      font-size: 12px;
-      line-height: 1.5;
-      color: var(--text-muted);
-    }
-
-    /* ── Responsive ─────────────────────────────────────────── */
-    @media (max-width: 600px) {
-      .score-card { flex-direction: column; align-items: stretch; text-align: center; }
-      .score-ring { margin: 0 auto; }
-    }
+    .spinner { animation: spin .8s linear infinite; }
+    /* custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #1a1d27; }
+    ::-webkit-scrollbar-thumb { background: #2e3348; border-radius: 3px; }
   </style>
 </head>
-<body>
+<body class="bg-bg text-txt min-h-screen">
 
-<header>
-  <div class="logo">P</div>
-  <h1>PlagiarismGuard</h1>
-  <span class="version">v0.1.0</span>
-</header>
+  <!-- ── Header ─────────────────────────────────────────────── -->
+  <header class="bg-surface border-b border-border px-6 py-4 flex items-center gap-3">
+    <div class="w-9 h-9 bg-accent rounded-lg grid place-items-center text-white font-bold text-lg">P</div>
+    <h1 class="text-xl font-semibold">PlagiarismGuard</h1>
+    <span class="text-xs text-muted bg-surface2 px-2 py-0.5 rounded-md">v0.1.0</span>
+  </header>
 
-<main>
-  <!-- Upload -->
-  <div class="upload-zone" id="dropZone">
-    <div class="icon">📄</div>
-    <p><strong>Drop your document here</strong> or click to browse</p>
-    <p class="file-types">Supports PDF, DOCX, TXT &bull; Max 20 MB</p>
-    <input type="file" id="fileInput" accept=".pdf,.docx,.txt" />
-  </div>
+  <main class="max-w-4xl mx-auto px-5 py-10">
 
-  <div class="selected-file" id="selectedFile">
-    <span>📎</span>
-    <span class="name" id="fileName"></span>
-    <span class="size" id="fileSize"></span>
-    <button class="remove" id="removeFile" title="Remove">&times;</button>
-  </div>
+    <!-- ── Input mode tabs ──────────────────────────────────── -->
+    <div class="flex gap-2 mb-5">
+      <button id="tabText" onclick="switchTab('text')"
+        class="tab-btn px-5 py-2.5 rounded-lg text-sm font-medium transition-all">
+        ✏️ Paste Text
+      </button>
+      <button id="tabFile" onclick="switchTab('file')"
+        class="tab-btn px-5 py-2.5 rounded-lg text-sm font-medium transition-all">
+        📄 Upload File
+      </button>
+    </div>
 
-  <div style="text-align:center">
-    <button class="btn" id="analyzeBtn" disabled>
-      <span id="btnText">Analyze Document</span>
-    </button>
-  </div>
+    <!-- ── Text input ───────────────────────────────────────── -->
+    <div id="textPanel">
+      <div class="relative">
+        <textarea id="textInput" rows="10" placeholder="Paste your text here and click Analyze…"
+          class="w-full bg-surface border border-border rounded-xl p-5 text-sm leading-relaxed text-txt placeholder-muted resize-y focus:outline-none focus:border-accent transition-colors"></textarea>
+        <div class="absolute bottom-3 right-4 text-xs text-muted" id="charCount">0 characters</div>
+      </div>
+    </div>
 
-  <!-- Loader -->
-  <div class="loader-wrap" id="loader">
-    <div class="spinner"></div>
-    <p>Running multi-agent analysis&hellip;</p>
-  </div>
+    <!-- ── File upload ──────────────────────────────────────── -->
+    <div id="filePanel" class="hidden">
+      <div id="dropZone"
+        class="border-2 border-dashed border-border rounded-xl p-12 text-center cursor-pointer bg-surface hover:border-accent hover:bg-surface2 transition-all">
+        <div class="text-5xl mb-3">📄</div>
+        <p class="text-muted"><strong class="text-txt">Drop your document here</strong> or click to browse</p>
+        <p class="text-xs text-muted mt-1">Supports PDF, DOCX, TXT &bull; Max 20 MB</p>
+        <input type="file" id="fileInput" accept=".pdf,.docx,.txt" class="hidden" />
+      </div>
 
-  <!-- Error -->
-  <div class="error-box" id="errorBox"></div>
+      <div id="selectedFile" class="hidden mt-4 flex items-center gap-3 px-4 py-3 bg-surface2 rounded-lg text-sm">
+        <span>📎</span>
+        <span class="flex-1" id="fileName"></span>
+        <span class="text-muted text-xs" id="fileSize"></span>
+        <button id="removeFile" class="text-danger text-lg leading-none hover:opacity-70" title="Remove">&times;</button>
+      </div>
+    </div>
 
-  <!-- Results -->
-  <div id="results">
-    <!-- Score Card -->
-    <div class="score-card">
-      <div class="score-ring">
-        <svg viewBox="0 0 120 120" width="120" height="120">
-          <circle cx="60" cy="60" r="52" fill="none" stroke="var(--surface2)" stroke-width="10"/>
-          <circle id="scoreArc" cx="60" cy="60" r="52" fill="none" stroke="var(--accent)" stroke-width="10"
-                  stroke-linecap="round" stroke-dasharray="326.73" stroke-dashoffset="326.73"/>
-        </svg>
-        <div class="value">
-          <span id="scoreValue">0</span>
-          <small>/ 100</small>
+    <!-- ── Analyze button ───────────────────────────────────── -->
+    <div class="text-center mt-5">
+      <button id="analyzeBtn" disabled
+        class="inline-flex items-center gap-2 px-7 py-3 bg-accent text-white rounded-lg text-[15px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-85 transition-opacity">
+        <span id="btnIcon">🔍</span>
+        <span id="btnText">Analyze</span>
+      </button>
+    </div>
+
+    <!-- ── Empty state ──────────────────────────────────────── -->
+    <div id="emptyState" class="mt-14 text-center">
+      <p class="text-4xl mb-3">📝</p>
+      <p class="text-muted">Paste text or upload a document, then click <strong class="text-accent-l">Analyze</strong></p>
+    </div>
+
+    <!-- ── Loader ───────────────────────────────────────────── -->
+    <div id="loader" class="hidden flex-col items-center gap-4 mt-10">
+      <div class="w-10 h-10 border-4 border-border border-t-accent rounded-full spinner"></div>
+      <p class="text-muted text-sm">Running multi-agent analysis&hellip;</p>
+    </div>
+
+    <!-- ── Error ────────────────────────────────────────────── -->
+    <div id="errorBox" class="hidden mt-6 px-5 py-4 bg-danger/10 border border-danger rounded-xl text-danger text-sm"></div>
+
+    <!-- ══════════════ Results ══════════════ -->
+    <div id="results" class="hidden mt-10 space-y-5">
+
+      <!-- ── Summary Card ───────────────────────────────────── -->
+      <div class="bg-surface border border-border rounded-xl p-7 flex flex-wrap gap-8 items-center">
+        <!-- Score Ring -->
+        <div class="relative w-[120px] h-[120px] flex-shrink-0 mx-auto sm:mx-0">
+          <svg viewBox="0 0 120 120" width="120" height="120" class="-rotate-90">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="#242836" stroke-width="10"/>
+            <circle id="scoreArc" cx="60" cy="60" r="52" fill="none" stroke="#6c5ce7" stroke-width="10"
+                    stroke-linecap="round" stroke-dasharray="326.73" stroke-dashoffset="326.73"/>
+          </svg>
+          <div class="absolute inset-0 flex flex-col items-center justify-center">
+            <span id="scoreValue" class="text-3xl font-bold">0</span>
+            <small class="text-xs text-muted">/ 100</small>
+          </div>
+        </div>
+
+        <!-- Meta -->
+        <div class="flex-1 min-w-[200px]">
+          <h2 class="text-xl font-semibold mb-1">Plagiarism Score</h2>
+          <span id="riskBadge" class="inline-block px-3 py-1 rounded-md text-xs font-semibold">LOW</span>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+            <div class="bg-surface2 p-3 rounded-lg">
+              <div class="text-[11px] text-muted uppercase tracking-wide">Confidence</div>
+              <div class="text-lg font-semibold mt-1" id="confidenceVal">&mdash;</div>
+            </div>
+            <div class="bg-surface2 p-3 rounded-lg">
+              <div class="text-[11px] text-muted uppercase tracking-wide">Doc ID</div>
+              <div class="text-xs font-semibold mt-1 break-all" id="docIdVal">&mdash;</div>
+            </div>
+            <div class="bg-surface2 p-3 rounded-lg">
+              <div class="text-[11px] text-muted uppercase tracking-wide">Agents</div>
+              <div class="text-lg font-semibold mt-1" id="agentCountVal">&mdash;</div>
+            </div>
+            <div class="bg-surface2 p-3 rounded-lg">
+              <div class="text-[11px] text-muted uppercase tracking-wide">Flagged</div>
+              <div class="text-lg font-semibold mt-1" id="flaggedCountVal">&mdash;</div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="score-meta">
-        <h2>Plagiarism Score</h2>
-        <span class="badge" id="riskBadge">LOW</span>
-        <div class="meta-grid">
-          <div class="meta-item">
-            <div class="label">Confidence</div>
-            <div class="val" id="confidenceVal">—</div>
-          </div>
-          <div class="meta-item">
-            <div class="label">Document ID</div>
-            <div class="val" id="docIdVal" style="font-size:12px;word-break:break-all;">—</div>
-          </div>
-          <div class="meta-item">
-            <div class="label">Agents Used</div>
-            <div class="val" id="agentCountVal">—</div>
-          </div>
-          <div class="meta-item">
-            <div class="label">Flagged Passages</div>
-            <div class="val" id="flaggedCountVal">—</div>
-          </div>
+
+      <!-- ── Agent Breakdown ────────────────────────────────── -->
+      <div class="bg-surface border border-border rounded-xl overflow-hidden" id="agentSection">
+        <div class="flex items-center gap-2 px-5 py-4 bg-surface2 cursor-pointer select-none font-medium text-sm" onclick="toggleSection('agentSection')">
+          🤖 Agent Breakdown <span class="bg-accent text-white text-[11px] px-2 py-0.5 rounded-full" id="agentSectionCount">0</span>
+          <span class="ml-auto transition-transform arrow">▼</span>
+        </div>
+        <div class="px-5 py-4 section-body" id="agentBody"></div>
+      </div>
+
+      <!-- ── Flagged Passages ───────────────────────────────── -->
+      <div class="bg-surface border border-border rounded-xl overflow-hidden" id="passageSection">
+        <div class="flex items-center gap-2 px-5 py-4 bg-surface2 cursor-pointer select-none font-medium text-sm" onclick="toggleSection('passageSection')">
+          🚩 Flagged Passages <span class="bg-accent text-white text-[11px] px-2 py-0.5 rounded-full" id="passageSectionCount">0</span>
+          <span class="ml-auto transition-transform arrow">▼</span>
+        </div>
+        <div class="px-5 py-4 section-body" id="passageBody"></div>
+      </div>
+
+      <!-- ── Detected Sources ───────────────────────────────── -->
+      <div class="bg-surface border border-border rounded-xl overflow-hidden" id="sourceSection">
+        <div class="flex items-center gap-2 px-5 py-4 bg-surface2 cursor-pointer select-none font-medium text-sm" onclick="toggleSection('sourceSection')">
+          🔗 Matched Sources <span class="bg-accent text-white text-[11px] px-2 py-0.5 rounded-full" id="sourceSectionCount">0</span>
+          <span class="ml-auto transition-transform arrow">▼</span>
+        </div>
+        <div class="px-5 py-4 section-body" id="sourceBody"></div>
+      </div>
+
+      <!-- ── Explanation ────────────────────────────────────── -->
+      <div class="bg-surface border border-border rounded-xl overflow-hidden" id="explanationSection">
+        <div class="flex items-center gap-2 px-5 py-4 bg-surface2 cursor-pointer select-none font-medium text-sm" onclick="toggleSection('explanationSection')">
+          📝 Explanation
+          <span class="ml-auto transition-transform arrow">▼</span>
+        </div>
+        <div class="px-5 py-4 section-body">
+          <p class="text-sm leading-relaxed text-muted whitespace-pre-wrap" id="explanationText"></p>
         </div>
       </div>
-    </div>
 
-    <!-- Agent Results -->
-    <div class="section" id="agentSection">
-      <div class="section-header" onclick="toggleSection('agentSection')">
-        🤖 Agent Breakdown <span class="count" id="agentSectionCount">0</span>
-        <span class="arrow">▼</span>
+      <!-- ── Actions row ────────────────────────────────────── -->
+      <div class="flex justify-end gap-3">
+        <button onclick="copyResults()" class="px-4 py-2 bg-surface2 border border-border text-muted text-sm rounded-lg hover:text-txt hover:border-accent transition-colors">
+          📋 Copy Results
+        </button>
+        <button onclick="toggleJson()" class="px-4 py-2 bg-surface2 border border-border text-muted text-sm rounded-lg hover:text-txt hover:border-accent transition-colors">
+          { } Raw JSON
+        </button>
       </div>
-      <div class="section-body" id="agentBody"></div>
-    </div>
 
-    <!-- Flagged Passages -->
-    <div class="section" id="passageSection">
-      <div class="section-header" onclick="toggleSection('passageSection')">
-        🚩 Flagged Passages <span class="count" id="passageSectionCount">0</span>
-        <span class="arrow">▼</span>
+      <div id="jsonRaw" class="hidden bg-surface border border-border rounded-xl p-5 overflow-x-auto">
+        <pre class="font-mono text-xs leading-relaxed text-muted" id="jsonPre"></pre>
       </div>
-      <div class="section-body" id="passageBody"></div>
-    </div>
 
-    <!-- Detected Sources -->
-    <div class="section" id="sourceSection">
-      <div class="section-header" onclick="toggleSection('sourceSection')">
-        🔗 Detected Sources <span class="count" id="sourceSectionCount">0</span>
-        <span class="arrow">▼</span>
-      </div>
-      <div class="section-body" id="sourceBody"></div>
-    </div>
-
-    <!-- Explanation -->
-    <div class="section" id="explanationSection">
-      <div class="section-header" onclick="toggleSection('explanationSection')">
-        📝 Explanation
-        <span class="arrow">▼</span>
-      </div>
-      <div class="section-body">
-        <div class="explanation-text" id="explanationText"></div>
+      <!-- ── Copy toast ────────────────────────────────────── -->
+      <div id="toast" class="fixed bottom-6 right-6 bg-accent text-white px-5 py-3 rounded-lg text-sm font-medium shadow-lg transition-all duration-300 translate-y-20 opacity-0 pointer-events-none">
+        Copied to clipboard!
       </div>
     </div>
 
-    <!-- Raw JSON -->
-    <div class="json-toggle">
-      <button onclick="toggleJson()">{ } View Raw JSON</button>
-    </div>
-    <div class="json-raw" id="jsonRaw">
-      <pre id="jsonPre"></pre>
-    </div>
-  </div>
-</main>
+  </main>
 
 <script>
-  const dropZone     = document.getElementById('dropZone');
-  const fileInput    = document.getElementById('fileInput');
-  const selectedFile = document.getElementById('selectedFile');
-  const fileName     = document.getElementById('fileName');
-  const fileSize     = document.getElementById('fileSize');
-  const removeFile   = document.getElementById('removeFile');
-  const analyzeBtn   = document.getElementById('analyzeBtn');
-  const loader       = document.getElementById('loader');
-  const errorBox     = document.getElementById('errorBox');
-  const results      = document.getElementById('results');
+  /* ═══════════════════════════════════════════════════════════
+     DOM refs
+     ═══════════════════════════════════════════════════════════ */
+  const $ = id => document.getElementById(id);
 
-  let currentFile = null;
+  const textInput   = $('textInput');
+  const charCount   = $('charCount');
+  const dropZone    = $('dropZone');
+  const fileInput   = $('fileInput');
+  const selectedFile= $('selectedFile');
+  const fileName    = $('fileName');
+  const fileSize    = $('fileSize');
+  const analyzeBtn  = $('analyzeBtn');
+  const btnText     = $('btnText');
+  const btnIcon     = $('btnIcon');
+  const loader      = $('loader');
+  const errorBox    = $('errorBox');
+  const results     = $('results');
+  const emptyState  = $('emptyState');
 
-  /* ── File selection ──────────────────────────────────────── */
-  dropZone.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', (e) => setFile(e.target.files[0]));
+  let currentFile   = null;
+  let currentMode   = 'text';  // 'text' | 'file'
+  let lastReport    = null;
 
-  dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-  dropZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropZone.classList.remove('drag-over');
-    if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+  /* ═══════════════════════════════════════════════════════════
+     Tab switching
+     ═══════════════════════════════════════════════════════════ */
+  function switchTab(mode) {
+    currentMode = mode;
+    const active  = 'bg-accent text-white';
+    const passive = 'bg-surface2 text-muted hover:text-txt';
+
+    $('tabText').className = `tab-btn px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${mode === 'text' ? active : passive}`;
+    $('tabFile').className = `tab-btn px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${mode === 'file' ? active : passive}`;
+
+    $('textPanel').classList.toggle('hidden', mode !== 'text');
+    $('filePanel').classList.toggle('hidden', mode !== 'file');
+
+    updateAnalyzeBtn();
+  }
+  switchTab('text');  // init
+
+  /* ═══════════════════════════════════════════════════════════
+     Text input
+     ═══════════════════════════════════════════════════════════ */
+  textInput.addEventListener('input', () => {
+    const len = textInput.value.length;
+    charCount.textContent = len.toLocaleString() + ' character' + (len !== 1 ? 's' : '');
+    updateAnalyzeBtn();
   });
 
-  removeFile.addEventListener('click', clearFile);
+  /* ═══════════════════════════════════════════════════════════
+     File input
+     ═══════════════════════════════════════════════════════════ */
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => setFile(e.target.files[0]));
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-accent', 'bg-surface2'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-accent', 'bg-surface2'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('border-accent', 'bg-surface2');
+    if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+  });
+  $('removeFile').addEventListener('click', clearFile);
 
   function setFile(file) {
     if (!file) return;
     currentFile = file;
     fileName.textContent = file.name;
-    fileSize.textContent = formatBytes(file.size);
-    selectedFile.style.display = 'flex';
-    analyzeBtn.disabled = false;
-    results.style.display = 'none';
-    errorBox.style.display = 'none';
+    fileSize.textContent = fmtBytes(file.size);
+    selectedFile.classList.remove('hidden');
+    selectedFile.classList.add('flex');
+    updateAnalyzeBtn();
   }
 
   function clearFile() {
     currentFile = null;
     fileInput.value = '';
-    selectedFile.style.display = 'none';
-    analyzeBtn.disabled = true;
+    selectedFile.classList.add('hidden');
+    selectedFile.classList.remove('flex');
+    updateAnalyzeBtn();
   }
 
-  function formatBytes(b) {
+  function fmtBytes(b) {
     if (b < 1024) return b + ' B';
     if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
     return (b / 1048576).toFixed(1) + ' MB';
   }
 
-  /* ── Analyze ─────────────────────────────────────────────── */
+  function updateAnalyzeBtn() {
+    const ready = currentMode === 'text'
+      ? textInput.value.trim().length > 0
+      : currentFile !== null;
+    analyzeBtn.disabled = !ready;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Analyze
+     ═══════════════════════════════════════════════════════════ */
   analyzeBtn.addEventListener('click', runAnalysis);
 
   async function runAnalysis() {
-    if (!currentFile) return;
-
     analyzeBtn.disabled = true;
-    loader.style.display = 'flex';
-    results.style.display = 'none';
-    errorBox.style.display = 'none';
-
-    const form = new FormData();
-    form.append('file', currentFile);
+    btnText.textContent = 'Analyzing…';
+    btnIcon.textContent = '⏳';
+    loader.classList.remove('hidden');
+    loader.classList.add('flex');
+    results.classList.add('hidden');
+    emptyState.classList.add('hidden');
+    errorBox.classList.add('hidden');
 
     try {
-      const res = await fetch('/api/v1/analyze', { method: 'POST', body: form });
+      let res;
+
+      if (currentMode === 'text') {
+        /* ── Text mode → POST /api/v1/analyze-agent ── */
+        res = await fetch('/api/v1/analyze-agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: textInput.value }),
+        });
+      } else {
+        /* ── File mode → POST /api/v1/analyze ── */
+        const form = new FormData();
+        form.append('file', currentFile);
+        res = await fetch('/api/v1/analyze', { method: 'POST', body: form });
+      }
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
         throw new Error(err.detail || 'Analysis failed');
       }
+
       const data = await res.json();
+      lastReport = data;
       renderResults(data);
     } catch (err) {
       errorBox.textContent = '⚠ ' + err.message;
-      errorBox.style.display = 'block';
+      errorBox.classList.remove('hidden');
     } finally {
-      loader.style.display = 'none';
-      analyzeBtn.disabled = false;
+      loader.classList.add('hidden');
+      loader.classList.remove('flex');
+      btnText.textContent = 'Analyze';
+      btnIcon.textContent = '🔍';
+      updateAnalyzeBtn();
     }
   }
 
-  /* ── Render ──────────────────────────────────────────────── */
+  /* ═══════════════════════════════════════════════════════════
+     Render Results
+     ═══════════════════════════════════════════════════════════ */
   function renderResults(data) {
-    results.style.display = 'block';
+    results.classList.remove('hidden');
+    emptyState.classList.add('hidden');
 
-    // Score ring
+    // ── Score ring ──
     const score = data.plagiarism_score;
-    const circumference = 2 * Math.PI * 52;
-    const offset = circumference - (score / 100) * circumference;
-    const arc = document.getElementById('scoreArc');
+    const circ = 2 * Math.PI * 52;
+    const offset = circ - (score / 100) * circ;
+    const arc = $('scoreArc');
     arc.style.strokeDashoffset = offset;
     arc.style.stroke = scoreColor(score);
-    document.getElementById('scoreValue').textContent = Math.round(score);
+    $('scoreValue').textContent = Math.round(score);
 
-    // Risk badge
-    const badge = document.getElementById('riskBadge');
+    // ── Risk badge ──
+    const badge = $('riskBadge');
     badge.textContent = data.risk_level;
-    badge.className = 'badge ' + data.risk_level;
+    const badgeColors = { LOW: 'bg-ok/15 text-ok', MEDIUM: 'bg-warn/15 text-warn', HIGH: 'bg-danger/15 text-danger' };
+    badge.className = `inline-block px-3 py-1 rounded-md text-xs font-semibold ${badgeColors[data.risk_level] || ''}`;
 
-    // Meta
-    document.getElementById('confidenceVal').textContent = (data.confidence_score * 100).toFixed(0) + '%';
-    document.getElementById('docIdVal').textContent = data.document_id;
-    document.getElementById('agentCountVal').textContent = data.agent_results.length;
-    document.getElementById('flaggedCountVal').textContent = data.flagged_passages.length;
+    // ── Meta values ──
+    $('confidenceVal').textContent = (data.confidence_score * 100).toFixed(0) + '%';
+    $('docIdVal').textContent = data.document_id;
+    $('agentCountVal').textContent = (data.agent_results || []).length;
+    $('flaggedCountVal').textContent = (data.flagged_passages || []).length;
 
-    // Agent breakdown
-    const agentBody = document.getElementById('agentBody');
-    agentBody.innerHTML = '';
-    document.getElementById('agentSectionCount').textContent = data.agent_results.length;
-    data.agent_results.forEach(a => {
-      const color = scoreColor(a.score);
-      agentBody.innerHTML += `
-        <div class="agent-row">
-          <span class="agent-name">${escHtml(a.agent_name)}</span>
-          <div class="agent-bar-wrap">
-            <div class="agent-bar" style="width:${a.score}%;background:${color}"></div>
+    // ── Agent breakdown ──
+    const agents = data.agent_results || [];
+    $('agentSectionCount').textContent = agents.length;
+    const agentBody = $('agentBody');
+    if (agents.length === 0) {
+      agentBody.innerHTML = '<p class="text-muted text-sm">No agent data available.</p>';
+    } else {
+      agentBody.innerHTML = agents.map(a => `
+        <div class="flex items-center py-3 border-b border-border last:border-0 gap-3">
+          <span class="flex-1 text-sm font-medium">${esc(a.agent_name)}</span>
+          <div class="flex-[2] h-2 bg-surface2 rounded-full overflow-hidden">
+            <div class="h-full rounded-full transition-all duration-500" style="width:${a.score}%;background:${scoreColor(a.score)}"></div>
           </div>
-          <span class="agent-score" style="color:${color}">${a.score.toFixed(1)}</span>
+          <span class="w-12 text-right text-sm font-semibold" style="color:${scoreColor(a.score)}">${a.score.toFixed(1)}</span>
+        </div>`).join('');
+    }
+
+    // ── Flagged passages ──
+    const passages = data.flagged_passages || [];
+    $('passageSectionCount').textContent = passages.length;
+    const passageBody = $('passageBody');
+    if (passages.length === 0) {
+      passageBody.innerHTML = '<p class="text-muted text-sm">No passages flagged — looking good! ✅</p>';
+    } else {
+      passageBody.innerHTML = passages.map(fp => `
+        <div class="py-3 border-b border-border last:border-0">
+          <div class="text-sm leading-relaxed bg-accent/[.08] p-3 border-l-[3px] border-accent rounded-r-md mb-2">${esc(fp.text)}</div>
+          <div class="flex flex-wrap gap-4 text-xs text-muted">
+            <span class="font-semibold text-accent-l">Similarity: ${(fp.similarity_score * 100).toFixed(0)}%</span>
+            ${fp.source ? `<span>Source: <a href="${esc(fp.source)}" target="_blank" class="text-accent-l hover:underline">${esc(fp.source)}</a></span>` : ''}
+            ${fp.reason ? `<span>${esc(fp.reason)}</span>` : ''}
+          </div>
+        </div>`).join('');
+    }
+
+    // ── Detected sources ──
+    const sources = data.detected_sources || [];
+    $('sourceSectionCount').textContent = sources.length;
+    const sourceBody = $('sourceBody');
+    if (sources.length === 0) {
+      sourceBody.innerHTML = '<p class="text-muted text-sm">No external sources detected.</p>';
+    } else {
+      sourceBody.innerHTML = sources.map(s => {
+        const link = s.url
+          ? `<a href="${esc(s.url)}" target="_blank" class="text-accent-l hover:underline">${esc(s.title || s.url)}</a>`
+          : esc(s.title || 'Unknown');
+        return `<div class="py-2.5 border-b border-border last:border-0 text-sm">
+          ${link} <span class="text-xs text-muted">&bull; ${(s.similarity * 100).toFixed(0)}% match</span>
         </div>`;
-    });
-
-    // Flagged passages
-    const passageBody = document.getElementById('passageBody');
-    passageBody.innerHTML = '';
-    document.getElementById('passageSectionCount').textContent = data.flagged_passages.length;
-    if (data.flagged_passages.length === 0) {
-      passageBody.innerHTML = '<p style="color:var(--text-muted);font-size:14px;">No passages flagged.</p>';
-    } else {
-      data.flagged_passages.forEach(fp => {
-        passageBody.innerHTML += `
-          <div class="passage">
-            <div class="text">${escHtml(fp.text)}</div>
-            <div class="meta-row">
-              <span class="sim">Similarity: ${(fp.similarity_score * 100).toFixed(0)}%</span>
-              ${fp.source ? `<span>Source: ${escHtml(fp.source)}</span>` : ''}
-              ${fp.reason ? `<span>${escHtml(fp.reason)}</span>` : ''}
-            </div>
-          </div>`;
-      });
+      }).join('');
     }
 
-    // Detected sources
-    const sourceBody = document.getElementById('sourceBody');
-    sourceBody.innerHTML = '';
-    document.getElementById('sourceSectionCount').textContent = data.detected_sources.length;
-    if (data.detected_sources.length === 0) {
-      sourceBody.innerHTML = '<p style="color:var(--text-muted);font-size:14px;">No external sources detected.</p>';
-    } else {
-      data.detected_sources.forEach(s => {
-        const link = s.url ? `<a href="${escHtml(s.url)}" target="_blank">${escHtml(s.title || s.url)}</a>` : (s.title || 'Unknown');
-        sourceBody.innerHTML += `
-          <div class="source-item">
-            ${link}
-            <span class="sim-badge">&nbsp;&bull; ${(s.similarity * 100).toFixed(0)}% match</span>
-          </div>`;
-      });
-    }
+    // ── Explanation ──
+    $('explanationText').textContent = data.explanation || '';
 
-    // Explanation
-    document.getElementById('explanationText').textContent = data.explanation;
+    // ── Raw JSON ──
+    $('jsonPre').textContent = JSON.stringify(data, null, 2);
 
-    // Raw JSON
-    document.getElementById('jsonPre').textContent = JSON.stringify(data, null, 2);
+    // Scroll to results
+    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  function scoreColor(score) {
-    if (score < 30) return 'var(--green)';
-    if (score < 60) return 'var(--yellow)';
-    return 'var(--red)';
+  /* ═══════════════════════════════════════════════════════════
+     Helpers
+     ═══════════════════════════════════════════════════════════ */
+  function scoreColor(s) {
+    if (s < 30) return '#00b894';
+    if (s < 60) return '#fdcb6e';
+    return '#e17055';
   }
 
-  function escHtml(str) {
+  function esc(str) {
     const d = document.createElement('div');
     d.textContent = str;
     return d.innerHTML;
   }
 
-  /* ── Toggles ─────────────────────────────────────────────── */
   function toggleSection(id) {
-    document.getElementById(id).classList.toggle('collapsed');
+    const el = $(id);
+    const body = el.querySelector('.section-body');
+    const arrow = el.querySelector('.arrow');
+    if (body.style.display === 'none') {
+      body.style.display = '';
+      arrow.style.transform = '';
+    } else {
+      body.style.display = 'none';
+      arrow.style.transform = 'rotate(-90deg)';
+    }
   }
 
   function toggleJson() {
-    const el = document.getElementById('jsonRaw');
-    el.style.display = el.style.display === 'block' ? 'none' : 'block';
+    const el = $('jsonRaw');
+    el.classList.toggle('hidden');
+  }
+
+  async function copyResults() {
+    if (!lastReport) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(lastReport, null, 2));
+      showToast();
+    } catch { /* fallback: noop */ }
+  }
+
+  function showToast() {
+    const t = $('toast');
+    t.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+    setTimeout(() => t.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none'), 2000);
   }
 </script>
 

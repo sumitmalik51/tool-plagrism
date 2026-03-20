@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import AsyncIterator
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -31,6 +32,14 @@ app = FastAPI(
     version=settings.app_version,
     description="AI-powered multi-agent plagiarism detection system",
     lifespan=lifespan,
+)
+
+# --- CORS (needed for Foundry agents calling cross-origin) -------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # --- Register routers --------------------------------------------------------

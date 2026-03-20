@@ -185,10 +185,50 @@
           }
         }
       }
+    },
+    "/api/v1/analyze-agent": {
+      "post": {
+        "summary": "Run full multi-agent plagiarism analysis on text",
+        "description": "Accepts raw text and runs the complete multi-agent plagiarism detection pipeline (semantic analysis, web search, academic checking, AI detection) in parallel. Returns a comprehensive plagiarism report with scores, risk level, flagged passages, detected sources, and explanation.",
+        "operationId": "analyzeText",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzeTextRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Full plagiarism analysis report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlagiarismReportResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AnalyzeTextRequest": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The plain text to analyse for plagiarism. The full multi-agent pipeline will run on this text."
+          }
+        }
+      },
       "ChunkRequest": {
         "type": "object",
         "required": ["text"],
