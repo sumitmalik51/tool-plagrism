@@ -147,9 +147,11 @@ jobs:
             echo "- **URL**: $webAppUrl" >> "$GITHUB_STEP_SUMMARY"
 
   # -----------------------------------------------------------------------
+  # -----------------------------------------------------------------------
   # Job 3: Deploy Application to Azure Web App
-  # - Caches .python_packages/ (skip pip install when deps unchanged)
-  # - Strips bloat (tests, docs, *.dist-info) → smaller zip + faster upload
+  # - Deploys ONLY app code (~100 KB zip) — fast upload, no 504 timeout
+  # - Dependencies are installed by startup.sh into a persistent venv
+  #   at /home/site/venv/ (cached across restarts, ~5 min first boot)
   # - Resolves app name inline (no separate job)
   # -----------------------------------------------------------------------
   deploy:
@@ -195,97 +197,19 @@ jobs:
             echo "Resolved from Azure: $APP_NAME"
           fi
 
-      # -- Build dependencies (cached) ------------------------------------
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Cache pre-built packages
-        id: cache-deps
-        uses: actions/cache@v4
-        with:
-          path: .python_packages
-          key: python-packages-${{ env.PYTHON_VERSION }}-cpu-${{ hashFiles('requirements-prod.txt') }}
-
-      - name: Install production dependencies
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: |
-          # Install CPU-only PyTorch first (saves ~1.5 GB vs CUDA version)
-          pip install torch --index-url https://download.pytorch.org/whl/cpu \
-            --target=.python_packages/lib/site-packages \
-            --quiet
-
-          # Then remaining deps (pip skips torch since it's already present)
-          pip install -r requirements-prod.txt \
-            --target=.python_packages/lib/site-packages \
-            --quiet
-
-      # -- Slim down packages (strip tests, docs, large extras) -----------
-      - name: Strip bloat from packages
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: |
-          SITE=".python_packages/lib/site-packages"
-          echo "Before cleanup: $(du -sh $SITE | cut -f1)"
-
-          # Remove test suites, docs, type stubs, build artifacts
-          find $SITE -type d -name "tests"        -exec rm -rf {} + 2>/dev/null || true
-          find $SITE -type d -name "test"         -exec rm -rf {} + 2>/dev/null || true
-          find $SITE -type d -name "__pycache__"  -exec rm -rf {} + 2>/dev/null || true
-          find $SITE -type d -name "docs"         -exec rm -rf {} + 2>/dev/null || true
-          find $SITE -type d -name "doc"          -exec rm -rf {} + 2>/dev/null || true
-          find $SITE -type d -name "examples"     -exec rm -rf {} + 2>/dev/null || true
-          find $SITE -type d -name "benchmarks"   -exec rm -rf {} + 2>/dev/null || true
-          find $SITE -name "*.dist-info" -type d  -exec rm -rf {} + 2>/dev/null || true
-          find $SITE -name "*.egg-info" -type d   -exec rm -rf {} + 2>/dev/null || true
-
-          # Remove PyTorch extras we don't need
-          rm -rf $SITE/torch/test 2>/dev/null || true
-          rm -rf $SITE/torch/_inductor 2>/dev/null || true
-          rm -rf $SITE/torch/include 2>/dev/null || true
-          rm -rf $SITE/torch/_C/*.py 2>/dev/null || true
-          rm -rf $SITE/caffe2 2>/dev/null || true
-          rm -rf $SITE/functorch 2>/dev/null || true
-
-          # Remove NVIDIA/CUDA libs that sneak in even with CPU torch
-          rm -rf $SITE/nvidia 2>/dev/null || true
-          rm -rf $SITE/triton 2>/dev/null || true
-          rm -rf $SITE/torch/lib/libnvfuser*   2>/dev/null || true
-          rm -rf $SITE/torch/lib/libcudart*    2>/dev/null || true
-          rm -rf $SITE/torch/lib/libnccl*      2>/dev/null || true
-          rm -rf $SITE/torch/lib/libcupti*     2>/dev/null || true
-          rm -rf $SITE/torch/lib/libcudnn*     2>/dev/null || true
-          rm -rf $SITE/torch/lib/libnvrtc*     2>/dev/null || true
-          rm -rf $SITE/torch/lib/libcublas*    2>/dev/null || true
-          rm -rf $SITE/torch/lib/libcusparse*  2>/dev/null || true
-          rm -rf $SITE/torch/lib/libcusolver*  2>/dev/null || true
-          rm -rf $SITE/torch/lib/libcufft*     2>/dev/null || true
-          rm -rf $SITE/torch/lib/libcurand*    2>/dev/null || true
-
-          # Remove unused torch backends/compiled extensions
-          rm -rf $SITE/torch/backends/cuda*    2>/dev/null || true
-          rm -rf $SITE/torch/backends/cudnn*   2>/dev/null || true
-          rm -rf $SITE/torch/backends/cusparselt* 2>/dev/null || true
-          rm -rf $SITE/torch/contrib          2>/dev/null || true
-          rm -rf $SITE/torch/utils/data/_utils 2>/dev/null || true
-
-          # Remove .pyc files
-          find $SITE -name "*.pyc" -delete 2>/dev/null || true
-
-          echo "After cleanup:  $(du -sh $SITE | cut -f1)"
-
-      # -- Package & Deploy -----------------------------------------------
+      # -- Package app code only (deps installed by startup.sh) -----------
       - name: Create deployment package
         run: |
           chmod +x startup.sh
           zip -r -q deploy.zip \
             app/ \
-            .python_packages/ \
             openai-foundry.json \
             requirements-prod.txt \
             startup.sh \
             -x "app/__pycache__/*" "app/**/__pycache__/*" "*.pyc"
           echo "📦 Package size: $(du -h deploy.zip | cut -f1)"
+          echo "📋 Zip contents:"
+          unzip -l deploy.zip | tail -5
 
       - name: Ensure startup command is set
         run: |
@@ -298,21 +222,15 @@ jobs:
       - name: Deploy to Azure Web App
         id: deploy-app
         run: |
-          ZIP_SIZE=$(du -h deploy.zip | cut -f1)
-          echo "Uploading deploy.zip ($ZIP_SIZE)..."
-
-          # Log zip contents (top-level) for debugging
-          echo "📋 Zip contents (top-level):"
-          unzip -l deploy.zip | head -30
+          echo "Uploading deploy.zip ($(du -h deploy.zip | cut -f1))..."
 
           az webapp deploy \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --name ${{ steps.resolve-name.outputs.webAppName }} \
             --src-path deploy.zip \
             --type zip \
-            --timeout 600
+            --timeout 120
 
-          # Restart the app so it picks up the new package
           echo "🔄 Restarting app..."
           az webapp restart \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
@@ -324,22 +242,28 @@ jobs:
             --query defaultHostName --output tsv)
           echo "webapp-url=https://$WEBAPP_URL" >> "$GITHUB_OUTPUT"
 
+      # -- Health check (first deploy takes ~8 min for pip install) --------
       - name: Verify deployment
         run: |
           url="${{ steps.deploy-app.outputs.webapp-url }}/health"
-          echo "Checking health at: $url"
+          echo "Waiting for app at: $url"
+          echo "⏳ First deploy installs deps (~5-8 min). Polling for 10 min..."
 
-          for i in $(seq 1 12); do
+          for i in $(seq 1 60); do
             sleep 10
             status=$(curl -s -o /dev/null -w "%{http_code}" "$url" || echo "000")
-            echo "  Attempt $i → HTTP $status"
+            echo "  Attempt $i/60 → HTTP $status  ($(( i * 10 ))s elapsed)"
             if [ "$status" = "200" ]; then
-              echo "✅ Health check passed"
+              echo "✅ Health check passed!"
+              curl -s "$url" | head -5
               exit 0
             fi
           done
-          echo "⚠️ App did not return 200 after 120s (may still be starting)"
+
+          echo "⚠️ App did not return 200 after 600s"
+          echo "   This may be normal for the first deploy (installing ML deps)."
+          echo "   Check Docker logs: az webapp log tail -g ${{ env.AZURE_RESOURCE_GROUP }} -n ${{ steps.resolve-name.outputs.webAppName }}"
 
           echo "### 🏥 Deployment Health Check" >> "$GITHUB_STEP_SUMMARY"
           echo "- **URL**: $url" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Status**: HTTP $status" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Status**: HTTP $status (may still be installing dependencies)" >> "$GITHUB_STEP_SUMMARY"

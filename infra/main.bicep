@@ -70,10 +70,6 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
           value: 'false'
         }
         {
-          name: 'PYTHONPATH'
-          value: '/home/site/wwwroot/.python_packages/lib/site-packages'
-        }
-        {
           name: 'PG_LOG_LEVEL'
           value: 'INFO'
         }
@@ -86,12 +82,8 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
           value: '/home/uploads'
         }
         {
-          name: 'SCM_COMMAND_IDLE_TIMEOUT'
-          value: '600'
-        }
-        {
           name: 'WEBSITES_CONTAINER_START_TIME_LIMIT'
-          value: '300'
+          value: '1800'
         }
       ]
     }
