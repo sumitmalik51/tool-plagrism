@@ -7,8 +7,8 @@
 # Add pre-built packages to Python path
 export PYTHONPATH="/home/site/wwwroot/.python_packages/lib/site-packages:$PYTHONPATH"
 
-# Create uploads directory if it doesn't exist
-mkdir -p uploads
+# Create uploads directory outside wwwroot (read-only with run-from-package)
+mkdir -p /home/uploads
 
 # Start the FastAPI app — Azure injects PORT env var
 exec gunicorn app.main:app \

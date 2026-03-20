@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.37.4.10188",
-      "templateHash": "8711704522785227349"
+      "templateHash": "8615448187431165602"
     }
   },
   "parameters": {
@@ -92,7 +92,19 @@
           "appSettings": [
             {
               "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
-              "value": "true"
+              "value": "false"
+            },
+            {
+              "name": "ENABLE_ORYX_BUILD",
+              "value": "false"
+            },
+            {
+              "name": "WEBSITE_RUN_FROM_PACKAGE",
+              "value": "1"
+            },
+            {
+              "name": "PYTHONPATH",
+              "value": "/home/site/wwwroot/.python_packages/lib/site-packages"
             },
             {
               "name": "PG_LOG_LEVEL",
@@ -101,6 +113,10 @@
             {
               "name": "PG_BING_API_KEY",
               "value": "[parameters('bingApiKey')]"
+            },
+            {
+              "name": "PG_UPLOAD_DIR",
+              "value": "/home/uploads"
             }
           ]
         }

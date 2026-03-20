@@ -44,11 +44,24 @@ app.include_router(tools_router)
 async def get_openapi_foundry() -> JSONResponse:
     """Serve the OpenAPI spec for Azure Foundry Agent."""
     import json
+    import logging
 
-    spec_path = Path(__file__).parent.parent / "openai-foundry.json"
-    with open(spec_path, "r") as f:
-        data = json.load(f)
-    return JSONResponse(content=data)
+    # Try multiple candidate paths (covers local dev + Azure App Service)
+    candidates = [
+        Path(__file__).resolve().parent.parent / "openai-foundry.json",   # relative to app/
+        Path("/home/site/wwwroot/openai-foundry.json"),                   # Azure absolute
+        Path.cwd() / "openai-foundry.json",                              # cwd-relative
+    ]
+
+    for spec_path in candidates:
+        if spec_path.is_file():
+            with open(spec_path, "r") as f:
+                data = json.load(f)
+            return JSONResponse(content=data)
+
+    tried = [str(p) for p in candidates]
+    logging.error("openai-foundry.json not found. Tried: %s", tried)
+    return JSONResponse(content={"error": "spec not found", "searched": tried}, status_code=404)
 
 
 # --- Static files & UI -------------------------------------------------------
