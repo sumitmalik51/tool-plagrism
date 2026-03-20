@@ -7,6 +7,7 @@ Can be called independently via API or by any orchestrator.
 from __future__ import annotations
 
 import asyncio
+import threading
 import time
 from functools import lru_cache
 from typing import TYPE_CHECKING
@@ -21,6 +22,10 @@ if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer
 
 logger = get_logger(__name__)
+
+# The HuggingFace tokenizer (Rust/PyO3) is NOT thread-safe. Guard all
+# model.encode() calls so concurrent agents don't trigger "Already borrowed".
+_model_lock = threading.Lock()
 
 
 @lru_cache(maxsize=1)
@@ -44,14 +49,19 @@ def preload_model() -> None:
 
 
 def _embed_sync(texts: list[str]) -> NDArray[np.float32]:
-    """Generate embeddings synchronously (CPU-bound)."""
-    model = _load_model()
-    embeddings: NDArray[np.float32] = model.encode(
-        texts,
-        convert_to_numpy=True,
-        normalize_embeddings=True,
-        show_progress_bar=False,
-    )
+    """Generate embeddings synchronously (CPU-bound).
+
+    Uses ``_model_lock`` to prevent concurrent tokenizer access which
+    triggers the Rust/PyO3 "Already borrowed" panic.
+    """
+    with _model_lock:
+        model = _load_model()
+        embeddings: NDArray[np.float32] = model.encode(
+            texts,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        )
     return embeddings
 
 
