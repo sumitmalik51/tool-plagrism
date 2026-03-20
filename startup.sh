@@ -20,26 +20,30 @@ echo "[startup] =================================================="
 REQS_HASH=$(md5sum "$REQS" 2>/dev/null | cut -d' ' -f1 || echo "none")
 INSTALLED_HASH=$(cat "$HASH_FILE" 2>/dev/null || echo "")
 
-if [ "$REQS_HASH" != "$INSTALLED_HASH" ]; then
-    echo "[startup] Dependencies changed or first run — installing..."
-    echo "[startup] Requirements hash: $REQS_HASH (cached: $INSTALLED_HASH)"
-
-    # Create fresh venv
-    rm -rf "$VENV"
+if [ ! -d "$VENV/bin" ]; then
+    echo "[startup] First run — creating venv and installing all deps..."
     python -m venv "$VENV"
     source "$VENV/bin/activate"
 
-    # Install CPU-only PyTorch first (saves ~1.5 GB vs CUDA)
     echo "[startup] Installing CPU-only PyTorch..."
     pip install torch --index-url https://download.pytorch.org/whl/cpu --quiet --no-cache-dir
 
-    # Install remaining production deps
     echo "[startup] Installing production dependencies..."
     pip install -r "$REQS" --quiet --no-cache-dir
 
-    # Save hash so next restart skips install
     echo "$REQS_HASH" > "$HASH_FILE"
-    echo "[startup] Dependencies installed successfully."
+    echo "[startup] Full install complete."
+
+elif [ "$REQS_HASH" != "$INSTALLED_HASH" ]; then
+    echo "[startup] Dependencies changed — incremental update..."
+    echo "[startup] Requirements hash: $REQS_HASH (cached: $INSTALLED_HASH)"
+    source "$VENV/bin/activate"
+
+    # Incremental: pip installs only new/changed packages, skips existing
+    pip install -r "$REQS" --quiet --no-cache-dir
+
+    echo "$REQS_HASH" > "$HASH_FILE"
+    echo "[startup] Incremental update complete."
 else
     echo "[startup] Dependencies cached — skipping install."
     source "$VENV/bin/activate"
