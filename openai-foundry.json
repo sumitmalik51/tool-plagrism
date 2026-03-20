@@ -1,0 +1,126 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "PlagiarismGuard",
+    "description": "AI-powered plagiarism detection system",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/tools/web-search": {
+      "post": {
+        "summary": "Search web for matching content",
+        "operationId": "webSearch",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": ["query"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Search results"
+          }
+        }
+      }
+    },
+    "/tools/ai-detect": {
+      "post": {
+        "summary": "Detect AI generated text",
+        "operationId": "aiDetect",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "required": ["text"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI detection result"
+          }
+        }
+      }
+    },
+    "/tools/simple-similarity": {
+      "post": {
+        "summary": "Compute semantic similarity",
+        "operationId": "simpleSimilarity",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "required": ["text"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Similarity result"
+          }
+        }
+      }
+    },
+    "/tools/chunk": {
+      "post": {
+        "summary": "Split text into chunks",
+        "operationId": "chunkText",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  },
+                  "chunk_size": {
+                    "type": "integer",
+                    "nullable": true
+                  },
+                  "overlap": {
+                    "type": "integer",
+                    "nullable": true
+                  }
+                },
+                "required": ["text"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chunked text"
+          }
+        }
+      }
+    }
+  }
+}

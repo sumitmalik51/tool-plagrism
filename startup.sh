@@ -1,11 +1,11 @@
 #!/bin/bash
 # ---------------------------------------------------------------------------
 # PlagiarismGuard — Azure App Service startup script
-# Runs uvicorn with the correct settings for production on Azure
+# Dependencies are pre-built and shipped in .python_packages/
 # ---------------------------------------------------------------------------
 
-# Install dependencies (Azure Oryx build should handle this, but just in case)
-pip install -r requirements.txt --quiet
+# Add pre-built packages to Python path
+export PYTHONPATH="/home/site/wwwroot/.python_packages/lib/site-packages:$PYTHONPATH"
 
 # Create uploads directory if it doesn't exist
 mkdir -p uploads
