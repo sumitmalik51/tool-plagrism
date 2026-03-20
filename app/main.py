@@ -24,6 +24,9 @@ STATIC_DIR = Path(__file__).parent / "static"
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan: runs setup on startup and teardown on shutdown."""
     setup_logging(settings.log_level)
+    # Preload the embedding model so first request doesn't timeout
+    from app.tools.embedding_tool import preload_model
+    preload_model()
     yield
 
 

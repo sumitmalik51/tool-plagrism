@@ -35,6 +35,14 @@ def _load_model() -> SentenceTransformer:
     return model
 
 
+def preload_model() -> None:
+    """Eagerly load the embedding model (called at app startup)."""
+    try:
+        _load_model()
+    except Exception as exc:
+        logger.error("model_preload_failed", error=str(exc))
+
+
 def _embed_sync(texts: list[str]) -> NDArray[np.float32]:
     """Generate embeddings synchronously (CPU-bound)."""
     model = _load_model()
