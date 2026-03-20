@@ -206,11 +206,17 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .python_packages
-          key: python-packages-${{ env.PYTHON_VERSION }}-${{ hashFiles('requirements-prod.txt') }}
+          key: python-packages-${{ env.PYTHON_VERSION }}-cpu-${{ hashFiles('requirements-prod.txt') }}
 
       - name: Install production dependencies
         if: steps.cache-deps.outputs.cache-hit != 'true'
         run: |
+          # Install CPU-only PyTorch first (saves ~1.5 GB vs CUDA version)
+          pip install torch --index-url https://download.pytorch.org/whl/cpu \
+            --target=.python_packages/lib/site-packages \
+            --quiet
+
+          # Then remaining deps (pip skips torch since it's already present)
           pip install -r requirements-prod.txt \
             --target=.python_packages/lib/site-packages \
             --quiet
@@ -233,12 +239,35 @@ jobs:
           find $SITE -name "*.dist-info" -type d  -exec rm -rf {} + 2>/dev/null || true
           find $SITE -name "*.egg-info" -type d   -exec rm -rf {} + 2>/dev/null || true
 
-          # Remove PyTorch extras we don't need (CUDA kernels, etc.)
+          # Remove PyTorch extras we don't need
           rm -rf $SITE/torch/test 2>/dev/null || true
           rm -rf $SITE/torch/_inductor 2>/dev/null || true
           rm -rf $SITE/torch/include 2>/dev/null || true
+          rm -rf $SITE/torch/_C/*.py 2>/dev/null || true
           rm -rf $SITE/caffe2 2>/dev/null || true
           rm -rf $SITE/functorch 2>/dev/null || true
+
+          # Remove NVIDIA/CUDA libs that sneak in even with CPU torch
+          rm -rf $SITE/nvidia 2>/dev/null || true
+          rm -rf $SITE/triton 2>/dev/null || true
+          rm -rf $SITE/torch/lib/libnvfuser*   2>/dev/null || true
+          rm -rf $SITE/torch/lib/libcudart*    2>/dev/null || true
+          rm -rf $SITE/torch/lib/libnccl*      2>/dev/null || true
+          rm -rf $SITE/torch/lib/libcupti*     2>/dev/null || true
+          rm -rf $SITE/torch/lib/libcudnn*     2>/dev/null || true
+          rm -rf $SITE/torch/lib/libnvrtc*     2>/dev/null || true
+          rm -rf $SITE/torch/lib/libcublas*    2>/dev/null || true
+          rm -rf $SITE/torch/lib/libcusparse*  2>/dev/null || true
+          rm -rf $SITE/torch/lib/libcusolver*  2>/dev/null || true
+          rm -rf $SITE/torch/lib/libcufft*     2>/dev/null || true
+          rm -rf $SITE/torch/lib/libcurand*    2>/dev/null || true
+
+          # Remove unused torch backends/compiled extensions
+          rm -rf $SITE/torch/backends/cuda*    2>/dev/null || true
+          rm -rf $SITE/torch/backends/cudnn*   2>/dev/null || true
+          rm -rf $SITE/torch/backends/cusparselt* 2>/dev/null || true
+          rm -rf $SITE/torch/contrib          2>/dev/null || true
+          rm -rf $SITE/torch/utils/data/_utils 2>/dev/null || true
 
           # Remove .pyc files
           find $SITE -name "*.pyc" -delete 2>/dev/null || true
@@ -269,12 +298,21 @@ jobs:
       - name: Deploy to Azure Web App
         id: deploy-app
         run: |
+          ZIP_SIZE=$(du -h deploy.zip | cut -f1)
+          echo "Uploading deploy.zip ($ZIP_SIZE)..."
+
           az webapp deploy \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --name ${{ steps.resolve-name.outputs.webAppName }} \
             --src-path deploy.zip \
             --type zip \
-            --async true
+            --async true \
+            --timeout 600
+
+          # Restart the app so it picks up the new package
+          az webapp restart \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name ${{ steps.resolve-name.outputs.webAppName }}
 
           WEBAPP_URL=$(az webapp show \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
@@ -287,7 +325,7 @@ jobs:
           url="${{ steps.deploy-app.outputs.webapp-url }}/health"
           echo "Checking health at: $url"
 
-          for i in 1 2 3 4 5 6; do
+          for i in $(seq 1 12); do
             sleep 10
             status=$(curl -s -o /dev/null -w "%{http_code}" "$url" || echo "000")
             echo "  Attempt $i → HTTP $status"
@@ -296,7 +334,7 @@ jobs:
               exit 0
             fi
           done
-          echo "⚠️ App did not return 200 after 60s (may still be starting)"
+          echo "⚠️ App did not return 200 after 120s (may still be starting)"
 
           echo "### 🏥 Deployment Health Check" >> "$GITHUB_STEP_SUMMARY"
           echo "- **URL**: $url" >> "$GITHUB_STEP_SUMMARY"

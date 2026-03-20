@@ -89,6 +89,14 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
           name: 'PG_UPLOAD_DIR'
           value: '/home/uploads'
         }
+        {
+          name: 'SCM_COMMAND_IDLE_TIMEOUT'
+          value: '600'
+        }
+        {
+          name: 'WEBSITES_CONTAINER_START_TIME_LIMIT'
+          value: '300'
+        }
       ]
     }
   }
