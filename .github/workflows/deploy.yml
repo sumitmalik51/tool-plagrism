@@ -248,6 +248,7 @@ jobs:
       # -- Package & Deploy -----------------------------------------------
       - name: Create deployment package
         run: |
+          chmod +x startup.sh
           zip -r -q deploy.zip \
             app/ \
             .python_packages/ \
@@ -256,6 +257,14 @@ jobs:
             startup.sh \
             -x "app/__pycache__/*" "app/**/__pycache__/*" "*.pyc"
           echo "📦 Package size: $(du -h deploy.zip | cut -f1)"
+
+      - name: Ensure startup command is set
+        run: |
+          az webapp config set \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name ${{ steps.resolve-name.outputs.webAppName }} \
+            --startup-file "bash /home/site/wwwroot/startup.sh" \
+            --output none
 
       - name: Deploy to Azure Web App
         id: deploy-app

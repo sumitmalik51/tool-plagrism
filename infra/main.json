@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.37.4.10188",
-      "templateHash": "8615448187431165602"
+      "templateHash": "1843479787314240012"
     }
   },
   "parameters": {
@@ -88,7 +88,7 @@
           "ftpsState": "Disabled",
           "minTlsVersion": "1.2",
           "http20Enabled": true,
-          "appCommandLine": "startup.sh",
+          "appCommandLine": "bash /home/site/wwwroot/startup.sh",
           "appSettings": [
             {
               "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
