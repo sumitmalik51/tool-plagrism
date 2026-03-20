@@ -229,6 +229,7 @@ jobs:
             --name ${{ steps.resolve-name.outputs.webAppName }} \
             --src-path deploy.zip \
             --type zip \
+            --clean true \
             --timeout 120
 
           echo "🔄 Restarting app..."
