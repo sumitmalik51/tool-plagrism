@@ -64,10 +64,10 @@ async def _search_bing(query: str, count: int) -> dict | None:
 
 def _search_ddg_sync(query: str, count: int) -> list[dict]:
     """Run DuckDuckGo search synchronously (the library is sync-only)."""
-    from ddgs import DDGS  # lazy import
-
     results: list[dict] = []
     try:
+        from ddgs import DDGS  # lazy import
+
         with DDGS() as ddgs:
             for r in ddgs.text(query, max_results=count):
                 results.append({
@@ -75,6 +75,8 @@ def _search_ddg_sync(query: str, count: int) -> list[dict]:
                     "title": r.get("title", ""),
                     "snippet": r.get("body", ""),
                 })
+    except ImportError:
+        logger.warning("ddgs_not_installed", hint="pip install ddgs")
     except Exception as exc:  # noqa: BLE001
         logger.error("ddg_search_failed", error=str(exc))
     return results

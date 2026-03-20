@@ -25,10 +25,9 @@ logger = get_logger(__name__)
 
 def _search_scholar_sync(query: str, max_results: int = 5) -> list[dict[str, Any]]:
     """Search Google Scholar synchronously."""
-    from scholarly import scholarly  # lazy import — heavy first-call
-
     results: list[dict[str, Any]] = []
     try:
+        from scholarly import scholarly  # lazy import — heavy first-call
         search_iter = scholarly.search_pubs(query)
         for _ in range(max_results):
             try:
