@@ -153,15 +153,50 @@ async def _fetch_scholar(query: str, max_results: int) -> list[dict[str, Any]]:
         ) as client:
             resp = await client.get(_SCHOLAR_URL, params=params, headers=headers)
             resp.raise_for_status()
-            return _parse_results(resp.text, query)[:max_results]
+
+            body = resp.text
+
+            # --- Detect CAPTCHA / blocking pages ---
+            if "unusual traffic" in body.lower() or "captcha" in body.lower():
+                logger.warning(
+                    "scholar_captcha_detected",
+                    query=query[:80],
+                    status_code=resp.status_code,
+                    body_snippet=body[:300],
+                )
+                return []
+
+            results = _parse_results(body, query)[:max_results]
+
+            logger.info(
+                "scholar_fetch_ok",
+                query=query[:80],
+                status_code=resp.status_code,
+                results_parsed=len(results),
+                body_length=len(body),
+            )
+            return results
+
     except httpx.HTTPStatusError as exc:
         logger.warning(
             "scholar_http_error",
             status=exc.response.status_code,
             query=query[:80],
+            response_body=exc.response.text[:500] if exc.response else "N/A",
+        )
+    except httpx.TimeoutException as exc:
+        logger.error(
+            "scholar_timeout",
+            query=query[:80],
+            error=str(exc),
         )
     except Exception as exc:  # noqa: BLE001
-        logger.error("scholar_fetch_failed", error=str(exc), query=query[:80])
+        logger.error(
+            "scholar_fetch_failed",
+            error=str(exc),
+            error_type=type(exc).__name__,
+            query=query[:80],
+        )
 
     return []
 
@@ -212,11 +247,32 @@ async def search_scholar_multi(
     all_results: list[dict[str, Any]] = []
     seen_titles: set[str] = set()
 
+    failed_queries = 0
+    empty_queries = 0
+
     for i, q in enumerate(queries):
         if i > 0:
             await asyncio.sleep(1.0)  # polite delay between requests
         r = await search_scholar(q, max_results=max_per_query)
-        for item in r.get("results", []):
+        query_results = r.get("results", [])
+
+        if not query_results:
+            empty_queries += 1
+            logger.warning(
+                "scholar_query_returned_zero",
+                query_index=i,
+                query=q[:80],
+                elapsed_s=r.get("elapsed_s"),
+            )
+        else:
+            logger.info(
+                "scholar_query_ok",
+                query_index=i,
+                query=q[:80],
+                results_count=len(query_results),
+            )
+
+        for item in query_results:
             title_key = item["title"].lower().strip()
             if title_key and title_key not in seen_titles:
                 seen_titles.add(title_key)
@@ -224,10 +280,26 @@ async def search_scholar_multi(
 
     elapsed = round(time.perf_counter() - start, 3)
 
+    if empty_queries == len(queries):
+        logger.error(
+            "scholar_all_queries_failed",
+            total_queries=len(queries),
+            message="All Google Scholar queries returned 0 results — "
+                    "likely rate-limited, CAPTCHA-blocked, or network issue",
+        )
+    elif empty_queries > 0:
+        logger.warning(
+            "scholar_partial_failure",
+            total_queries=len(queries),
+            empty_queries=empty_queries,
+            successful_queries=len(queries) - empty_queries,
+        )
+
     logger.info(
         "scholar_multi_search_complete",
         queries=len(queries),
         total_results=len(all_results),
+        empty_queries=empty_queries,
         elapsed_s=elapsed,
     )
 

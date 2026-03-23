@@ -100,9 +100,15 @@ class AcademicAgent(BaseAgent):
         papers = scholar_result.get("results", [])
 
         if not papers:
-            self.logger.info(
-                "no_scholar_results",
+            self.logger.warning(
+                "no_scholar_results_falling_back",
                 document_id=agent_input.document_id,
+                queries_attempted=scholar_result.get("queries_searched", 0),
+                elapsed_s=scholar_result.get("elapsed_s"),
+                message="Google Scholar returned 0 papers — likely blocked, "
+                        "rate-limited, or CAPTCHA. Falling back to "
+                        "intra-document analysis (score will reflect "
+                        "internal duplication only).",
             )
             # Fall back to intra-document analysis
             return await self._intra_document_analysis(
