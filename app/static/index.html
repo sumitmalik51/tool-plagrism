@@ -106,6 +106,36 @@
     .fade-up-d3 { animation-delay: .3s; }
     .fade-up-d4 { animation-delay: .4s; }
 
+    /* Dashboard action card */
+    .action-card {
+      background: rgba(26,29,39,.8); border: 1px solid #2e3348; border-radius: 16px;
+      padding: 20px; transition: all .3s ease; position: relative; overflow: hidden;
+      cursor: pointer; text-decoration: none; display: block;
+    }
+    .action-card:hover {
+      border-color: var(--card-accent, #6c5ce7); transform: translateY(-3px);
+      box-shadow: 0 12px 40px rgba(108,92,231,.12);
+    }
+    .action-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--card-accent, #6c5ce7), transparent);
+      opacity: 0; transition: opacity .3s;
+    }
+    .action-card:hover::before { opacity: 1; }
+
+    /* Usage progress bar */
+    .usage-bar { height: 6px; border-radius: 3px; background: #2e3348; overflow: hidden; }
+    .usage-fill { height: 100%; border-radius: 3px; transition: width .5s ease; }
+
+    /* Dashboard welcome shimmer */
+    @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+    .shimmer-text {
+      background: linear-gradient(90deg, #a29bfe 0%, #6c5ce7 25%, #00b894 50%, #6c5ce7 75%, #a29bfe 100%);
+      background-size: 200% auto;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      animation: shimmer 4s linear infinite;
+    }
+
     /* Source highlight colors */
     .hl-1  { background: rgba(255,107,107,.25); border-bottom: 2px solid #FF6B6B; }
     .hl-2  { background: rgba(78,205,196,.25);  border-bottom: 2px solid #4ECDC4; }
@@ -151,7 +181,7 @@
           <span class="text-[10px] text-muted bg-surface2 px-2 py-0.5 rounded-full font-semibold tracking-wider uppercase">AI-Powered</span>
         </div>
         <div class="flex items-center gap-4">
-          <a href="#features" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Features</a>
+          <a href="#features" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block nav-guest-link">Features</a>
           <a href="#analyze" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Analyze</a>
           <a href="#readability" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Readability</a>
           <a href="#grammar" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Grammar</a>
@@ -180,7 +210,140 @@
       </div>
     </nav>
 
-    <!-- Hero Section -->
+    <!-- ══════════════ DASHBOARD (logged-in users) ══════════════ -->
+    <div id="dashboardView" class="hidden pt-20">
+
+      <!-- Welcome banner -->
+      <section class="relative overflow-hidden pt-8 pb-10 px-6">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+
+        <div class="max-w-5xl mx-auto relative z-10">
+          <div class="fade-up">
+            <div class="flex items-center gap-3 mb-1">
+              <span class="text-2xl">👋</span>
+              <h1 class="text-2xl sm:text-3xl font-bold">
+                Welcome back, <span class="shimmer-text" id="dashWelcomeName">User</span>
+              </h1>
+            </div>
+            <p class="text-muted text-sm ml-11" id="dashWelcomeMsg">Ready to check your next document?</p>
+          </div>
+
+          <!-- Usage & Stats row -->
+          <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-8 fade-up fade-up-d1">
+            <!-- Scans remaining -->
+            <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-5">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-xs text-muted font-medium uppercase tracking-wider">Scans Today</span>
+                <span class="text-lg">📊</span>
+              </div>
+              <div class="flex items-end gap-2 mb-2">
+                <span class="text-3xl font-bold" id="dashScansUsed">0</span>
+                <span class="text-muted text-sm mb-1">/ <span id="dashScansLimit">3</span></span>
+              </div>
+              <div class="usage-bar">
+                <div class="usage-fill bg-gradient-to-r from-accent to-[#00b894]" id="dashUsageBar" style="width: 0%"></div>
+              </div>
+              <p class="text-xs text-muted mt-2"><span id="dashScansRemaining">3</span> scans remaining</p>
+            </div>
+
+            <!-- Total scans -->
+            <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-5">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-xs text-muted font-medium uppercase tracking-wider">Total Scans</span>
+                <span class="text-lg">🔍</span>
+              </div>
+              <span class="text-3xl font-bold gradient-text" id="dashTotalAll">0</span>
+              <p class="text-xs text-muted mt-2">Lifetime analyses</p>
+            </div>
+
+            <!-- Avg score -->
+            <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-5">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-xs text-muted font-medium uppercase tracking-wider">Avg Score</span>
+                <span class="text-lg">📈</span>
+              </div>
+              <span class="text-3xl font-bold text-ok" id="dashAvgAll">0%</span>
+              <p class="text-xs text-muted mt-2">Average plagiarism score</p>
+            </div>
+
+            <!-- Account tier -->
+            <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-5">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-xs text-muted font-medium uppercase tracking-wider">Plan</span>
+                <span class="text-lg">⭐</span>
+              </div>
+              <span class="text-xl font-bold" id="dashTierBadge">
+                <span class="px-3 py-1 rounded-full bg-accent/15 text-accent-l text-sm font-semibold border border-accent/25">Free</span>
+              </span>
+              <p class="text-xs text-muted mt-3" id="dashTierMsg">3 scans/day included</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quick Actions -->
+      <section class="px-6 pb-10">
+        <div class="max-w-5xl mx-auto">
+          <h2 class="text-lg font-semibold mb-5 flex items-center gap-2">
+            <span class="text-base">⚡</span> Quick Actions
+          </h2>
+          <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+            <a href="#analyze" class="action-card" style="--card-accent: #6c5ce7;">
+              <div class="w-11 h-11 rounded-xl bg-accent/15 grid place-items-center text-xl mb-3">🔍</div>
+              <h3 class="font-semibold text-sm mb-1">Plagiarism Check</h3>
+              <p class="text-xs text-muted">Scan text or upload documents for plagiarism detection</p>
+            </a>
+
+            <a href="#rewriter" class="action-card" style="--card-accent: #00b894;">
+              <div class="w-11 h-11 rounded-xl bg-[#00b894]/15 grid place-items-center text-xl mb-3">✨</div>
+              <h3 class="font-semibold text-sm mb-1">AI Rewriter</h3>
+              <p class="text-xs text-muted">Paraphrase, simplify, or rephrase your content</p>
+            </a>
+
+            <a href="#readability" class="action-card" style="--card-accent: #45B7D1;">
+              <div class="w-11 h-11 rounded-xl bg-[#45B7D1]/15 grid place-items-center text-xl mb-3">📊</div>
+              <h3 class="font-semibold text-sm mb-1">Readability</h3>
+              <p class="text-xs text-muted">Check Flesch-Kincaid, reading level & word stats</p>
+            </a>
+
+            <a href="#grammar" class="action-card" style="--card-accent: #e17055;">
+              <div class="w-11 h-11 rounded-xl bg-[#e17055]/15 grid place-items-center text-xl mb-3">✏️</div>
+              <h3 class="font-semibold text-sm mb-1">Grammar Check</h3>
+              <p class="text-xs text-muted">Fix grammar, spelling & style issues with AI</p>
+            </a>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- Recent Scans -->
+      <section class="px-6 pb-12">
+        <div class="max-w-5xl mx-auto">
+          <div class="flex items-center justify-between mb-5">
+            <h2 class="text-lg font-semibold flex items-center gap-2">
+              <span class="text-base">🕒</span> Recent Scans
+            </h2>
+            <a href="#history" class="text-xs text-accent-l hover:text-accent transition-colors">View all →</a>
+          </div>
+
+          <div id="dashRecentScans" class="space-y-2">
+            <!-- Populated by JS -->
+          </div>
+          <div id="dashRecentEmpty" class="hidden text-center py-10 bg-surface/50 border border-border/50 rounded-2xl">
+            <div class="text-4xl mb-3">📄</div>
+            <p class="text-muted text-sm mb-4">No scans yet. Run your first analysis!</p>
+            <a href="#analyze" class="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:shadow-accent/25 transition-all">
+              🔍 Start Scanning
+            </a>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ══════════════ LANDING CONTENT (guests only) ══════════════ -->
+    <div id="landingContent">
     <section class="relative overflow-hidden pt-28 pb-16 px-6">
       <div class="orb orb-1"></div>
       <div class="orb orb-2"></div>
@@ -330,6 +493,7 @@
         </div>
       </div>
     </section>
+    </div><!-- /landingContent -->
 
     <!-- ═══════════ Analysis Section ═══════════ -->
     <section id="analyze" class="py-20 px-6">
@@ -1016,12 +1180,17 @@
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
+        if (res.status === 429) {
+          const d = err.detail || {};
+          throw new Error(d.message || 'Daily scan limit reached. Try again tomorrow or upgrade your plan.');
+        }
         throw new Error(err.detail || 'Analysis failed');
       }
 
       const data = await res.json();
       lastReport = data;
       saveToHistory(data);
+      if (typeof incrementLocalScanCount === 'function') incrementLocalScanCount();
       showReportView(data);
     } catch (err) {
       $('errorBox').textContent = '⚠ ' + err.message;
@@ -2588,16 +2757,30 @@
     const userStr = localStorage.getItem('pg_user');
     const loggedOut = $('authLoggedOut');
     const loggedIn  = $('authLoggedIn');
+    const dashboard = $('dashboardView');
+    const landing   = $('landingContent');
+    const guestLinks = document.querySelectorAll('.nav-guest-link');
 
     if (token && userStr) {
       try {
         const user = JSON.parse(userStr);
-        $('userName').textContent = user.name || user.email;
-        $('userAvatar').textContent = (user.name || user.email || '?')[0].toUpperCase();
+        const displayName = user.name || user.email || 'User';
+        $('userName').textContent = displayName;
+        $('userAvatar').textContent = displayName[0].toUpperCase();
         loggedIn.classList.remove('hidden');
         loggedIn.style.display = 'flex';
         loggedOut.classList.add('hidden');
         loggedOut.style.display = 'none';
+
+        // Show dashboard, hide landing
+        dashboard.classList.remove('hidden');
+        landing.classList.add('hidden');
+        landing.style.display = 'none';
+        guestLinks.forEach(l => l.style.display = 'none');
+
+        // Populate dashboard
+        $('dashWelcomeName').textContent = displayName.split(' ')[0];
+        loadDashboardData();
       } catch {
         showLoggedOutState();
       }
@@ -2610,7 +2793,106 @@
       loggedOut.style.display = 'flex';
       loggedIn.classList.add('hidden');
       loggedIn.style.display = 'none';
+      dashboard.classList.add('hidden');
+      landing.classList.remove('hidden');
+      landing.style.display = '';
+      guestLinks.forEach(l => l.style.display = '');
     }
+  }
+
+  async function loadDashboardData() {
+    // --- Load server-side stats ---
+    try {
+      const statsRes = await fetch('/api/v1/auth/stats');
+      if (statsRes.ok) {
+        const stats = await statsRes.json();
+        $('dashTotalAll').textContent = stats.total_scans || 0;
+        const avg = stats.avg_plagiarism_score;
+        $('dashAvgAll').textContent = avg != null ? Math.round(avg) + '%' : '0%';
+        if (avg != null) {
+          $('dashAvgAll').className = avg > 60 ? 'text-3xl font-bold text-danger'
+            : avg > 30 ? 'text-3xl font-bold text-warn'
+            : 'text-3xl font-bold text-ok';
+        }
+      }
+    } catch {}
+
+    // --- Load recent scans ---
+    try {
+      const scansRes = await fetch('/api/v1/auth/scans?limit=5');
+      if (scansRes.ok) {
+        const data = await scansRes.json();
+        renderDashboardScans(data.scans || []);
+      }
+    } catch {}
+
+    // --- Update usage from local counter (best-effort) ---
+    updateUsageDisplay();
+  }
+
+  function updateUsageDisplay() {
+    const today = new Date().toISOString().slice(0, 10);
+    const key = 'pg_scans_today_' + today;
+    const used = parseInt(localStorage.getItem(key) || '0', 10);
+    const limit = 3; // matches server default
+    const remaining = Math.max(limit - used, 0);
+    const pct = Math.min((used / limit) * 100, 100);
+
+    $('dashScansUsed').textContent = used;
+    $('dashScansLimit').textContent = limit;
+    $('dashScansRemaining').textContent = remaining;
+    $('dashUsageBar').style.width = pct + '%';
+
+    // Color shift when approaching limit
+    if (pct >= 100) {
+      $('dashUsageBar').className = 'usage-fill bg-gradient-to-r from-danger to-[#d63031]';
+      $('dashScansRemaining').parentElement.classList.add('text-danger');
+    } else if (pct >= 66) {
+      $('dashUsageBar').className = 'usage-fill bg-gradient-to-r from-warn to-[#f39c12]';
+    }
+  }
+
+  function incrementLocalScanCount() {
+    const today = new Date().toISOString().slice(0, 10);
+    const key = 'pg_scans_today_' + today;
+    const current = parseInt(localStorage.getItem(key) || '0', 10);
+    localStorage.setItem(key, String(current + 1));
+    updateUsageDisplay();
+  }
+
+  function renderDashboardScans(scans) {
+    const container = $('dashRecentScans');
+    const empty = $('dashRecentEmpty');
+
+    if (!scans || scans.length === 0) {
+      container.classList.add('hidden');
+      empty.classList.remove('hidden');
+      return;
+    }
+
+    empty.classList.add('hidden');
+    container.classList.remove('hidden');
+    container.innerHTML = scans.map(s => {
+      const score = Math.round(s.plagiarism_score || 0);
+      const risk = (s.risk_level || 'LOW').toUpperCase();
+      const riskColor = risk === 'HIGH' ? 'text-danger' : risk === 'MEDIUM' ? 'text-warn' : 'text-ok';
+      const riskBg = risk === 'HIGH' ? 'bg-danger/10 border-danger/20' : risk === 'MEDIUM' ? 'bg-warn/10 border-warn/20' : 'bg-ok/10 border-ok/20';
+      const docId = s.document_id || '—';
+      const date = s.created_at ? new Date(s.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+      const sources = s.sources_count || 0;
+
+      return `
+        <div class="flex items-center gap-4 px-5 py-4 bg-surface/80 border border-border/60 rounded-xl hover:border-accent/40 transition-colors">
+          <div class="w-10 h-10 rounded-xl ${riskBg} border grid place-items-center shrink-0">
+            <span class="text-lg font-bold ${riskColor}">${score}</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium truncate">${docId.slice(0, 16)}…</div>
+            <div class="text-xs text-muted">${date} &bull; ${sources} source${sources !== 1 ? 's' : ''}</div>
+          </div>
+          <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${riskBg} border ${riskColor}">${risk}</span>
+        </div>`;
+    }).join('');
   }
 
   function handleLogout() {

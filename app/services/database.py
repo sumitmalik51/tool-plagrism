@@ -113,10 +113,41 @@ class AzureSQLDatabase(Database):
 
     def __init__(self, connection_string: str):
         import pyodbc
-        self._connection_string = connection_string
+        self._connection_string = self._resolve_driver(connection_string, pyodbc)
         self._pyodbc = pyodbc
         self._local = threading.local()
         logger.info("db_backend", backend="azure_sql")
+
+    @staticmethod
+    def _resolve_driver(conn_str: str, pyodbc_mod: Any) -> str:
+        """Replace the Driver= token with the best available ODBC driver.
+
+        The env var may reference 'ODBC Driver 18 for SQL Server' but the
+        local machine might only have 'ODBC Driver 17 for SQL Server' or
+        the legacy 'SQL Server' driver.  This method finds the best match
+        and rewrites the connection string so pyodbc.connect() succeeds.
+        """
+        import re
+        available = pyodbc_mod.drivers()
+        # Preference order: 18 > 17 > 13 > legacy
+        preferred = [
+            "ODBC Driver 18 for SQL Server",
+            "ODBC Driver 17 for SQL Server",
+            "ODBC Driver 13 for SQL Server",
+            "SQL Server",
+        ]
+        best = next((d for d in preferred if d in available), None)
+        if best is None:
+            logger.warning("no_sql_server_odbc_driver_found", available=available)
+            return conn_str  # return as-is, let pyodbc raise
+
+        # Replace whatever Driver={...} is in the string
+        new_str = re.sub(
+            r"Driver=\{[^}]*\}", f"Driver={{{best}}}", conn_str, flags=re.IGNORECASE
+        )
+        if new_str != conn_str:
+            logger.info("odbc_driver_resolved", requested="(from conn string)", using=best)
+        return new_str
 
     def _conn(self):
         if not hasattr(self._local, "conn") or self._local.conn is None:
