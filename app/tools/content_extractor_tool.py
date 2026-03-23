@@ -118,6 +118,18 @@ def chunk_text(
         step = max(end - pos - overlap, 1)
         pos += step
 
+        # Align to word boundary — never start a chunk mid-word
+        if 0 < pos < len(text) and not text[pos - 1].isspace():
+            scan_start = pos
+            while pos < len(text) and not text[pos].isspace():
+                pos += 1
+            # Skip past the whitespace to the first char of the next word
+            while pos < len(text) and text[pos].isspace():
+                pos += 1
+            # Safety: revert if we had to skip more than 50 chars
+            if pos - scan_start > 50:
+                pos = scan_start
+
     elapsed = round(time.perf_counter() - start, 3)
 
     logger.info(

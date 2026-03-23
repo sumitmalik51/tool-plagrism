@@ -11,6 +11,8 @@ from app.tools.rewriter_tool import (
     rewrite_paragraph,
     rewrite_document,
     _call_azure_openai,
+    MIN_REWRITE_LENGTH,
+    MIN_REWRITE_WORDS,
 )
 
 
@@ -19,6 +21,22 @@ from app.tools.rewriter_tool import (
 # ---------------------------------------------------------------------------
 
 class TestRewriteParagraph:
+    @pytest.mark.asyncio
+    async def test_short_fragment_skipped(self) -> None:
+        """Fragments shorter than MIN_REWRITE_LENGTH are returned as-is."""
+        result = await rewrite_paragraph(text="vs.", tone="academic")
+        assert result["skipped"] is True
+        assert result["original"] == "vs."
+        assert result["rewritten"] == "vs."
+        assert "too short" in result["skip_reason"].lower()
+
+    @pytest.mark.asyncio
+    async def test_few_words_skipped(self) -> None:
+        """Fragments with fewer than MIN_REWRITE_WORDS are returned as-is."""
+        result = await rewrite_paragraph(text="Non-Flexible vs.", tone="academic")
+        assert result["skipped"] is True
+        assert result["rewritten"] == "Non-Flexible vs."
+
     @pytest.mark.asyncio
     @patch("app.tools.rewriter_tool._call_azure_openai", new_callable=AsyncMock)
     async def test_returns_rewritten_text(self, mock_api: AsyncMock) -> None:
@@ -41,7 +59,7 @@ class TestRewriteParagraph:
         mock_api.return_value = "Rewritten."
 
         await rewrite_paragraph(
-            text="Flagged text.",
+            text="This is a sufficiently long flagged text passage for rewriting.",
             context="Some surrounding context.",
             tone="professional",
         )
@@ -68,15 +86,15 @@ class TestRewriteDocument:
     async def test_rewrites_with_flagged_passages(self, mock_api: AsyncMock) -> None:
         mock_api.return_value = "This is the complete rewritten document."
 
+        flagged = "The quick brown fox jumps over the lazy dog in the park"
         result = await rewrite_document(
-            document_text="The quick brown fox jumps over the lazy dog.",
-            flagged_passages=["quick brown fox"],
+            document_text=f"Once upon a time. {flagged}. The end of the story.",
+            flagged_passages=[flagged],
             tone="academic",
         )
 
-        assert result["original"] == "The quick brown fox jumps over the lazy dog."
-        assert result["rewritten"] == "This is the complete rewritten document."
         assert result["passages_rewritten"] == 1
+        assert result["rewritten"] == "This is the complete rewritten document."
         assert result["tone"] == "academic"
         assert result["elapsed_s"] >= 0
 

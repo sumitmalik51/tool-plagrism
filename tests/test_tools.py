@@ -46,6 +46,24 @@ def test_chunk_text_returns_dict() -> None:
     assert "overlap" in result
 
 
+def test_chunk_text_no_mid_word_start() -> None:
+    """Chunks should never start in the middle of a word."""
+    # Build text where a naive overlap split would land mid-word
+    text = "Article Stability of Non-Flexible Devices. " * 50
+    result = chunk_text(text, chunk_size=100, overlap=30)
+    for i, chunk in enumerate(result["chunks"]):
+        # Find where this chunk starts in the original text
+        idx = text.find(chunk[:20])
+        if idx > 0:
+            # The character before the chunk start must be whitespace
+            # or punctuation — never a letter (mid-word).
+            prev = text[idx - 1]
+            assert prev.isspace() or prev in '.;:!?,', (
+                f"Chunk {i} starts mid-word at position {idx}: "
+                f"...{text[max(0, idx-5):idx+15]!r}..."
+            )
+
+
 # ---------------------------------------------------------------------------
 # content_extractor_tool — extract_text
 # ---------------------------------------------------------------------------

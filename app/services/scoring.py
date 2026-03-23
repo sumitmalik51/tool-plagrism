@@ -7,6 +7,8 @@ business logic stays out of the agent class itself (per AGENT_RULES).
 
 from __future__ import annotations
 
+import re
+
 from app.config import settings
 from app.models.schemas import AgentOutput, FlaggedPassage
 from app.utils.logger import get_logger
@@ -73,19 +75,85 @@ def compute_weighted_score(agent_outputs: list[AgentOutput]) -> float:
     return score
 
 
+# ---------------------------------------------------------------------------
+# Helpers for cleaning / filtering flagged passages
+# ---------------------------------------------------------------------------
+
+# Matches citation metadata markers (emails, publication dates, correspondence)
+_CITATION_RE = re.compile(
+    r'(?:'
+    r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'          # email
+    r'|(?:Received|Accepted|Published|Submitted):\s*\d'          # pub dates
+    r'|\*\s*Correspondence:'                                     # corresp
+    r')',
+    re.IGNORECASE,
+)
+
+# Leading lowercase fragment left by a mid-word chunk split (e.g. "rticle ")
+# Only matches when followed by an uppercase letter (the real sentence start).
+_LEADING_FRAGMENT_RE = re.compile(r'^[a-z]{1,10}\s+(?=[A-Z])')
+
+
+def _is_citation_metadata(text: str) -> bool:
+    """Return True if text is primarily citation/bibliographic metadata."""
+    return len(_CITATION_RE.findall(text)) >= 2
+
+
+def _trim_leading_fragment(text: str) -> str:
+    """Trim a partial-word artefact from the start of text.
+
+    Example: ``"rticle Stability of..."`` → ``"Stability of..."``.
+    Only trims when the text starts with a short lowercase run (≤10 chars)
+    followed by whitespace *and* an uppercase letter — a strong indicator
+    of a mid-word chunk split followed by the real sentence.
+    """
+    m = _LEADING_FRAGMENT_RE.match(text)
+    if m:
+        return text[m.end():]
+    return text
+
+
 def merge_flagged_passages(
     agent_outputs: list[AgentOutput],
     max_passages: int = 50,
+    min_text_length: int = 30,
+    min_word_count: int = 3,
 ) -> list[FlaggedPassage]:
     """Collect and deduplicate flagged passages from all agents.
 
     Keeps up to ``max_passages`` entries, sorted by descending similarity.
+    Filters out:
+    - fragments shorter than *min_text_length* / *min_word_count*
+    - citation/bibliographic metadata (author blocks, emails, pub dates)
+    - leading partial-word artefacts from chunk-boundary splits
     """
     all_passages: list[FlaggedPassage] = []
     seen_texts: set[str] = set()
 
     for output in agent_outputs:
         for fp in output.flagged_passages:
+            stripped = fp.text.strip()
+
+            # Trim leading partial-word fragment (chunk boundary artefact)
+            cleaned = _trim_leading_fragment(stripped)
+
+            # Skip trivially short fragments (after trimming)
+            if len(cleaned) < min_text_length or len(cleaned.split()) < min_word_count:
+                continue
+
+            # Skip citation / bibliographic metadata blocks
+            if _is_citation_metadata(cleaned):
+                continue
+
+            # Build a possibly-cleaned FlaggedPassage
+            if cleaned != stripped:
+                fp = FlaggedPassage(
+                    text=cleaned,
+                    similarity_score=fp.similarity_score,
+                    source=fp.source,
+                    reason=fp.reason,
+                )
+
             key = fp.text[:100]  # deduplicate on first 100 chars
             if key not in seen_texts:
                 seen_texts.add(key)

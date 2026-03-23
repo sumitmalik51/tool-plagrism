@@ -20,6 +20,18 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+# Minimum character length for text to be worth rewriting.
+# Fragments shorter than this are returned as-is with a skip note,
+# avoiding hallucinated AI output from meaningless snippets.
+MIN_REWRITE_LENGTH = 30  # ~5 words
+
+# Minimum word count — even if chars >= threshold, reject gibberish
+MIN_REWRITE_WORDS = 3
+
+# ---------------------------------------------------------------------------
 # System prompts
 # ---------------------------------------------------------------------------
 
@@ -138,6 +150,25 @@ async def rewrite_paragraph(
     """
     start = time.perf_counter()
 
+    # Guard: skip fragments that are too short to meaningfully rewrite
+    stripped = text.strip()
+    word_count = len(stripped.split())
+    if len(stripped) < MIN_REWRITE_LENGTH or word_count < MIN_REWRITE_WORDS:
+        elapsed = round(time.perf_counter() - start, 3)
+        logger.info(
+            "rewrite_paragraph_skipped_too_short",
+            text_length=len(stripped),
+            word_count=word_count,
+        )
+        return {
+            "original": text,
+            "rewritten": text,  # return as-is
+            "tone": tone,
+            "elapsed_s": elapsed,
+            "skipped": True,
+            "skip_reason": "Text too short to rewrite meaningfully",
+        }
+
     user_prompt = f"Tone: {tone}\n\n"
     if context:
         user_prompt += f"Context (surrounding text, for reference only — do NOT rewrite this):\n{context}\n\n"
@@ -188,6 +219,12 @@ async def rewrite_document(
     # Mark flagged passages in the document
     marked_doc = document_text
     passages_found = 0
+
+    # Filter out trivially short passages before processing
+    flagged_passages = [
+        p for p in flagged_passages
+        if len(p.strip()) >= MIN_REWRITE_LENGTH and len(p.strip().split()) >= MIN_REWRITE_WORDS
+    ]
 
     for passage in flagged_passages:
         # Try exact match first, then fuzzy (first 80 chars)

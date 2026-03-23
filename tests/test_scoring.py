@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 from app.models.schemas import AgentOutput
-from app.services.scoring import compute_weighted_score, merge_flagged_passages, get_agent_weight
+from app.services.scoring import (
+    compute_weighted_score,
+    merge_flagged_passages,
+    get_agent_weight,
+    _is_citation_metadata,
+    _trim_leading_fragment,
+)
 from app.models.schemas import FlaggedPassage
 
 
@@ -82,7 +88,7 @@ def test_weighted_score_unknown_agent() -> None:
 # ---------------------------------------------------------------------------
 
 def test_merge_deduplicates() -> None:
-    fp = FlaggedPassage(text="same text here", similarity_score=0.9, reason="dup")
+    fp = FlaggedPassage(text="The same duplicated text passage appears here as well", similarity_score=0.9, reason="dup")
     outputs = [
         AgentOutput(agent_name="a", score=10, confidence=0.5, flagged_passages=[fp]),
         AgentOutput(agent_name="b", score=20, confidence=0.6, flagged_passages=[fp]),
@@ -93,7 +99,7 @@ def test_merge_deduplicates() -> None:
 
 def test_merge_respects_max() -> None:
     passages = [
-        FlaggedPassage(text=f"passage {i}", similarity_score=0.5, reason="t")
+        FlaggedPassage(text=f"This is test passage number {i} with enough words to pass filter", similarity_score=0.5, reason="t")
         for i in range(10)
     ]
     outputs = [AgentOutput(agent_name="a", score=10, confidence=0.5, flagged_passages=passages)]
@@ -102,13 +108,108 @@ def test_merge_respects_max() -> None:
 
 
 def test_merge_sorted_by_similarity() -> None:
-    fp_low = FlaggedPassage(text="low", similarity_score=0.3, reason="")
-    fp_high = FlaggedPassage(text="high", similarity_score=0.95, reason="")
+    fp_low = FlaggedPassage(text="This passage has a lower similarity score overall", similarity_score=0.3, reason="")
+    fp_high = FlaggedPassage(text="This passage has a much higher similarity score detected", similarity_score=0.95, reason="")
     outputs = [
         AgentOutput(agent_name="a", score=10, confidence=0.5, flagged_passages=[fp_low, fp_high]),
     ]
     merged = merge_flagged_passages(outputs)
     assert merged[0].similarity_score == 0.95
+
+
+def test_merge_filters_short_fragments() -> None:
+    """Fragments shorter than min thresholds should be excluded."""
+    fp_short = FlaggedPassage(text="vs.", similarity_score=1.0, reason="too short")
+    fp_ok = FlaggedPassage(
+        text="photovoltaic parameters of flexible and non-flexible solar cells",
+        similarity_score=0.85,
+        reason="real match",
+    )
+    outputs = [
+        AgentOutput(agent_name="a", score=50, confidence=0.8, flagged_passages=[fp_short, fp_ok]),
+    ]
+    merged = merge_flagged_passages(outputs)
+    assert len(merged) == 1
+    assert merged[0].text == fp_ok.text
+
+
+def test_merge_filters_two_word_fragments() -> None:
+    """Fragments with fewer than 3 words are excluded even if chars >= threshold."""
+    fp_few_words = FlaggedPassage(text="Non-Flexible vs.", similarity_score=1.0, reason="")
+    outputs = [
+        AgentOutput(agent_name="a", score=10, confidence=0.5, flagged_passages=[fp_few_words]),
+    ]
+    merged = merge_flagged_passages(outputs)
+    assert len(merged) == 0
+
+
+def test_merge_filters_citation_metadata() -> None:
+    """Passages with 2+ citation metadata indicators (emails, dates) are excluded."""
+    citation = FlaggedPassage(
+        text=(
+            "Mohammad-Reza Zamani-Meymian *, Saeb Sheikholeslami and Milad Fallah "
+            "School of Physics, Iran University; sheikholeslami@physics.iust.ac.ir (S.S.); "
+            "mfallah@live.com (M.F.) *Correspondence: r_zamani@iust.ac.ir "
+            "Received: 21 May 2020; Accepted: 2 July 2020; Published: 9 July 2020"
+        ),
+        similarity_score=0.82,
+        reason="web match",
+    )
+    normal = FlaggedPassage(
+        text="The as-deposited thin film was annealed in the atmosphere at 100C for 10 min to prepare it.",
+        similarity_score=0.80,
+        reason="web match",
+    )
+    outputs = [
+        AgentOutput(agent_name="a", score=50, confidence=0.8, flagged_passages=[citation, normal]),
+    ]
+    merged = merge_flagged_passages(outputs)
+    assert len(merged) == 1
+    assert merged[0].text == normal.text
+
+
+def test_merge_trims_leading_fragment() -> None:
+    """Leading partial-word artefacts from chunk splits are trimmed."""
+    fp = FlaggedPassage(
+        text="rticle Stability of Non-Flexible vs. Flexible Inverted Bulk-Heterojunction Organic Solar Cells",
+        similarity_score=0.82,
+        reason="internal dup",
+    )
+    outputs = [
+        AgentOutput(agent_name="a", score=50, confidence=0.8, flagged_passages=[fp]),
+    ]
+    merged = merge_flagged_passages(outputs)
+    assert len(merged) == 1
+    assert merged[0].text.startswith("Stability of Non-Flexible")
+
+
+def test_trim_leading_fragment_no_op() -> None:
+    """Text starting with a proper word is not trimmed."""
+    assert _trim_leading_fragment("Article Stability of") == "Article Stability of"
+    assert _trim_leading_fragment("The quick brown fox") == "The quick brown fox"
+
+
+def test_trim_leading_fragment_trims() -> None:
+    """Lowercase-only leading words up to 10 chars are trimmed when followed by uppercase."""
+    assert _trim_leading_fragment("rticle Stability") == "Stability"
+    assert _trim_leading_fragment("e Stability of") == "Stability of"
+    assert _trim_leading_fragment("y Stirred for 60") == "Stirred for 60"
+
+
+def test_trim_leading_fragment_preserves_lowercase_words() -> None:
+    """Legitimate lowercase words (not followed by uppercase) are NOT trimmed."""
+    assert _trim_leading_fragment("photovoltaic parameters") == "photovoltaic parameters"
+    assert _trim_leading_fragment("stirred for 60 min") == "stirred for 60 min"
+
+
+def test_is_citation_metadata_true() -> None:
+    text = "author@university.edu *Correspondence: Received: 21 May 2020; test@test.com"
+    assert _is_citation_metadata(text) is True
+
+
+def test_is_citation_metadata_false() -> None:
+    text = "The thin film was annealed in the atmosphere at 100 degrees for 10 minutes."
+    assert _is_citation_metadata(text) is False
 
 
 # ---------------------------------------------------------------------------

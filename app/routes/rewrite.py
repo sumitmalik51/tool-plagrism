@@ -32,6 +32,8 @@ class RewriteParagraphResponse(BaseModel):
     rewritten: str
     tone: str
     elapsed_s: float
+    skipped: bool = False
+    skip_reason: str = ""
 
 
 class RewriteDocumentRequest(BaseModel):

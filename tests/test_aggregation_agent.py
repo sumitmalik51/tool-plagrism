@@ -12,7 +12,11 @@ def _agent(name: str, score: float, confidence: float, error: bool = False) -> A
     details: dict = {"error": "boom"} if error else {}
     fps: list[FlaggedPassage] = []
     if score > 30:
-        fps = [FlaggedPassage(text=f"flagged by {name}", similarity_score=score / 100, reason="test")]
+        fps = [FlaggedPassage(
+            text=f"This passage was flagged as potentially plagiarised by {name} agent with high confidence",
+            similarity_score=score / 100,
+            reason="test",
+        )]
     return AgentOutput(
         agent_name=name,
         score=score,
