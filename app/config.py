@@ -72,10 +72,26 @@ class Settings(BaseSettings):
     scan_limit_anonymous: int = 3   # max scans/day for anonymous (by IP)
     scan_limit_free: int = 3        # max scans/day for free registered users
 
+    # Batch analysis
+    batch_max_files: int = 10       # max files per batch analysis request
+
+    # HTTP client timeouts (seconds)
+    http_timeout_web_search: float = 15.0
+    http_timeout_page_fetch: float = 10.0
+
+    # AI detection heuristic thresholds
+    ai_ttr_optimal: float = 0.52         # type-token ratio "sweet spot" for AI text
+    ai_burstiness_divisor: float = 12.0  # sentence length std-dev divisor
+    ai_uniformity_window: int = 5        # ±words from median for uniformity check
+
     # Database — Azure SQL connection string.
     # When empty, falls back to SQLite for local dev.
     # Set PG_SQL_CONNECTION_STRING in production.
     sql_connection_string: str = ""
+    db_connection_timeout: int = 30      # Azure SQL connection timeout (seconds)
+
+    # Input length limits for text endpoints
+    max_text_length: int = 500_000  # max characters for text-based analysis/rewrite
 
     @model_validator(mode="after")
     def _parse_api_keys(self) -> "Settings":

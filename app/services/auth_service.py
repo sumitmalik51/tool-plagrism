@@ -53,12 +53,24 @@ _JWT_ALGORITHM = "HS256"
 
 
 def _get_jwt_secret() -> str:
-    """Return the JWT signing secret (create one automatically if missing)."""
+    """Return the JWT signing secret.
+
+    In production (``debug=False``), ``PG_JWT_SECRET`` must be explicitly
+    configured.  In development mode a temporary secret is generated
+    automatically (tokens will not survive application restarts).
+    """
     secret = settings.jwt_secret
-    if not secret:
-        # Fall back to a runtime-generated secret (tokens won't survive restart)
-        secret = os.environ.setdefault("PG_JWT_SECRET", secrets.token_hex(32))
-    return secret
+    if secret:
+        return secret
+
+    if not settings.debug:
+        logger.error(
+            "jwt_secret_missing_in_production",
+            message="PG_JWT_SECRET must be set when debug mode is off",
+        )
+
+    # Fall back to a runtime-generated secret (tokens won't survive restart)
+    return os.environ.setdefault("PG_JWT_SECRET", secrets.token_hex(32))
 
 
 def create_access_token(user_id: int, email: str) -> str:

@@ -21,6 +21,7 @@ from app.tools.readability_tool import analyze_readability
 from app.tools.grammar_tool import check_grammar
 from app.services.ingestion import ingest_file
 from app.services.orchestrator import run_pipeline
+from app.config import settings
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -92,7 +93,7 @@ async def generate_all_styles_endpoint(request: CitationAllStylesRequest) -> dic
 
 class ReadabilityRequest(BaseModel):
     """Request for readability analysis."""
-    text: str = Field(..., min_length=1, description="Text to analyze")
+    text: str = Field(..., min_length=1, max_length=500_000, description="Text to analyze")
 
 
 @router.post(
@@ -112,7 +113,7 @@ async def readability_endpoint(request: ReadabilityRequest) -> dict:
 
 class GrammarRequest(BaseModel):
     """Request for grammar checking."""
-    text: str = Field(..., min_length=1, description="Text to check")
+    text: str = Field(..., min_length=1, max_length=100_000, description="Text to check")
 
 
 @router.post(
@@ -153,10 +154,10 @@ async def analyze_batch_endpoint(files: list[UploadFile]) -> dict:
             detail="At least one file is required.",
         )
 
-    if len(files) > 10:
+    if len(files) > settings.batch_max_files:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Maximum 10 files per batch.",
+            detail=f"Maximum {settings.batch_max_files} files per batch.",
         )
 
     results: list[dict] = []

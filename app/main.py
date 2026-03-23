@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.middleware import AuthMiddleware, SecurityHeadersMiddleware
+from app.middleware import AuthMiddleware, RequestIDMiddleware, SecurityHeadersMiddleware
 from app.routes.analyze import router as analyze_router
 from app.routes.auth import router as auth_router
 from app.routes.rewrite import router as rewrite_router
@@ -30,6 +30,20 @@ _logger = get_logger(__name__)
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan: runs setup on startup and teardown on shutdown."""
     setup_logging(settings.log_level)
+
+    if settings.debug:
+        _logger.warning(
+            "debug_mode_enabled",
+            message="Application is running in DEBUG mode — do not use in production",
+        )
+
+    if not settings.jwt_secret:
+        _logger.warning(
+            "jwt_secret_not_configured",
+            message="PG_JWT_SECRET is not set — JWTs will use a temporary secret "
+                    "and will not survive application restarts",
+        )
+
     # Preload the embedding model so first request doesn't timeout
     from app.tools.embedding_tool import preload_model
     preload_model()
@@ -65,6 +79,7 @@ app.add_middleware(
 # --- Security middleware (outermost = runs last, innermost = runs first) ------
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(AuthMiddleware)
+app.add_middleware(RequestIDMiddleware)
 
 # --- Register routers --------------------------------------------------------
 app.include_router(auth_router)
@@ -79,16 +94,22 @@ app.include_router(writing_router)
 @app.exception_handler(Exception)
 async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Catch unhandled exceptions — return sanitized 500 response."""
+    request_id = getattr(request.state, "request_id", "unknown")
     _logger.error(
         "unhandled_exception",
         path=request.url.path,
         method=request.method,
         error=str(exc),
         error_type=type(exc).__name__,
+        request_id=request_id,
     )
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal server error. Please try again later."},
+        content={
+            "detail": "Internal server error. Please try again later.",
+            "request_id": request_id,
+        },
+        headers={"X-Request-ID": request_id},
     )
 
 
@@ -141,6 +162,38 @@ async def serve_signup() -> FileResponse:
 
 # --- Health check -------------------------------------------------------------
 @app.get("/health", tags=["system"])
-async def health_check() -> dict[str, str]:
-    """Return application health status."""
-    return {"status": "healthy", "version": settings.app_version}
+async def health_check() -> dict:
+    """Return application health status with dependency checks."""
+    from app.services.database import get_db
+
+    checks: dict[str, str] = {}
+    overall = "healthy"
+
+    # Database check
+    try:
+        db = get_db()
+        db.fetch_one("SELECT 1")
+        checks["database"] = "ok"
+    except Exception:
+        checks["database"] = "degraded"
+        overall = "degraded"
+
+    # Embedding model check
+    try:
+        from app.tools.embedding_tool import get_model
+        model = get_model()
+        checks["embedding_model"] = "ok" if model is not None else "not_loaded"
+    except Exception:
+        checks["embedding_model"] = "not_loaded"
+
+    # Azure OpenAI availability (config only — no live call)
+    if settings.azure_openai_endpoint and settings.azure_openai_api_key:
+        checks["azure_openai"] = "configured"
+    else:
+        checks["azure_openai"] = "not_configured"
+
+    return {
+        "status": overall,
+        "version": settings.app_version,
+        "checks": checks,
+    }

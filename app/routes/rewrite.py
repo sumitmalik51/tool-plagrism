@@ -23,8 +23,11 @@ router = APIRouter(prefix="/api/v1", tags=["rewrite"])
 class RewriteParagraphRequest(BaseModel):
     """Request body for paragraph rewriting."""
 
-    text: str = Field(..., min_length=1, description="The flagged paragraph to rewrite")
-    context: str = Field(default="", description="Surrounding text for context")
+    text: str = Field(
+        ..., min_length=1, max_length=50_000,
+        description="The flagged paragraph to rewrite",
+    )
+    context: str = Field(default="", max_length=50_000, description="Surrounding text for context")
     tone: str = Field(default="academic", description="Writing tone: academic, professional, casual")
 
 
@@ -42,7 +45,10 @@ class RewriteParagraphResponse(BaseModel):
 class RewriteDocumentRequest(BaseModel):
     """Request body for full document rewriting."""
 
-    text: str = Field(..., min_length=1, description="The full document text")
+    text: str = Field(
+        ..., min_length=1, max_length=500_000,
+        description="The full document text",
+    )
     flagged_passages: list[str] = Field(
         default_factory=list,
         description="Passages flagged as plagiarised (will be targeted for rewriting)",
@@ -155,7 +161,10 @@ async def rewrite_document_endpoint(
 class GeneralRewriteRequest(BaseModel):
     """Request body for the general-purpose rewriting tool."""
 
-    text: str = Field(..., min_length=1, description="Text to rewrite")
+    text: str = Field(
+        ..., min_length=1, max_length=50_000,
+        description="Text to rewrite",
+    )
     mode: Literal[
         "paraphrase", "simplify", "expand",
         "formal", "casual", "academic", "humanize",

@@ -11,6 +11,7 @@ import math
 import time
 from collections import Counter
 
+from app.config import settings
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -50,8 +51,8 @@ async def detect_ai_text(text: str, chunks: list[str] | None = None) -> dict:
     ttr = len(set(words)) / len(words) if words else 1.0
     # AI text tends to have a "comfortable middle" TTR (0.4–0.65).
     # Very high TTR (rich vocabulary) or very low TTR (repetitive) are
-    # more typical of human text.  Signal peaks at 0.52 (typical GPT-4 range).
-    ttr_signal = max(0, 1.0 - abs(ttr - 0.52) * 3.5)
+    # more typical of human text.  Signal peaks at the configured optimal value.
+    ttr_signal = max(0, 1.0 - abs(ttr - settings.ai_ttr_optimal) * 3.5)
 
     # --- Indicator 2: Sentence length variance (burstiness) -------------------
     if len(sentences) >= 2:
@@ -61,7 +62,7 @@ async def detect_ai_text(text: str, chunks: list[str] | None = None) -> dict:
         std_dev = math.sqrt(variance)
         # AI tends to have low std_dev (uniform sentence length).
         # Humans vary more — std_dev of 8-15 is common for humans.
-        burstiness_signal = max(0, 1.0 - (std_dev / 12.0))
+        burstiness_signal = max(0, 1.0 - (std_dev / settings.ai_burstiness_divisor))
     else:
         burstiness_signal = 0.5
 
@@ -77,8 +78,9 @@ async def detect_ai_text(text: str, chunks: list[str] | None = None) -> dict:
     if len(sentences) >= 3:
         lengths = [len(s.split()) for s in sentences]
         median_len = sorted(lengths)[len(lengths) // 2]
-        # What fraction of sentences are within ±5 words of median?
-        near_median = sum(1 for ln in lengths if abs(ln - median_len) <= 5)
+        # What fraction of sentences are within ±window words of median?
+        window = settings.ai_uniformity_window
+        near_median = sum(1 for ln in lengths if abs(ln - median_len) <= window)
         uniformity_signal = near_median / len(lengths)
     else:
         uniformity_signal = 0.5

@@ -37,7 +37,7 @@ async def _search_bing(query: str, count: int) -> dict | None:
     params = {"q": query, "count": min(count, 50), "mkt": "en-US"}
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=settings.http_timeout_web_search) as client:
             response = await client.get(BING_SEARCH_URL, headers=headers, params=params)
             if response.status_code == 401:
                 logger.warning("bing_api_key_unauthorized", hint="falling back to DuckDuckGo")
@@ -211,19 +211,21 @@ async def _fetch_one(client: httpx.AsyncClient, url: str) -> tuple[str, str]:
 
 async def fetch_page_text(
     urls: list[str],
-    timeout: float = 10.0,
+    timeout: float | None = None,
     max_concurrent: int = 5,
 ) -> dict[str, str]:
     """Fetch plain-text content from multiple URLs concurrently.
 
     Args:
         urls: URLs to fetch.
-        timeout: Per-request timeout in seconds.
+        timeout: Per-request timeout in seconds (defaults to config).
         max_concurrent: Max parallel requests.
 
     Returns:
         Dict mapping ``url → plain_text`` (empty string on failure).
     """
+    if timeout is None:
+        timeout = settings.http_timeout_page_fetch
     if not urls:
         return {}
 

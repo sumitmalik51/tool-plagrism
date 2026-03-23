@@ -154,7 +154,7 @@ class AzureSQLDatabase(Database):
             self._local.conn = self._pyodbc.connect(
                 self._connection_string,
                 autocommit=False,
-                timeout=30,
+                timeout=settings.db_connection_timeout,
             )
         return self._local.conn
 
