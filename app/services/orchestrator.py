@@ -71,7 +71,10 @@ async def run_pipeline(document_id: str, text: str) -> PlagiarismReport:
 
     # --- 4. Generate report ---------------------------------------------------
     report_agent = ReportAgent()
-    report = await report_agent.generate(document_id, aggregation_output, agent_outputs)
+    report = await report_agent.generate(
+        document_id, aggregation_output, agent_outputs,
+        original_text=text,
+    )
 
     pipeline_elapsed = round(time.perf_counter() - pipeline_start, 3)
 

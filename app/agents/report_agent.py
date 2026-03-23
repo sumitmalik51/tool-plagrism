@@ -24,6 +24,8 @@ class ReportAgent(BaseAgent):
         document_id: str,
         aggregation_output: AgentOutput,
         agent_outputs: list[AgentOutput],
+        *,
+        original_text: str = "",
     ) -> PlagiarismReport:
         """Build the final report from aggregation + individual agent results.
 
@@ -31,13 +33,17 @@ class ReportAgent(BaseAgent):
             document_id: The analysed document's identifier.
             aggregation_output: Result from ``AggregationAgent.aggregate()``.
             agent_outputs: Raw results from every detection agent.
+            original_text: The document's full text for the report viewer.
 
         Returns:
             A fully populated ``PlagiarismReport`` ready for JSON serialisation.
         """
         self.logger.info("report_generation_started", document_id=document_id)
 
-        report = build_report(document_id, aggregation_output, agent_outputs)
+        report = build_report(
+            document_id, aggregation_output, agent_outputs,
+            original_text=original_text,
+        )
 
         self.logger.info(
             "report_generation_complete",

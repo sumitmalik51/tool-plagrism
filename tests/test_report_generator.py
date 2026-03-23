@@ -152,6 +152,8 @@ def test_report_to_json_has_all_keys() -> None:
         "plagiarism_score",
         "confidence_score",
         "risk_level",
+        "original_text",
+        "match_groups",
         "detected_sources",
         "flagged_passages",
         "agent_results",
@@ -173,3 +175,46 @@ def test_report_to_json_sources_are_dicts() -> None:
         assert isinstance(src, dict)
         assert "url" in src
         assert "similarity" in src
+        assert "source_number" in src
+        assert "source_type" in src
+        assert "text_blocks" in src
+        assert "matched_words" in src
+
+
+# ---------------------------------------------------------------------------
+# New fields: original_text, match_groups, enriched sources
+# ---------------------------------------------------------------------------
+
+def test_build_report_original_text() -> None:
+    """original_text should be included when provided."""
+    report = build_report(
+        "doc-13", _agg_output(), _detection_outputs(),
+        original_text="This is the original document text."
+    )
+    assert report.original_text == "This is the original document text."
+
+
+def test_build_report_match_groups() -> None:
+    """Match groups should be populated."""
+    report = build_report(
+        "doc-14", _agg_output(), _detection_outputs(),
+        original_text="dummy text for word count"
+    )
+    assert len(report.match_groups) > 0
+    categories = [g.category for g in report.match_groups]
+    assert "Web Match" in categories
+
+
+def test_build_report_source_numbers() -> None:
+    """Each source should have a sequential source_number."""
+    report = build_report("doc-15", _agg_output(), _detection_outputs())
+    numbers = [s.source_number for s in report.detected_sources]
+    assert numbers == list(range(1, len(numbers) + 1))
+
+
+def test_build_report_source_type() -> None:
+    """Sources from web agent should be Internet, from academic should be Publication."""
+    report = build_report("doc-16", _agg_output(), _detection_outputs())
+    types = {s.source_type for s in report.detected_sources}
+    # Our test fixtures only have web sources (semantic_agent / web_search_agent)
+    assert "Internet" in types

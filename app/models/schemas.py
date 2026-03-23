@@ -80,9 +80,22 @@ class AgentOutput(BaseModel):
 class DetectedSource(BaseModel):
     """A source detected during plagiarism analysis."""
 
+    source_number: int = Field(default=0, description="1-based index for Turnitin-style referencing")
+    source_type: str = Field(default="Internet", description="Internet | Publication | Internal")
     url: str | None = Field(default=None, description="URL of the matched source")
     title: str | None = Field(default=None, description="Title of the matched source")
     similarity: float = Field(..., ge=0.0, le=1.0, description="Similarity with the source")
+    text_blocks: int = Field(default=0, description="Number of flagged passages from this source")
+    matched_words: int = Field(default=0, description="Total word count of matching passages")
+
+
+class MatchGroup(BaseModel):
+    """Categorised match group (Turnitin-style)."""
+
+    category: str = Field(..., description="Web Match | Academic Match | Internal Duplication | AI Generated")
+    icon: str = Field(default="", description="Emoji icon for the category")
+    count: int = Field(default=0, description="Number of flagged passages in this group")
+    percentage: float = Field(default=0.0, description="Percentage of document matched in this group")
 
 
 class PlagiarismReport(BaseModel):
@@ -92,6 +105,8 @@ class PlagiarismReport(BaseModel):
     plagiarism_score: float = Field(..., ge=0.0, le=100.0, description="Overall plagiarism score")
     confidence_score: float = Field(..., ge=0.0, le=1.0, description="Overall confidence")
     risk_level: RiskLevel
+    original_text: str = Field(default="", description="Original document text for the document viewer")
+    match_groups: list[MatchGroup] = Field(default_factory=list, description="Turnitin-style match groups")
     detected_sources: list[DetectedSource] = Field(default_factory=list)
     flagged_passages: list[FlaggedPassage] = Field(default_factory=list)
     agent_results: list[AgentOutput] = Field(default_factory=list)
