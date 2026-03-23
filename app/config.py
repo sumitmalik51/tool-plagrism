@@ -21,10 +21,13 @@ class Settings(BaseSettings):
     upload_dir: Path = Path("uploads")
 
     # Agent weights (used by aggregation_agent)
-    weight_semantic: float = 0.30
-    weight_web_search: float = 0.25
-    weight_academic: float = 0.25
-    weight_ai_detection: float = 0.20
+    # Semantic agent detects internal duplication (self-similarity), which
+    # is not plagiarism, so its weight is 0.  The remaining agents share
+    # the full weight budget.
+    weight_semantic: float = 0.0
+    weight_web_search: float = 0.35
+    weight_academic: float = 0.35
+    weight_ai_detection: float = 0.30
 
     # Semantic agent
     embedding_model: str = "all-MiniLM-L6-v2"

@@ -31,14 +31,13 @@ def _agent(name: str, score: float, confidence: float, error: bool = False) -> A
 
 def test_weighted_score_single_agent() -> None:
     """With one healthy agent, the score equals that agent's score."""
-    outputs = [_agent("semantic_agent", 80.0, 0.9)]
+    outputs = [_agent("web_search_agent", 80.0, 0.9)]
     assert compute_weighted_score(outputs) == 80.0
 
 
 def test_weighted_score_all_agents_equal() -> None:
-    """When all agents agree, the weighted score equals the common score."""
+    """When all scored agents agree, the weighted score equals the common score."""
     outputs = [
-        _agent("semantic_agent", 50.0, 0.8),
         _agent("web_search_agent", 50.0, 0.7),
         _agent("academic_agent", 50.0, 0.6),
         _agent("ai_detection_agent", 50.0, 0.9),
@@ -49,32 +48,37 @@ def test_weighted_score_all_agents_equal() -> None:
 def test_weighted_score_mixed() -> None:
     """Different scores should produce a weighted average."""
     outputs = [
-        _agent("semantic_agent", 90.0, 0.9),       # w=0.30
-        _agent("web_search_agent", 60.0, 0.7),     # w=0.25
-        _agent("academic_agent", 40.0, 0.6),        # w=0.25
-        _agent("ai_detection_agent", 20.0, 0.5),    # w=0.20
+        _agent("web_search_agent", 60.0, 0.7),     # w=0.35
+        _agent("academic_agent", 40.0, 0.6),        # w=0.35
+        _agent("ai_detection_agent", 20.0, 0.5),    # w=0.30
     ]
     score = compute_weighted_score(outputs)
-    # Manual: (90*0.30 + 60*0.25 + 40*0.25 + 20*0.20) / 1.0 = 27+15+10+4 = 56
-    assert score == 56.0
+    # Manual: (60*0.35 + 40*0.35 + 20*0.30) / 1.0 = 21+14+6 = 41
+    assert score == 41.0
 
 
 def test_weighted_score_excludes_errored_agents() -> None:
     """Errored agents should be excluded; their weight redistributed."""
     outputs = [
-        _agent("semantic_agent", 80.0, 0.9),
-        _agent("web_search_agent", 0.0, 0.0, error=True),  # errored
-        _agent("academic_agent", 60.0, 0.6),
+        _agent("web_search_agent", 80.0, 0.9),
+        _agent("academic_agent", 0.0, 0.0, error=True),  # errored
+        _agent("ai_detection_agent", 60.0, 0.6),
     ]
     score = compute_weighted_score(outputs)
-    # Only semantic (0.30) and academic (0.25) contribute
-    # Normalised: sem = 0.30/0.55 ≈ 0.5455, acad = 0.25/0.55 ≈ 0.4545
-    expected = round(80.0 * (0.30 / 0.55) + 60.0 * (0.25 / 0.55), 2)
+    # Only web_search (0.35) and ai_detection (0.30) contribute
+    # Normalised: web = 0.35/0.65, ai = 0.30/0.65
+    expected = round(80.0 * (0.35 / 0.65) + 60.0 * (0.30 / 0.65), 2)
     assert score == expected
 
 
 def test_weighted_score_empty() -> None:
     assert compute_weighted_score([]) == 0.0
+
+
+def test_weighted_score_semantic_excluded() -> None:
+    """Semantic agent (weight 0) should be excluded from score."""
+    outputs = [_agent("semantic_agent", 99.0, 0.9)]
+    assert compute_weighted_score(outputs) == 0.0
 
 
 def test_weighted_score_unknown_agent() -> None:
@@ -95,6 +99,29 @@ def test_merge_deduplicates() -> None:
     ]
     merged = merge_flagged_passages(outputs)
     assert len(merged) == 1
+
+
+def test_merge_excludes_internal_chunk_passages() -> None:
+    """Passages with internal_chunk_ sources should be excluded entirely."""
+    fp_internal = FlaggedPassage(
+        text="This is an internal duplication passage detected by semantic agent",
+        similarity_score=0.95,
+        source="internal_chunk_42",
+        reason="internal duplication",
+    )
+    fp_web = FlaggedPassage(
+        text="This web passage was matched against an external source online",
+        similarity_score=0.80,
+        source="http://example.com/article",
+        reason="web match",
+    )
+    outputs = [
+        AgentOutput(agent_name="semantic_agent", score=80, confidence=0.9, flagged_passages=[fp_internal]),
+        AgentOutput(agent_name="web_search_agent", score=50, confidence=0.7, flagged_passages=[fp_web]),
+    ]
+    merged = merge_flagged_passages(outputs)
+    assert len(merged) == 1
+    assert merged[0].source == "http://example.com/article"
 
 
 def test_merge_respects_max() -> None:
@@ -217,10 +244,10 @@ def test_is_citation_metadata_false() -> None:
 # ---------------------------------------------------------------------------
 
 def test_known_agent_weights() -> None:
-    assert get_agent_weight("semantic_agent") == 0.30
-    assert get_agent_weight("web_search_agent") == 0.25
-    assert get_agent_weight("academic_agent") == 0.25
-    assert get_agent_weight("ai_detection_agent") == 0.20
+    assert get_agent_weight("semantic_agent") == 0.0
+    assert get_agent_weight("web_search_agent") == 0.35
+    assert get_agent_weight("academic_agent") == 0.35
+    assert get_agent_weight("ai_detection_agent") == 0.30
 
 
 def test_unknown_agent_weight() -> None:

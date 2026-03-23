@@ -217,7 +217,7 @@ def test_build_report_original_text() -> None:
 
 
 def test_build_report_match_groups() -> None:
-    """Match groups should be populated."""
+    """Match groups should be populated (Internal Duplication excluded)."""
     report = build_report(
         "doc-14", _agg_output(), _detection_outputs(),
         original_text="dummy text for word count"
@@ -225,6 +225,7 @@ def test_build_report_match_groups() -> None:
     assert len(report.match_groups) > 0
     categories = [g.category for g in report.match_groups]
     assert "Web Match" in categories
+    assert "Internal Duplication" not in categories
 
 
 def test_build_report_source_numbers() -> None:

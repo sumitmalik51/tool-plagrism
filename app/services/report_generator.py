@@ -199,11 +199,11 @@ def _classify_passage(fp: FlaggedPassage) -> str:
 _GROUP_ICONS = {
     "Web Match": "🌐",
     "Academic Match": "📚",
-    "Internal Duplication": "🔄",
     "AI Generated": "🤖",
 }
 
-_GROUP_ORDER = ["Web Match", "Academic Match", "Internal Duplication", "AI Generated"]
+# Internal Duplication is excluded — self-similarity is not plagiarism.
+_GROUP_ORDER = ["Web Match", "Academic Match", "AI Generated"]
 
 
 def _build_match_groups(
@@ -219,6 +219,8 @@ def _build_match_groups(
 
     for fp in flagged_passages:
         cat = _classify_passage(fp)
+        if cat == "Internal Duplication":
+            continue  # self-similarity is not plagiarism
         group_data.setdefault(cat, []).append(fp)
 
     groups: list[MatchGroup] = []

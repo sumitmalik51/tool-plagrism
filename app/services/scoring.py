@@ -118,28 +118,31 @@ def merge_flagged_passages(
     max_passages: int = 50,
     min_text_length: int = 30,
     min_word_count: int = 3,
-    min_external: int = 15,
 ) -> list[FlaggedPassage]:
     """Collect and deduplicate flagged passages from all agents.
 
-    Keeps up to ``max_passages`` entries.  External (http) sources are
-    guaranteed at least ``min_external`` slots so that web / academic
-    matches are never crowded out by internal-duplication passages.
+    Keeps up to ``max_passages`` entries.
 
-    When the same text appears from multiple agents, external sources
-    (http URLs) are preferred over internal ones (``internal_chunk_``).
+    Internal-duplication passages (``internal_chunk_`` sources) are
+    excluded because self-similarity within a document is not plagiarism.
+
+    When the same text appears from multiple agents, the entry with the
+    higher similarity score is kept.
 
     Filters out:
+    - internal-duplication passages (``internal_chunk_`` sources)
     - fragments shorter than *min_text_length* / *min_word_count*
     - citation/bibliographic metadata (author blocks, emails, pub dates)
     - leading partial-word artefacts from chunk-boundary splits
     """
-    # key → (FlaggedPassage, priority)
-    # Priority: 0 = internal_chunk_, 1 = ai_detection, 2 = http source
-    best: dict[str, tuple[FlaggedPassage, int]] = {}
+    best: dict[str, FlaggedPassage] = {}
 
     for output in agent_outputs:
         for fp in output.flagged_passages:
+            # Skip internal-duplication passages (self-similarity)
+            if fp.source and fp.source.startswith("internal_chunk_"):
+                continue
+
             stripped = fp.text.strip()
 
             # Trim leading partial-word fragment (chunk boundary artefact)
@@ -164,50 +167,11 @@ def merge_flagged_passages(
 
             key = fp.text[:100]  # deduplicate on first 100 chars
 
-            # Determine source priority — prefer external over internal
-            if fp.source and fp.source.startswith("http"):
-                priority = 2
-            elif fp.source == "ai_detection_heuristic":
-                priority = 1
-            else:
-                priority = 0
-
             existing = best.get(key)
-            if existing is None:
-                best[key] = (fp, priority)
-            else:
-                _, existing_prio = existing
-                # Replace if new passage has higher priority, or same
-                # priority but higher similarity score
-                if priority > existing_prio or (
-                    priority == existing_prio
-                    and fp.similarity_score > existing[0].similarity_score
-                ):
-                    best[key] = (fp, priority)
+            if existing is None or fp.similarity_score > existing.similarity_score:
+                best[key] = fp
 
-    all_passages = [fp for fp, _ in best.values()]
-
-    # --- Guarantee minimum external-source representation ---------------------
-    # Split into external (http) and non-external buckets, sort each by
-    # similarity, then interleave so that external matches always survive
-    # the max_passages cap.
-    external = sorted(
-        [p for p in all_passages if p.source and p.source.startswith("http")],
-        key=lambda p: p.similarity_score, reverse=True,
+    all_passages = sorted(
+        best.values(), key=lambda p: p.similarity_score, reverse=True
     )
-    other = sorted(
-        [p for p in all_passages if not (p.source and p.source.startswith("http"))],
-        key=lambda p: p.similarity_score, reverse=True,
-    )
-
-    # Reserve up to min_external slots for http-sourced passages
-    reserved = external[:min(min_external, len(external))]
-    reserved_keys = {p.text[:100] for p in reserved}
-
-    # Fill remaining slots from ALL passages (excluding already reserved)
-    remaining = [p for p in all_passages if p.text[:100] not in reserved_keys]
-    remaining.sort(key=lambda p: p.similarity_score, reverse=True)
-
-    merged = reserved + remaining[:max_passages - len(reserved)]
-    merged.sort(key=lambda p: p.similarity_score, reverse=True)
-    return merged
+    return list(all_passages[:max_passages])
