@@ -18,6 +18,7 @@ from app.tools.embedding_tool import generate_embeddings_sync
 from app.tools.similarity_tool import run_similarity_analysis
 from app.tools.web_search_tool import search_web
 from app.tools.scholar_tool import search_scholar
+from app.tools.openalex_tool import search_openalex
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -164,6 +165,24 @@ async def scholar_search_endpoint(request: ScholarSearchRequest) -> dict:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Scholar search failed: {exc}",
+        )
+
+
+@router.post("/openalex-search", summary="Search OpenAlex for academic papers")
+async def openalex_search_endpoint(request: ScholarSearchRequest) -> dict:
+    """Search OpenAlex for academic papers matching the query.
+
+    Free, reliable alternative to Google Scholar. No API key needed.
+    Returns titles, authors, year, abstracts, citation counts, and URLs.
+    """
+    logger.info("tool_api_openalex_search", query=request.query[:80])
+    try:
+        return await search_openalex(request.query, max_results=request.max_results)
+    except Exception as exc:
+        logger.error("tool_api_openalex_search_error", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"OpenAlex search failed: {exc}",
         )
 
 

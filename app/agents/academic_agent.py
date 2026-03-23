@@ -1,9 +1,9 @@
-"""Academic agent — compares text against academic papers on Google Scholar.
+"""Academic agent — compares text against academic papers.
 
 Workflow
 --------
 1. Extract representative queries from the document.
-2. Search Google Scholar for matching papers.
+2. Search OpenAlex (primary) or Google Scholar (fallback) for papers.
 3. Compare document chunks against paper abstracts via embeddings.
 4. Flag passages with high similarity to known publications.
 
@@ -19,6 +19,7 @@ from app.config import settings
 from app.models.schemas import AgentInput, AgentOutput, FlaggedPassage
 from app.tools.content_extractor_tool import chunk_text
 from app.tools.embedding_tool import generate_embeddings
+from app.tools.openalex_tool import search_openalex_multi
 from app.tools.scholar_tool import search_scholar_multi
 from app.tools.similarity_tool import cosine_similarity_matrix
 
@@ -86,31 +87,56 @@ class AcademicAgent(BaseAgent):
                 details={"status": "document_too_short", "chunk_count": len(chunks)},
             )
 
-        # --- 2. Search Google Scholar -----------------------------------------
+        # --- 2. Search academic sources ------------------------------------
         queries = _extract_queries(chunks, max_queries=settings.scholar_max_queries)
         self.logger.info(
-            "scholar_queries_prepared",
+            "academic_queries_prepared",
             document_id=agent_input.document_id,
             query_count=len(queries),
         )
 
-        scholar_result = await search_scholar_multi(
-            queries, max_per_query=settings.scholar_results_per_query,
-        )
-        papers = scholar_result.get("results", [])
+        # -- 2a. Try OpenAlex first (free, reliable, no blocking) --
+        papers: list[dict] = []
+        source_used = "openalex"
+        try:
+            openalex_result = await search_openalex_multi(
+                queries, max_per_query=settings.scholar_results_per_query,
+            )
+            papers = openalex_result.get("results", [])
+            self.logger.info(
+                "openalex_search_done",
+                document_id=agent_input.document_id,
+                papers_found=len(papers),
+                elapsed_s=openalex_result.get("elapsed_s"),
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning(
+                "openalex_search_failed",
+                document_id=agent_input.document_id,
+                error=str(exc),
+            )
 
+        # -- 2b. Fallback to Google Scholar if OpenAlex returned nothing --
+        if not papers:
+            source_used = "scholar"
+            self.logger.info(
+                "falling_back_to_scholar",
+                document_id=agent_input.document_id,
+                message="OpenAlex returned 0 results — trying Google Scholar.",
+            )
+            scholar_result = await search_scholar_multi(
+                queries, max_per_query=settings.scholar_results_per_query,
+            )
+            papers = scholar_result.get("results", [])
+
+        # -- 2c. If both sources failed, fall back to intra-doc analysis --
         if not papers:
             self.logger.warning(
-                "no_scholar_results_falling_back",
+                "no_academic_results_falling_back",
                 document_id=agent_input.document_id,
-                queries_attempted=scholar_result.get("queries_searched", 0),
-                elapsed_s=scholar_result.get("elapsed_s"),
-                message="Google Scholar returned 0 papers — likely blocked, "
-                        "rate-limited, or CAPTCHA. Falling back to "
-                        "intra-document analysis (score will reflect "
-                        "internal duplication only).",
+                message="Both OpenAlex and Google Scholar returned 0 papers. "
+                        "Falling back to intra-document analysis.",
             )
-            # Fall back to intra-document analysis
             return await self._intra_document_analysis(
                 agent_input.document_id, chunks
             )
@@ -165,7 +191,7 @@ class AcademicAgent(BaseAgent):
                         FlaggedPassage(
                             text=chunks[i][:500],
                             similarity_score=sim_val,
-                            source=paper.get("url") or paper.get("scholar_url", ""),
+                            source=paper.get("url") or paper.get("openalex_id") or paper.get("scholar_url", ""),
                             reason=(
                                 f"{sim_val:.0%} similarity with: \"{title}\" "
                                 f"by {author_str} ({year})"
@@ -183,6 +209,7 @@ class AcademicAgent(BaseAgent):
             "academic_analysis_complete",
             document_id=agent_input.document_id,
             score=score,
+            source_used=source_used,
             papers_found=len(papers),
             flagged_count=len(flagged),
         )
@@ -194,8 +221,9 @@ class AcademicAgent(BaseAgent):
             flagged_passages=flagged[:50],  # cap to avoid huge responses
             details={
                 "status": "completed",
+                "source_used": source_used,
                 "chunk_count": len(chunks),
-                "scholar_papers_found": len(papers),
+                "papers_found": len(papers),
                 "flagged_chunks": len(flagged_chunk_indices),
                 "queries_used": queries,
             },

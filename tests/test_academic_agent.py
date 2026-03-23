@@ -1,4 +1,4 @@
-"""Tests for the academic agent — uses mocked Scholar & embeddings."""
+"""Tests for the academic agent — uses mocked OpenAlex/Scholar & embeddings."""
 
 from __future__ import annotations
 
@@ -61,11 +61,13 @@ async def test_academic_agent_short_text() -> None:
 
 @pytest.mark.asyncio
 @patch("app.agents.academic_agent.search_scholar_multi", new_callable=AsyncMock)
+@patch("app.agents.academic_agent.search_openalex_multi", new_callable=AsyncMock)
 @patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
 async def test_academic_agent_no_scholar_results(
-    mock_embed: AsyncMock, mock_scholar: AsyncMock
+    mock_embed: AsyncMock, mock_openalex: AsyncMock, mock_scholar: AsyncMock
 ) -> None:
-    """When Scholar returns nothing, should fall back to intra-doc analysis."""
+    """When both OpenAlex and Scholar return nothing, fall back to intra-doc."""
+    mock_openalex.return_value = {"results": []}
     mock_scholar.return_value = {"results": []}
     mock_embed.return_value = _make_embeddings(6)
 
@@ -79,23 +81,26 @@ async def test_academic_agent_no_scholar_results(
 
 @pytest.mark.asyncio
 @patch("app.agents.academic_agent.search_scholar_multi", new_callable=AsyncMock)
+@patch("app.agents.academic_agent.search_openalex_multi", new_callable=AsyncMock)
 @patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
 async def test_academic_agent_with_papers(
-    mock_embed: AsyncMock, mock_scholar: AsyncMock
+    mock_embed: AsyncMock, mock_openalex: AsyncMock, mock_scholar: AsyncMock
 ) -> None:
-    """When Scholar returns papers, should cross-compare and produce a score."""
-    mock_scholar.return_value = {
+    """When OpenAlex returns papers, should cross-compare and produce a score."""
+    mock_openalex.return_value = {
         "results": [
             {
                 "title": "A Study on Machine Learning",
                 "authors": ["Smith", "Jones"],
                 "year": "2023",
                 "abstract": "This paper explores deep learning techniques.",
-                "url": "https://example.com/paper1",
-                "scholar_url": "https://scholar.google.com/...",
+                "url": "https://doi.org/10.1234/example",
+                "openalex_id": "https://openalex.org/W12345",
             }
         ]
     }
+    # Scholar should NOT be called since OpenAlex returned results
+    mock_scholar.return_value = {"results": []}
     # 6 chunks + 1 paper abstract = 7 embeddings
     mock_embed.return_value = _make_embeddings(7)
 
@@ -106,27 +111,31 @@ async def test_academic_agent_with_papers(
 
     assert result.details.get("status") == "completed"
     assert result.score >= 0.0
-    assert result.details["scholar_papers_found"] == 1
+    assert result.details["papers_found"] == 1
+    assert result.details["source_used"] == "openalex"
 
 
 @pytest.mark.asyncio
 @patch("app.agents.academic_agent.search_scholar_multi", new_callable=AsyncMock)
+@patch("app.agents.academic_agent.search_openalex_multi", new_callable=AsyncMock)
 @patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
 async def test_academic_agent_high_similarity(
-    mock_embed: AsyncMock, mock_scholar: AsyncMock
+    mock_embed: AsyncMock, mock_openalex: AsyncMock, mock_scholar: AsyncMock
 ) -> None:
     """When a chunk matches a paper abstract closely, it should be flagged."""
-    mock_scholar.return_value = {
+    mock_openalex.return_value = {
         "results": [
             {
                 "title": "Plagiarized Paper",
                 "authors": ["Author"],
                 "year": "2024",
                 "abstract": "Exact matching abstract text.",
-                "url": "https://example.com/plagiarized",
+                "url": "https://doi.org/10.1234/plagiarized",
+                "openalex_id": "https://openalex.org/W99999",
             }
         ]
     }
+    mock_scholar.return_value = {"results": []}
     # Create embeddings where chunks are very similar to the paper abstract
     base_vec = np.ones((1, 384), dtype=np.float32)
     base_vec /= np.linalg.norm(base_vec)
@@ -144,3 +153,37 @@ async def test_academic_agent_high_similarity(
     # Flagged passages should reference the paper
     for fp in result.flagged_passages:
         assert "Plagiarized Paper" in fp.reason
+
+
+@pytest.mark.asyncio
+@patch("app.agents.academic_agent.search_scholar_multi", new_callable=AsyncMock)
+@patch("app.agents.academic_agent.search_openalex_multi", new_callable=AsyncMock)
+@patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
+async def test_academic_agent_scholar_fallback(
+    mock_embed: AsyncMock, mock_openalex: AsyncMock, mock_scholar: AsyncMock
+) -> None:
+    """When OpenAlex returns nothing, should fall back to Scholar."""
+    mock_openalex.return_value = {"results": []}
+    mock_scholar.return_value = {
+        "results": [
+            {
+                "title": "Fallback Scholar Paper",
+                "authors": ["Scholar Author"],
+                "year": "2025",
+                "abstract": "Found via Scholar fallback.",
+                "url": "https://example.com/scholar-fallback",
+                "scholar_url": "https://scholar.google.com/...",
+            }
+        ]
+    }
+    # 6 chunks + 1 paper = 7 embeddings
+    mock_embed.return_value = _make_embeddings(7)
+
+    agent = AcademicAgent()
+    text = "Text for Scholar fallback test. " * 30
+    chunks = [f"Scholar fallback chunk {i} with enough words to pass validation." for i in range(6)]
+    result = await agent.run(AgentInput(document_id="doc-5", text=text, chunks=chunks))
+
+    assert result.details.get("status") == "completed"
+    assert result.details["source_used"] == "scholar"
+    assert result.details["papers_found"] == 1
