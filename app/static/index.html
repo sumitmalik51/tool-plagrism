@@ -460,19 +460,60 @@
     if (passages.length === 0) {
       passageBody.innerHTML = '<p class="text-muted text-sm">No passages flagged — looking good! ✅</p>';
     } else {
-      passageBody.innerHTML = passages.map((fp, idx) => `
+      passageBody.innerHTML = passages.map((fp, idx) => {
+        // Determine match type and build info from reason + source
+        const isInternal = fp.source && fp.source.startsWith('internal_chunk_');
+        const isWeb = fp.source && fp.source.startsWith('http');
+        const isAcademic = fp.reason && /scholar|academic|paper/i.test(fp.reason);
+
+        let typeBadge = '';
+        let sourceHtml = '';
+        let reasonHtml = '';
+
+        if (isInternal) {
+          typeBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">Internal Duplication</span>';
+          // Parse "Chunk X is N% similar to chunk Y (possible internal duplication)"
+          const match = fp.reason.match(/Chunk\s+(\d+)\s+is\s+([\d.]+%)\s+similar\s+to\s+chunk\s+(\d+)/i);
+          if (match) {
+            reasonHtml = `<span class="text-yellow-400/80">Chunk ${match[1]} duplicates Chunk ${match[3]} (${match[2]} match)</span>`;
+          } else {
+            reasonHtml = `<span>${esc(fp.reason)}</span>`;
+          }
+        } else if (isWeb) {
+          typeBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">Web Match</span>';
+          // Extract title from reason: "Chunk matches web source with N% similarity: TITLE"
+          const titleMatch = fp.reason.match(/similarity:\s*(.+)/i);
+          const title = titleMatch ? titleMatch[1].trim() : '';
+          if (title) {
+            sourceHtml = `<span>Matched: <a href="${esc(fp.source)}" target="_blank" class="text-accent-l hover:underline" title="${esc(fp.source)}">${esc(title)}</a></span>`;
+          } else {
+            sourceHtml = `<span>Source: <a href="${esc(fp.source)}" target="_blank" class="text-accent-l hover:underline">${esc(fp.source)}</a></span>`;
+          }
+        } else if (isAcademic) {
+          typeBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">Academic Match</span>';
+          sourceHtml = fp.source ? `<span>Source: <a href="${esc(fp.source)}" target="_blank" class="text-accent-l hover:underline">${esc(fp.source)}</a></span>` : '';
+          reasonHtml = fp.reason ? `<span>${esc(fp.reason)}</span>` : '';
+        } else {
+          // Fallback
+          sourceHtml = fp.source ? `<span>Source: <a href="${esc(fp.source)}" target="_blank" class="text-accent-l hover:underline">${esc(fp.source)}</a></span>` : '';
+          reasonHtml = fp.reason ? `<span>${esc(fp.reason)}</span>` : '';
+        }
+
+        return `
         <div class="py-3 border-b border-border last:border-0" id="passage-${idx}">
           <div class="text-sm leading-relaxed bg-accent/[.08] p-3 border-l-[3px] border-accent rounded-r-md mb-2">${esc(fp.text)}</div>
-          <div class="flex flex-wrap gap-4 text-xs text-muted items-center">
+          <div class="flex flex-wrap gap-3 text-xs text-muted items-center">
             <span class="font-semibold text-accent-l">Similarity: ${(fp.similarity_score * 100).toFixed(0)}%</span>
-            ${fp.source ? `<span>Source: <a href="${esc(fp.source)}" target="_blank" class="text-accent-l hover:underline">${esc(fp.source)}</a></span>` : ''}
-            ${fp.reason ? `<span>${esc(fp.reason)}</span>` : ''}
+            ${typeBadge}
+            ${sourceHtml}
+            ${reasonHtml}
             <button onclick="rewriteInline(${idx})" class="ml-auto px-3 py-1 bg-accent/20 text-accent-l border border-accent/30 rounded hover:bg-accent hover:text-white transition-all text-xs font-semibold">
               ✨ Rewrite
             </button>
           </div>
           <div id="passage-rewrite-${idx}" class="hidden mt-3"></div>
-        </div>`).join('');
+        </div>`;
+      }).join('');
     }
 
     // ── Detected sources ──
