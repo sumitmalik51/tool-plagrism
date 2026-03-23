@@ -558,6 +558,102 @@
   /* ═══════════════════════════════════════════════════════════
      Document Viewer — Turnitin-style inline highlighting
      ═══════════════════════════════════════════════════════════ */
+
+  /**
+   * findPassageInText — robust multi-strategy search for a passage in original text.
+   *
+   * Strategies (tried in order):
+   *   1. Exact substring match (indexOf, case-sensitive)
+   *   2. Case-insensitive substring match
+   *   3. Whitespace-normalised match (collapse \s+ → single space)
+   *   4. Core-text match  — take middle 80 % of passage, search for that
+   *   5. Word-sequence match — take first 8 words, search for that
+   *
+   * Returns { start, end } in original text, or null if not found.
+   */
+  function findPassageInText(passage, fullText) {
+    if (!passage || !fullText) return null;
+
+    // Strategy 1: exact
+    let pos = fullText.indexOf(passage);
+    if (pos !== -1) return { start: pos, end: pos + passage.length };
+
+    // Strategy 2: case-insensitive
+    const pLower = passage.toLowerCase();
+    const tLower = fullText.toLowerCase();
+    pos = tLower.indexOf(pLower);
+    if (pos !== -1) return { start: pos, end: pos + passage.length };
+
+    // Strategy 3: whitespace-normalised
+    // Build a mapping from normalised-index → original-index
+    const normMap = [];   // normMap[i] = index in fullText
+    let norm = '';
+    let inWs = false;
+    for (let i = 0; i < fullText.length; i++) {
+      const c = fullText[i];
+      if (/\s/.test(c)) {
+        if (!inWs) { norm += ' '; normMap.push(i); inWs = true; }
+      } else {
+        norm += c; normMap.push(i); inWs = false;
+      }
+    }
+    const normPassage = passage.replace(/\s+/g, ' ').trim();
+    const normLower = norm.toLowerCase();
+    const npLower = normPassage.toLowerCase();
+    pos = normLower.indexOf(npLower);
+    if (pos !== -1) {
+      const origStart = normMap[pos] || 0;
+      const endIdx = pos + npLower.length - 1;
+      const origEnd = (endIdx < normMap.length ? normMap[endIdx] : fullText.length - 1) + 1;
+      return { start: origStart, end: origEnd };
+    }
+
+    // Strategy 4: core-text — drop first & last 10 % of passage chars
+    const trimLen = Math.max(10, Math.floor(passage.length * 0.1));
+    if (passage.length > trimLen * 3) {
+      const core = passage.slice(trimLen, passage.length - trimLen);
+      const coreLower = core.toLowerCase();
+      pos = tLower.indexOf(coreLower);
+      if (pos !== -1) {
+        // Expand to cover as much of the surrounding text as possible
+        const expandStart = Math.max(0, pos - trimLen);
+        const expandEnd = Math.min(fullText.length, pos + core.length + trimLen);
+        return { start: expandStart, end: expandEnd };
+      }
+    }
+
+    // Strategy 5: first N words
+    const words = passage.split(/\s+/).filter(Boolean);
+    if (words.length >= 4) {
+      const probe = words.slice(0, Math.min(8, words.length)).join(' ').toLowerCase();
+      pos = tLower.indexOf(probe);
+      if (pos !== -1) {
+        // Use the full passage length as estimate
+        return { start: pos, end: Math.min(fullText.length, pos + passage.length) };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * resolveSource — find the matching source for a flagged passage.
+   * Handles exact URL match, trailing-slash differences, and partial URL match.
+   */
+  function resolveSource(fpSource, sourceMap) {
+    if (!fpSource) return null;
+    // Exact
+    if (sourceMap[fpSource]) return sourceMap[fpSource];
+    // Try with/without trailing slash
+    const alt = fpSource.endsWith('/') ? fpSource.slice(0, -1) : fpSource + '/';
+    if (sourceMap[alt]) return sourceMap[alt];
+    // Partial match (URL contains or is contained)
+    for (const url in sourceMap) {
+      if (url.includes(fpSource) || fpSource.includes(url)) return sourceMap[url];
+    }
+    return null;
+  }
+
   function renderDocumentViewer(data) {
     const text = data.original_text || '';
     const passages = data.flagged_passages || [];
@@ -572,19 +668,15 @@
     const sourceMap = {};
     sources.forEach(s => { if (s.url) sourceMap[s.url] = s; });
 
-    // Find all passage positions in the text via fuzzy substring search
+    // Find all passage positions in the text via robust fuzzy search
     const highlights = [];
     passages.forEach((fp, idx) => {
       const fpText = fp.text.trim();
       if (fpText.length < 10) return;
 
-      // Find position in original text (case-sensitive first, then case-insensitive)
-      let pos = text.indexOf(fpText);
-      if (pos === -1) {
-        const lowerText = text.toLowerCase();
-        pos = lowerText.indexOf(fpText.toLowerCase());
-      }
-      if (pos === -1) return;
+      // Multi-strategy search for passage in original text
+      const match = findPassageInText(fpText, text);
+      if (!match) return;
 
       // Determine source number and highlight class
       let srcNum = 0;
@@ -593,12 +685,18 @@
         hlClass = 'hl-internal';
       } else if (fp.source === 'ai_detection_heuristic') {
         hlClass = 'hl-ai';
-      } else if (fp.source && sourceMap[fp.source]) {
-        srcNum = sourceMap[fp.source].source_number;
-        hlClass = `hl-${((srcNum - 1) % 10) + 1}`;
+      } else if (fp.source) {
+        const resolved = resolveSource(fp.source, sourceMap);
+        if (resolved) {
+          srcNum = resolved.source_number;
+          hlClass = `hl-${((srcNum - 1) % 10) + 1}`;
+        } else {
+          // Source URL exists but wasn't matched — still highlight as generic web match
+          hlClass = 'hl-1';
+        }
       }
 
-      highlights.push({ start: pos, end: pos + fpText.length, srcNum, hlClass, passageIdx: idx });
+      highlights.push({ start: match.start, end: match.end, srcNum, hlClass, passageIdx: idx });
     });
 
     // Sort by start position
