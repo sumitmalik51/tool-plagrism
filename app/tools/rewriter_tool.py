@@ -77,6 +77,10 @@ async def _call_azure_openai(
         f"{endpoint}/openai/deployments/{deployment}"
         f"/chat/completions?api-version={api_version}"
     )
+    headers = {
+        "Content-Type": "application/json",
+        "api-key": api_key,
+    }
 
     body = {
         "messages": [
@@ -85,11 +89,7 @@ async def _call_azure_openai(
         ],
         "max_tokens": max_tokens or settings.rewriter_max_tokens,
         "temperature": temperature if temperature is not None else settings.rewriter_temperature,
-    }
-
-    headers = {
-        "Content-Type": "application/json",
-        "api-key": api_key,
+        "model": deployment,
     }
 
     async with httpx.AsyncClient(timeout=60.0) as client:
