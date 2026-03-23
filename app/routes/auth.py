@@ -244,7 +244,11 @@ async def route_plans():
 
 def _get_razorpay_client():
     """Create and return a Razorpay client instance."""
-    import razorpay
+    try:
+        import razorpay
+    except ImportError:
+        logger.error("razorpay_import_failed", hint="pip install razorpay setuptools")
+        raise HTTPException(status_code=503, detail="Payment gateway unavailable.")
     if not settings.razorpay_key_id or not settings.razorpay_key_secret:
         raise HTTPException(status_code=503, detail="Payment gateway not configured.")
     return razorpay.Client(auth=(settings.razorpay_key_id, settings.razorpay_key_secret))
@@ -277,7 +281,14 @@ async def route_create_order(
         raise HTTPException(status_code=404, detail="User not found.")
 
     amount = PLAN_AMOUNTS[body.plan]
-    client = _get_razorpay_client()
+
+    try:
+        client = _get_razorpay_client()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("razorpay_client_init_failed", error=str(exc))
+        raise HTTPException(status_code=503, detail="Payment gateway unavailable.")
 
     try:
         order = client.order.create({
@@ -297,11 +308,15 @@ async def route_create_order(
     # Record the order in our DB
     from app.services.database import get_db
     db = get_db()
-    db.execute(
-        "INSERT INTO payments (user_id, razorpay_order_id, plan_name, amount, currency, status) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (user_id, order["id"], body.plan, amount, "INR", "created"),
-    )
+    try:
+        db.execute(
+            "INSERT INTO payments (user_id, razorpay_order_id, plan_name, amount, currency, status) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, order["id"], body.plan, amount, "INR", "created"),
+        )
+    except Exception as exc:
+        logger.error("payment_record_insert_failed", error=str(exc), order_id=order["id"])
+        # Order was created at Razorpay — still return it so user can pay
 
     logger.info("razorpay_order_created", order_id=order["id"], user_id=user_id, plan=body.plan)
 
@@ -335,36 +350,42 @@ async def route_verify_payment(
         hashlib.sha256,
     ).hexdigest()
 
+    from app.services.database import get_db
+    db = get_db()
+
     if not hmac.compare_digest(expected_signature, body.razorpay_signature):
         logger.warning(
             "razorpay_signature_mismatch",
             order_id=body.razorpay_order_id,
             user_id=user_id,
         )
-        # Update payment status to failed
-        from app.services.database import get_db
-        db = get_db()
-        db.execute(
-            "UPDATE payments SET status = ?, updated_at = CURRENT_TIMESTAMP "
-            "WHERE razorpay_order_id = ?",
-            ("failed", body.razorpay_order_id),
-        )
+        try:
+            db.execute(
+                "UPDATE payments SET status = ? WHERE razorpay_order_id = ?",
+                ("failed", body.razorpay_order_id),
+            )
+        except Exception as exc:
+            logger.error("payment_status_update_failed", error=str(exc))
         raise HTTPException(status_code=400, detail="Payment verification failed. Invalid signature.")
 
     # Signature valid — update payment record and upgrade plan
-    from app.services.database import get_db
-    db = get_db()
-    db.execute(
-        "UPDATE payments SET razorpay_payment_id = ?, razorpay_signature = ?, "
-        "status = ?, updated_at = CURRENT_TIMESTAMP WHERE razorpay_order_id = ?",
-        (body.razorpay_payment_id, body.razorpay_signature, "paid", body.razorpay_order_id),
-    )
+    try:
+        db.execute(
+            "UPDATE payments SET razorpay_payment_id = ?, razorpay_signature = ?, "
+            "status = ? WHERE razorpay_order_id = ?",
+            (body.razorpay_payment_id, body.razorpay_signature, "paid", body.razorpay_order_id),
+        )
+    except Exception as exc:
+        logger.error("payment_record_update_failed", error=str(exc), order_id=body.razorpay_order_id)
 
     # Upgrade the user's plan
     try:
         update_user_plan(user_id, body.plan)
     except AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.error("plan_upgrade_failed_after_payment", error=str(exc), user_id=user_id)
+        raise HTTPException(status_code=500, detail="Payment recorded but plan upgrade failed. Contact support.")
 
     logger.info(
         "payment_verified_plan_upgraded",

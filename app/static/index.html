@@ -553,7 +553,10 @@
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> Detailed source reports</li>
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> Scan history & analytics</li>
             </ul>
-            <button onclick="handleUpgrade('pro')" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-bold hover:shadow-lg hover:shadow-accent/25 transition-all pricing-btn" data-plan="pro">Upgrade to Pro</button>
+            <button onclick="handleUpgrade('pro', this)" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-bold hover:shadow-lg hover:shadow-accent/25 transition-all pricing-btn flex items-center justify-center gap-2" data-plan="pro">
+              <svg class="animate-spin h-4 w-4 hidden" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+              <span>Upgrade to Pro</span>
+            </button>
           </div>
 
           <!-- Premium Plan -->
@@ -570,7 +573,10 @@
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> Custom integrations</li>
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> Priority support</li>
             </ul>
-            <button onclick="handleUpgrade('premium')" class="w-full py-2.5 rounded-xl bg-surface2 text-txt text-sm font-bold border border-border hover:border-accent/50 hover:bg-accent/5 transition-all pricing-btn" data-plan="premium">Upgrade to Premium</button>
+            <button onclick="handleUpgrade('premium', this)" class="w-full py-2.5 rounded-xl bg-surface2 text-txt text-sm font-bold border border-border hover:border-accent/50 hover:bg-accent/5 transition-all pricing-btn flex items-center justify-center gap-2" data-plan="premium">
+              <svg class="animate-spin h-4 w-4 hidden" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+              <span>Upgrade to Premium</span>
+            </button>
           </div>
         </div>
       </div>
@@ -3023,12 +3029,20 @@
     }
   }
 
-  async function handleUpgrade(plan) {
+  async function handleUpgrade(plan, btn) {
     const token = localStorage.getItem('pg_token');
     if (!token) {
       window.location.href = '/signup';
       return;
     }
+
+    // Show loading state on clicked button
+    const spinner = btn ? btn.querySelector('svg') : null;
+    const label = btn ? btn.querySelector('span') : null;
+    const originalText = label ? label.textContent : '';
+    if (spinner) spinner.classList.remove('hidden');
+    if (label) label.textContent = 'Processing…';
+    if (btn) btn.disabled = true;
 
     try {
       // 1. Create Razorpay order on backend
@@ -3113,6 +3127,11 @@
       rzp.open();
     } catch (e) {
       alert('Upgrade failed. Please try again.');
+    } finally {
+      // Reset button state
+      if (spinner) spinner.classList.add('hidden');
+      if (label) label.textContent = originalText;
+      if (btn) btn.disabled = false;
     }
   }
 
