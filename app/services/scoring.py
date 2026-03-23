@@ -118,12 +118,17 @@ def merge_flagged_passages(
     max_passages: int = 50,
     min_text_length: int = 30,
     min_word_count: int = 3,
+    min_external: int = 15,
 ) -> list[FlaggedPassage]:
     """Collect and deduplicate flagged passages from all agents.
 
-    Keeps up to ``max_passages`` entries, sorted by descending similarity.
+    Keeps up to ``max_passages`` entries.  External (http) sources are
+    guaranteed at least ``min_external`` slots so that web / academic
+    matches are never crowded out by internal-duplication passages.
+
     When the same text appears from multiple agents, external sources
     (http URLs) are preferred over internal ones (``internal_chunk_``).
+
     Filters out:
     - fragments shorter than *min_text_length* / *min_word_count*
     - citation/bibliographic metadata (author blocks, emails, pub dates)
@@ -181,5 +186,28 @@ def merge_flagged_passages(
                     best[key] = (fp, priority)
 
     all_passages = [fp for fp, _ in best.values()]
-    all_passages.sort(key=lambda p: p.similarity_score, reverse=True)
-    return all_passages[:max_passages]
+
+    # --- Guarantee minimum external-source representation ---------------------
+    # Split into external (http) and non-external buckets, sort each by
+    # similarity, then interleave so that external matches always survive
+    # the max_passages cap.
+    external = sorted(
+        [p for p in all_passages if p.source and p.source.startswith("http")],
+        key=lambda p: p.similarity_score, reverse=True,
+    )
+    other = sorted(
+        [p for p in all_passages if not (p.source and p.source.startswith("http"))],
+        key=lambda p: p.similarity_score, reverse=True,
+    )
+
+    # Reserve up to min_external slots for http-sourced passages
+    reserved = external[:min(min_external, len(external))]
+    reserved_keys = {p.text[:100] for p in reserved}
+
+    # Fill remaining slots from ALL passages (excluding already reserved)
+    remaining = [p for p in all_passages if p.text[:100] not in reserved_keys]
+    remaining.sort(key=lambda p: p.similarity_score, reverse=True)
+
+    merged = reserved + remaining[:max_passages - len(reserved)]
+    merged.sort(key=lambda p: p.similarity_score, reverse=True)
+    return merged
