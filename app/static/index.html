@@ -33,6 +33,77 @@
     ::-webkit-scrollbar-track { background: #1a1d27; }
     ::-webkit-scrollbar-thumb { background: #2e3348; border-radius: 3px; }
 
+    /* Animated gradient orbs */
+    @keyframes float1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,-40px) scale(1.1); } }
+    @keyframes float2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-20px,30px) scale(1.15); } }
+    @keyframes float3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(15px,25px) scale(1.05); } }
+    .orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: .18; pointer-events: none; }
+    .orb-1 { width: 500px; height: 500px; background: #6c5ce7; top: -120px; left: -80px; animation: float1 8s ease-in-out infinite; }
+    .orb-2 { width: 400px; height: 400px; background: #00b894; bottom: -100px; right: -60px; animation: float2 10s ease-in-out infinite; }
+    .orb-3 { width: 300px; height: 300px; background: #e17055; top: 50%; left: 50%; transform: translate(-50%,-50%); animation: float3 12s ease-in-out infinite; }
+
+    /* Hero gradient text */
+    .gradient-text {
+      background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 30%, #00b894 70%, #4ECDC4 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* Animated underline */
+    @keyframes scan { 0% { left: 0; width: 0; } 50% { width: 40%; } 100% { left: 100%; width: 0; } }
+    .scan-line { position: relative; }
+    .scan-line::after {
+      content: ''; position: absolute; bottom: -4px; left: 0; height: 3px; width: 0;
+      background: linear-gradient(90deg, transparent, #6c5ce7, #00b894, transparent);
+      animation: scan 3s ease-in-out infinite;
+      border-radius: 2px;
+    }
+
+    /* Feature card */
+    .feature-card {
+      background: rgba(26,29,39,.8); border: 1px solid #2e3348; border-radius: 16px;
+      padding: 24px; transition: all .3s ease; position: relative; overflow: hidden;
+    }
+    .feature-card:hover {
+      border-color: #6c5ce7; transform: translateY(-4px);
+      box-shadow: 0 20px 60px rgba(108,92,231,.15);
+    }
+    .feature-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--card-accent, #6c5ce7), transparent);
+      opacity: 0; transition: opacity .3s;
+    }
+    .feature-card:hover::before { opacity: 1; }
+
+    /* Stat counter */
+    .stat-card {
+      background: rgba(26,29,39,.6); border: 1px solid #2e3348; border-radius: 12px;
+      padding: 20px 24px; text-align: center; transition: border-color .3s;
+    }
+    .stat-card:hover { border-color: #6c5ce7; }
+
+    /* Pulse ring around analyze button */
+    @keyframes pulse-ring { 0% { transform: scale(1); opacity: .4; } 100% { transform: scale(1.5); opacity: 0; } }
+    .pulse-btn { position: relative; }
+    .pulse-btn::before {
+      content: ''; position: absolute; inset: -4px; border-radius: 12px;
+      border: 2px solid #6c5ce7; opacity: 0;
+    }
+    .pulse-btn:not(:disabled):hover::before {
+      animation: pulse-ring 1.5s ease-out infinite;
+    }
+
+    /* Glowing input */
+    .glow-input:focus { border-color: #6c5ce7; box-shadow: 0 0 0 3px rgba(108,92,231,.15); }
+
+    /* Fade-in for sections */
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-up { animation: fadeUp .6s ease-out both; }
+    .fade-up-d1 { animation-delay: .1s; }
+    .fade-up-d2 { animation-delay: .2s; }
+    .fade-up-d3 { animation-delay: .3s; }
+    .fade-up-d4 { animation-delay: .4s; }
+
     /* Source highlight colors */
     .hl-1  { background: rgba(255,107,107,.25); border-bottom: 2px solid #FF6B6B; }
     .hl-2  { background: rgba(78,205,196,.25);  border-bottom: 2px solid #4ECDC4; }
@@ -66,82 +137,258 @@
 </head>
 <body class="bg-bg text-txt min-h-screen">
 
-  <!-- ══════════════ INPUT VIEW ══════════════ -->
+  <!-- ══════════════ INPUT VIEW (Landing Page) ══════════════ -->
   <div id="inputView">
 
-    <!-- Header -->
-    <header class="bg-surface border-b border-border px-6 py-4 flex items-center gap-3">
-      <div class="w-9 h-9 bg-accent rounded-lg grid place-items-center text-white font-bold text-lg">P</div>
-      <h1 class="text-xl font-semibold">PlagiarismGuard</h1>
-      <span class="text-xs text-muted bg-surface2 px-2 py-0.5 rounded-md">v0.1.0</span>
-    </header>
-
-    <main class="max-w-4xl mx-auto px-5 py-10">
-
-      <!-- Input mode tabs -->
-      <div class="flex gap-2 mb-5">
-        <button id="tabText" onclick="switchTab('text')"
-          class="tab-btn px-5 py-2.5 rounded-lg text-sm font-medium transition-all">
-          ✏️ Paste Text
-        </button>
-        <button id="tabFile" onclick="switchTab('file')"
-          class="tab-btn px-5 py-2.5 rounded-lg text-sm font-medium transition-all">
-          📄 Upload File
-        </button>
-      </div>
-
-      <!-- Text input -->
-      <div id="textPanel">
-        <div class="relative">
-          <textarea id="textInput" rows="10" placeholder="Paste your text here and click Analyze…"
-            class="w-full bg-surface border border-border rounded-xl p-5 text-sm leading-relaxed text-txt placeholder-muted resize-y focus:outline-none focus:border-accent transition-colors"></textarea>
-          <div class="absolute bottom-3 right-4 text-xs text-muted" id="charCount">0 characters</div>
+    <!-- Navbar -->
+    <nav class="fixed top-0 left-0 right-0 z-50 bg-bg/80 backdrop-blur-xl border-b border-border/50">
+      <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-gradient-to-br from-accent to-[#00b894] rounded-xl grid place-items-center text-white font-bold text-lg shadow-lg shadow-accent/20">P</div>
+          <span class="text-lg font-bold">PlagiarismGuard</span>
+          <span class="text-[10px] text-muted bg-surface2 px-2 py-0.5 rounded-full font-semibold tracking-wider uppercase">AI-Powered</span>
+        </div>
+        <div class="flex items-center gap-4">
+          <a href="#features" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Features</a>
+          <a href="#analyze" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Analyze</a>
+          <a href="https://github.com/sumitmalik51/tool-plagrism" target="_blank" class="text-sm text-muted hover:text-txt transition-colors flex items-center gap-1">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+            GitHub
+          </a>
         </div>
       </div>
+    </nav>
 
-      <!-- File upload -->
-      <div id="filePanel" class="hidden">
-        <div id="dropZone"
-          class="border-2 border-dashed border-border rounded-xl p-12 text-center cursor-pointer bg-surface hover:border-accent hover:bg-surface2 transition-all">
-          <div class="text-5xl mb-3">📄</div>
-          <p class="text-muted"><strong class="text-txt">Drop your document here</strong> or click to browse</p>
-          <p class="text-xs text-muted mt-1">Supports PDF, DOCX, TXT &bull; Max 20 MB</p>
-          <input type="file" id="fileInput" accept=".pdf,.docx,.txt" class="hidden" />
+    <!-- Hero Section -->
+    <section class="relative overflow-hidden pt-28 pb-16 px-6">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+
+      <div class="max-w-4xl mx-auto text-center relative z-10">
+        <div class="fade-up">
+          <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent-l text-sm font-medium mb-6">
+            <span class="w-2 h-2 bg-ok rounded-full animate-pulse"></span>
+            Multi-Agent AI Plagiarism Detection
+          </div>
         </div>
 
-        <div id="selectedFile" class="hidden mt-4 flex items-center gap-3 px-4 py-3 bg-surface2 rounded-lg text-sm">
-          <span>📎</span>
-          <span class="flex-1" id="fileName"></span>
-          <span class="text-muted text-xs" id="fileSize"></span>
-          <button id="removeFile" class="text-danger text-lg leading-none hover:opacity-70" title="Remove">&times;</button>
+        <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold leading-tight mb-6 fade-up fade-up-d1">
+          Detect Plagiarism with<br>
+          <span class="gradient-text scan-line">AI-Powered Precision</span>
+        </h1>
+
+        <p class="text-lg sm:text-xl text-muted max-w-2xl mx-auto mb-10 leading-relaxed fade-up fade-up-d2">
+          Four specialized AI agents analyze your document simultaneously — web search, academic databases, semantic analysis, and AI-generated content detection — delivering a comprehensive Turnitin-style report in seconds.
+        </p>
+
+        <div class="flex items-center justify-center gap-4 fade-up fade-up-d3">
+          <a href="#analyze"
+            class="inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl text-[15px] font-semibold hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all">
+            Start Analyzing
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+          <a href="#features"
+            class="inline-flex items-center gap-2 px-8 py-3.5 bg-surface2 border border-border text-txt rounded-xl text-[15px] font-medium hover:border-accent hover:text-accent-l transition-all">
+            Learn More
+          </a>
         </div>
       </div>
+    </section>
 
-      <!-- Analyze button -->
-      <div class="text-center mt-5">
-        <button id="analyzeBtn" disabled
-          class="inline-flex items-center gap-2 px-7 py-3 bg-accent text-white rounded-lg text-[15px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-85 transition-opacity">
-          <span id="btnIcon">🔍</span>
-          <span id="btnText">Analyze</span>
-        </button>
+    <!-- Stats Bar -->
+    <section class="border-y border-border/50 bg-surface/50 backdrop-blur-sm">
+      <div class="max-w-5xl mx-auto px-6 py-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="stat-card fade-up">
+          <div class="text-2xl font-bold gradient-text">4</div>
+          <div class="text-xs text-muted mt-1">AI Agents</div>
+        </div>
+        <div class="stat-card fade-up fade-up-d1">
+          <div class="text-2xl font-bold gradient-text">186+</div>
+          <div class="text-xs text-muted mt-1">Unit Tests</div>
+        </div>
+        <div class="stat-card fade-up fade-up-d2">
+          <div class="text-2xl font-bold gradient-text">5</div>
+          <div class="text-xs text-muted mt-1">Detection Strategies</div>
+        </div>
+        <div class="stat-card fade-up fade-up-d3">
+          <div class="text-2xl font-bold gradient-text">&lt; 30s</div>
+          <div class="text-xs text-muted mt-1">Analysis Time</div>
+        </div>
       </div>
+    </section>
 
-      <!-- Empty state -->
-      <div id="emptyState" class="mt-14 text-center">
-        <p class="text-4xl mb-3">📝</p>
-        <p class="text-muted">Paste text or upload a document, then click <strong class="text-accent-l">Analyze</strong></p>
+    <!-- Features Section -->
+    <section id="features" class="py-20 px-6">
+      <div class="max-w-5xl mx-auto">
+        <div class="text-center mb-14">
+          <h2 class="text-3xl font-bold mb-3">Four Agents. One Verdict.</h2>
+          <p class="text-muted max-w-xl mx-auto">Each AI agent specialises in a different detection method, working in parallel for comprehensive coverage.</p>
+        </div>
+
+        <div class="grid sm:grid-cols-2 gap-5">
+          <!-- Agent 1 -->
+          <div class="feature-card" style="--card-accent: #FF6B6B;">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-xl bg-[#FF6B6B]/15 grid place-items-center text-lg">🌐</div>
+              <h3 class="font-semibold">Web Search Agent</h3>
+            </div>
+            <p class="text-sm text-muted leading-relaxed">Searches billions of web pages in real-time using Bing API, fetches full page content, and computes semantic similarity against your document chunks.</p>
+            <div class="flex flex-wrap gap-2 mt-4">
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#FF6B6B]/10 text-[#FF6B6B] border border-[#FF6B6B]/20">Bing Search</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#FF6B6B]/10 text-[#FF6B6B] border border-[#FF6B6B]/20">Page Scraping</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#FF6B6B]/10 text-[#FF6B6B] border border-[#FF6B6B]/20">Cosine Similarity</span>
+            </div>
+          </div>
+
+          <!-- Agent 2 -->
+          <div class="feature-card" style="--card-accent: #4ECDC4;">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-xl bg-[#4ECDC4]/15 grid place-items-center text-lg">🎓</div>
+              <h3 class="font-semibold">Academic Agent</h3>
+            </div>
+            <p class="text-sm text-muted leading-relaxed">Queries OpenAlex's database of 250M+ scholarly works and cross-references findings with Azure OpenAI for deep academic prior-art analysis.</p>
+            <div class="flex flex-wrap gap-2 mt-4">
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#4ECDC4]/10 text-[#4ECDC4] border border-[#4ECDC4]/20">OpenAlex</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#4ECDC4]/10 text-[#4ECDC4] border border-[#4ECDC4]/20">GPT-4o Cross-Check</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#4ECDC4]/10 text-[#4ECDC4] border border-[#4ECDC4]/20">DOI Linking</span>
+            </div>
+          </div>
+
+          <!-- Agent 3 -->
+          <div class="feature-card" style="--card-accent: #6c5ce7;">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-xl bg-accent/15 grid place-items-center text-lg">🧠</div>
+              <h3 class="font-semibold">Semantic Agent</h3>
+            </div>
+            <p class="text-sm text-muted leading-relaxed">Generates sentence-level embeddings using all-MiniLM-L6-v2, then detects internal duplication and paraphrase-level similarity across document chunks.</p>
+            <div class="flex flex-wrap gap-2 mt-4">
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent-l border border-accent/20">Transformers</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent-l border border-accent/20">Embeddings</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent-l border border-accent/20">Self-Similarity</span>
+            </div>
+          </div>
+
+          <!-- Agent 4 -->
+          <div class="feature-card" style="--card-accent: #fdcb6e;">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-xl bg-[#fdcb6e]/15 grid place-items-center text-lg">🤖</div>
+              <h3 class="font-semibold">AI Detection Agent</h3>
+            </div>
+            <p class="text-sm text-muted leading-relaxed">Uses Azure OpenAI GPT-4o to detect machine-generated text patterns — identifying AI-written paragraphs with heuristic and statistical analysis.</p>
+            <div class="flex flex-wrap gap-2 mt-4">
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#fdcb6e]/10 text-[#fdcb6e] border border-[#fdcb6e]/20">GPT-4o</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#fdcb6e]/10 text-[#fdcb6e] border border-[#fdcb6e]/20">Heuristics</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#fdcb6e]/10 text-[#fdcb6e] border border-[#fdcb6e]/20">AI Content</span>
+            </div>
+          </div>
+        </div>
       </div>
+    </section>
 
-      <!-- Loader -->
-      <div id="loader" class="hidden flex-col items-center gap-4 mt-10">
-        <div class="w-10 h-10 border-4 border-border border-t-accent rounded-full spinner"></div>
-        <p class="text-muted text-sm">Running multi-agent analysis&hellip;</p>
+    <!-- How It Works -->
+    <section class="py-16 px-6 border-t border-border/50 bg-surface/30">
+      <div class="max-w-4xl mx-auto">
+        <h2 class="text-2xl font-bold text-center mb-12">How It Works</h2>
+        <div class="grid sm:grid-cols-3 gap-8 text-center">
+          <div class="fade-up">
+            <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-accent/10 border border-accent/20 grid place-items-center text-2xl">1</div>
+            <h3 class="font-semibold mb-2">Upload or Paste</h3>
+            <p class="text-sm text-muted">Submit your document as text, PDF, DOCX, or TXT. We chunk it into sentences for precise analysis.</p>
+          </div>
+          <div class="fade-up fade-up-d1">
+            <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-accent/10 border border-accent/20 grid place-items-center text-2xl">2</div>
+            <h3 class="font-semibold mb-2">Multi-Agent Scan</h3>
+            <p class="text-sm text-muted">Four AI agents run simultaneously — web search, academic lookup, semantic analysis, and AI detection.</p>
+          </div>
+          <div class="fade-up fade-up-d2">
+            <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-accent/10 border border-accent/20 grid place-items-center text-2xl">3</div>
+            <h3 class="font-semibold mb-2">Detailed Report</h3>
+            <p class="text-sm text-muted">Get a Turnitin-style report with inline highlights, source cards, match groups, and AI rewriting tools.</p>
+          </div>
+        </div>
       </div>
+    </section>
 
-      <!-- Error -->
-      <div id="errorBox" class="hidden mt-6 px-5 py-4 bg-danger/10 border border-danger rounded-xl text-danger text-sm"></div>
+    <!-- ═══════════ Analysis Section ═══════════ -->
+    <section id="analyze" class="py-20 px-6">
+      <div class="max-w-4xl mx-auto">
+        <div class="text-center mb-10">
+          <h2 class="text-3xl font-bold mb-3">Start Your Analysis</h2>
+          <p class="text-muted">Paste your text or upload a document to begin plagiarism detection.</p>
+        </div>
 
-    </main>
+        <!-- Input mode tabs -->
+        <div class="flex gap-2 mb-5 justify-center">
+          <button id="tabText" onclick="switchTab('text')"
+            class="tab-btn px-5 py-2.5 rounded-lg text-sm font-medium transition-all">
+            ✏️ Paste Text
+          </button>
+          <button id="tabFile" onclick="switchTab('file')"
+            class="tab-btn px-5 py-2.5 rounded-lg text-sm font-medium transition-all">
+            📄 Upload File
+          </button>
+        </div>
+
+        <!-- Text input -->
+        <div id="textPanel">
+          <div class="relative">
+            <textarea id="textInput" rows="10" placeholder="Paste your text here and click Analyze…"
+              class="glow-input w-full bg-surface border border-border rounded-xl p-5 text-sm leading-relaxed text-txt placeholder-muted resize-y focus:outline-none transition-all"></textarea>
+            <div class="absolute bottom-3 right-4 text-xs text-muted" id="charCount">0 characters</div>
+          </div>
+        </div>
+
+        <!-- File upload -->
+        <div id="filePanel" class="hidden">
+          <div id="dropZone"
+            class="border-2 border-dashed border-border rounded-xl p-12 text-center cursor-pointer bg-surface hover:border-accent hover:bg-surface2 transition-all">
+            <div class="text-5xl mb-3">📄</div>
+            <p class="text-muted"><strong class="text-txt">Drop your document here</strong> or click to browse</p>
+            <p class="text-xs text-muted mt-1">Supports PDF, DOCX, TXT &bull; Max 20 MB</p>
+            <input type="file" id="fileInput" accept=".pdf,.docx,.txt" class="hidden" />
+          </div>
+
+          <div id="selectedFile" class="hidden mt-4 flex items-center gap-3 px-4 py-3 bg-surface2 rounded-lg text-sm">
+            <span>📎</span>
+            <span class="flex-1" id="fileName"></span>
+            <span class="text-muted text-xs" id="fileSize"></span>
+            <button id="removeFile" class="text-danger text-lg leading-none hover:opacity-70" title="Remove">&times;</button>
+          </div>
+        </div>
+
+        <!-- Analyze button -->
+        <div class="text-center mt-6">
+          <button id="analyzeBtn" disabled
+            class="pulse-btn inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl text-[15px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all">
+            <span id="btnIcon">🔍</span>
+            <span id="btnText">Analyze</span>
+          </button>
+        </div>
+
+        <!-- Loader -->
+        <div id="loader" class="hidden flex-col items-center gap-4 mt-10">
+          <div class="w-10 h-10 border-4 border-border border-t-accent rounded-full spinner"></div>
+          <p class="text-muted text-sm">Running multi-agent analysis&hellip;</p>
+        </div>
+
+        <!-- Error -->
+        <div id="errorBox" class="hidden mt-6 px-5 py-4 bg-danger/10 border border-danger rounded-xl text-danger text-sm"></div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="border-t border-border/50 py-8 px-6">
+      <div class="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted">
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 bg-gradient-to-br from-accent to-[#00b894] rounded-md grid place-items-center text-white font-bold text-[10px]">P</div>
+          <span>PlagiarismGuard &copy; 2026</span>
+        </div>
+        <div class="flex items-center gap-4">
+          <span>Powered by Azure OpenAI &bull; FastAPI &bull; Sentence-Transformers</span>
+        </div>
+      </div>
+    </footer>
   </div>
 
   <!-- ══════════════ REPORT VIEW (Turnitin-style) ══════════════ -->
@@ -422,7 +669,6 @@
     $('btnIcon').textContent = '⏳';
     $('loader').classList.remove('hidden');
     $('loader').classList.add('flex');
-    $('emptyState').classList.add('hidden');
     $('errorBox').classList.add('hidden');
 
     try {
