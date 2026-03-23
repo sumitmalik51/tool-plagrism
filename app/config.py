@@ -1,7 +1,9 @@
 """Application configuration settings."""
 
 from pathlib import Path
+from typing import Any
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -53,6 +55,20 @@ class Settings(BaseSettings):
 
     # External API keys
     bing_api_key: str = ""
+
+    # Authentication — comma-separated list of valid API keys.
+    # When empty, auth is disabled (dev mode). Set PG_API_KEYS_RAW in prod.
+    api_keys_raw: str = ""
+    api_keys: list[str] = []
+
+    @model_validator(mode="after")
+    def _parse_api_keys(self) -> "Settings":
+        """Split ``api_keys_raw`` into a list."""
+        if self.api_keys_raw and not self.api_keys:
+            self.api_keys = [
+                k.strip() for k in self.api_keys_raw.split(",") if k.strip()
+            ]
+        return self
 
     model_config = {"env_prefix": "PG_", "env_file": ".env"}
 

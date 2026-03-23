@@ -22,6 +22,16 @@ param pythonVersion string = '3.13'
 @secure()
 param bingApiKey string = ''
 
+@description('Comma-separated API keys for service-to-service auth')
+@secure()
+param apiKeys string = ''
+
+@description('Entra ID (Azure AD) tenant ID for Easy Auth')
+param entraIdTenantId string = ''
+
+@description('Entra ID client (application) ID for Easy Auth')
+param entraIdClientId string = ''
+
 // ---------------------------------------------------------------------------
 // Naming
 // ---------------------------------------------------------------------------
@@ -82,10 +92,51 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
           value: '/home/uploads'
         }
         {
+          name: 'PG_API_KEYS_RAW'
+          value: apiKeys
+        }
+        {
           name: 'WEBSITES_CONTAINER_START_TIME_LIMIT'
           value: '1800'
         }
       ]
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Authentication — Azure Easy Auth (Entra ID)
+// Only deployed when both entraIdTenantId and entraIdClientId are provided.
+// ---------------------------------------------------------------------------
+resource authSettings 'Microsoft.Web/sites/config@2024-04-01' = if (!empty(entraIdTenantId) && !empty(entraIdClientId)) {
+  parent: webApp
+  name: 'authsettingsV2'
+  properties: {
+    globalValidation: {
+      requireAuthentication: true
+      unauthenticatedClientAction: 'RedirectToLoginPage'
+      excludedPaths: [
+        '/health'
+        '/openai-foundry.json'
+        '/api/v1/*'   // API routes use X-API-Key instead
+      ]
+    }
+    identityProviders: {
+      azureActiveDirectory: {
+        enabled: true
+        registration: {
+          clientId: entraIdClientId
+          openIdIssuer: 'https://sts.windows.net/${entraIdTenantId}/v2.0'
+        }
+        validation: {
+          allowedAudiences: [
+            'api://${entraIdClientId}'
+          ]
+        }
+      }
+    }
+    platform: {
+      enabled: true
     }
   }
 }

@@ -6,20 +6,23 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
+from app.middleware import AuthMiddleware, SecurityHeadersMiddleware
 from app.routes.analyze import router as analyze_router
 from app.routes.rewrite import router as rewrite_router
 from app.routes.tools import router as tools_router
 from app.routes.upload import router as upload_router
-from app.utils.logger import setup_logging
+from app.utils.logger import setup_logging, get_logger
 
 STATIC_DIR = Path(__file__).parent / "static"
+
+_logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -39,18 +42,47 @@ app = FastAPI(
 )
 
 # --- CORS (needed for Foundry agents calling cross-origin) -------------------
+_allowed_origins = [
+    "https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+if settings.debug:
+    _allowed_origins = ["*"]  # wide-open in dev mode
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- Security middleware (outermost = runs last, innermost = runs first) ------
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(AuthMiddleware)
 
 # --- Register routers --------------------------------------------------------
 app.include_router(upload_router)
 app.include_router(analyze_router)
 app.include_router(rewrite_router)
 app.include_router(tools_router)
+
+
+# --- Global exception handler ------------------------------------------------
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Catch unhandled exceptions — return sanitized 500 response."""
+    _logger.error(
+        "unhandled_exception",
+        path=request.url.path,
+        method=request.method,
+        error=str(exc),
+        error_type=type(exc).__name__,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error. Please try again later."},
+    )
 
 
 # --- OpenAPI Foundry spec -----------------------------------------------------

@@ -1,0 +1,120 @@
+"""Authentication & security middleware for PlagiarismGuard.
+
+Supports two authentication methods:
+1. **API Key** — ``X-API-Key`` header checked against ``PG_API_KEYS`` env var.
+   For service-to-service calls, CI pipelines, and external integrations.
+2. **Azure Easy Auth** — ``X-MS-CLIENT-PRINCIPAL`` header injected by
+   App Service Authentication. For browser users signed in via Entra ID.
+
+Public paths (health, docs, static assets) bypass auth entirely.
+"""
+
+from __future__ import annotations
+
+import hmac
+import time
+from typing import Callable
+
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
+
+from app.config import settings
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+# Paths that never require authentication
+_PUBLIC_PATHS: set[str] = {
+    "/health",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/openai-foundry.json",
+    "/",
+}
+
+# Path prefixes that never require authentication
+_PUBLIC_PREFIXES: tuple[str, ...] = (
+    "/static/",
+)
+
+
+def _is_public_path(path: str) -> bool:
+    """Return True if the path should bypass authentication."""
+    if path in _PUBLIC_PATHS:
+        return True
+    return path.startswith(_PUBLIC_PREFIXES)
+
+
+def _validate_api_key(provided_key: str) -> bool:
+    """Constant-time comparison of the provided key against all configured keys."""
+    for valid_key in settings.api_keys:
+        if hmac.compare_digest(provided_key.encode(), valid_key.encode()):
+            return True
+    return False
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """Enforce authentication on non-public routes.
+
+    Checks (in order):
+    1. Is it a public path? → allow
+    2. Is auth disabled (no keys configured + not in production)? → allow
+    3. Does ``X-MS-CLIENT-PRINCIPAL`` exist? → Azure Easy Auth user → allow
+    4. Does ``X-API-Key`` match a configured key? → allow
+    5. Otherwise → 401 Unauthorized
+    """
+
+    async def dispatch(
+        self, request: Request, call_next: Callable
+    ) -> Response:
+        path = request.url.path
+
+        # 1. Public paths bypass auth
+        if _is_public_path(path):
+            return await call_next(request)
+
+        # 2. If no API keys are configured, auth is disabled (dev mode)
+        if not settings.api_keys:
+            return await call_next(request)
+
+        # 3. Azure Easy Auth — App Service injects this header for
+        #    authenticated browser users
+        if request.headers.get("X-MS-CLIENT-PRINCIPAL"):
+            return await call_next(request)
+
+        # 4. API Key check
+        api_key = request.headers.get("X-API-Key", "")
+        if api_key and _validate_api_key(api_key):
+            return await call_next(request)
+
+        # 5. Unauthorized
+        logger.warning(
+            "auth_rejected",
+            path=path,
+            method=request.method,
+            client=request.client.host if request.client else "unknown",
+        )
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Unauthorized — provide a valid X-API-Key header."},
+        )
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to every response."""
+
+    async def dispatch(
+        self, request: Request, call_next: Callable
+    ) -> Response:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if request.url.scheme == "https":
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
+        return response
