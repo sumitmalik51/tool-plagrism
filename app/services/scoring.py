@@ -122,13 +122,16 @@ def merge_flagged_passages(
     """Collect and deduplicate flagged passages from all agents.
 
     Keeps up to ``max_passages`` entries, sorted by descending similarity.
+    When the same text appears from multiple agents, external sources
+    (http URLs) are preferred over internal ones (``internal_chunk_``).
     Filters out:
     - fragments shorter than *min_text_length* / *min_word_count*
     - citation/bibliographic metadata (author blocks, emails, pub dates)
     - leading partial-word artefacts from chunk-boundary splits
     """
-    all_passages: list[FlaggedPassage] = []
-    seen_texts: set[str] = set()
+    # key → (FlaggedPassage, priority)
+    # Priority: 0 = internal_chunk_, 1 = ai_detection, 2 = http source
+    best: dict[str, tuple[FlaggedPassage, int]] = {}
 
     for output in agent_outputs:
         for fp in output.flagged_passages:
@@ -155,9 +158,28 @@ def merge_flagged_passages(
                 )
 
             key = fp.text[:100]  # deduplicate on first 100 chars
-            if key not in seen_texts:
-                seen_texts.add(key)
-                all_passages.append(fp)
 
+            # Determine source priority — prefer external over internal
+            if fp.source and fp.source.startswith("http"):
+                priority = 2
+            elif fp.source == "ai_detection_heuristic":
+                priority = 1
+            else:
+                priority = 0
+
+            existing = best.get(key)
+            if existing is None:
+                best[key] = (fp, priority)
+            else:
+                _, existing_prio = existing
+                # Replace if new passage has higher priority, or same
+                # priority but higher similarity score
+                if priority > existing_prio or (
+                    priority == existing_prio
+                    and fp.similarity_score > existing[0].similarity_score
+                ):
+                    best[key] = (fp, priority)
+
+    all_passages = [fp for fp, _ in best.values()]
     all_passages.sort(key=lambda p: p.similarity_score, reverse=True)
     return all_passages[:max_passages]

@@ -25,6 +25,12 @@ def _agg_output(score: float = 55.0, confidence: float = 0.7) -> AgentOutput:
                 source="http://example.com/paper",
                 reason="High similarity with external source",
             ),
+            FlaggedPassage(
+                text="Web matched passage found here",
+                similarity_score=0.85,
+                source="http://other-site.com/article",
+                reason="Web search hit",
+            ),
         ],
         details={
             "risk_level": "MEDIUM",
@@ -124,6 +130,22 @@ def test_build_report_detected_sources() -> None:
     urls = [s.url for s in report.detected_sources]
     assert "http://example.com/paper" in urls
     assert "http://other-site.com/article" in urls
+
+
+def test_build_report_sources_only_from_flagged() -> None:
+    """Sources listed in agent details but with no flagged passages should NOT appear."""
+    report = build_report("doc-7b", _agg_output(), _detection_outputs())
+    urls = [s.url for s in report.detected_sources]
+    # http://third.com/page is only in details["sources"], no flagged passage references it
+    assert "http://third.com/page" not in urls
+
+
+def test_build_report_sources_have_text_blocks() -> None:
+    """Each detected source should have at least 1 text block and matched words."""
+    report = build_report("doc-7c", _agg_output(), _detection_outputs())
+    for src in report.detected_sources:
+        assert src.text_blocks > 0, f"Source {src.url} has 0 text blocks"
+        assert src.matched_words > 0, f"Source {src.url} has 0 matched words"
 
 
 def test_build_report_sources_deduplicated() -> None:

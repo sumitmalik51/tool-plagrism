@@ -106,71 +106,70 @@ def _extract_sources(
     agent_outputs: list[AgentOutput],
     flagged_passages: list[FlaggedPassage],
 ) -> list[DetectedSource]:
-    """Pull detected source URLs from agent flagged passages and details.
+    """Pull detected source URLs from the merged flagged passages.
 
-    Sources are deduplicated by URL, enriched with type, text_blocks,
-    and matched_words for the similarity report display.
+    Only sources that actually appear in the merged (deduplicated) flagged
+    passages are included.  Sources are enriched with type, text_blocks,
+    matched_words, and matched_passages for the similarity report.
     """
-    seen: set[str] = set()
-    sources: list[DetectedSource] = []
-
-    # Collect unique source URLs from agents
+    # --- 1. Build a lookup of agent-level metadata for titles & types ---------
+    agent_meta: dict[str, dict] = {}  # url → {title, source_type}
     for output in agent_outputs:
         agent = output.agent_name.lower()
+        source_type = "Publication" if "academic" in agent else "Internet"
 
-        # From flagged passages that have a source URL
         for fp in output.flagged_passages:
-            if fp.source and fp.source.startswith("http"):
-                if fp.source not in seen:
-                    seen.add(fp.source)
-                    source_type = "Publication" if "academic" in agent else "Internet"
-                    sources.append(
-                        DetectedSource(
-                            url=fp.source,
-                            title=None,
-                            similarity=fp.similarity_score,
-                            source_type=source_type,
-                        )
-                    )
+            if fp.source and fp.source.startswith("http") and fp.source not in agent_meta:
+                agent_meta[fp.source] = {"title": None, "source_type": source_type}
 
-        # From agent-specific details (e.g. web_search_agent may list URLs)
         for src in output.details.get("sources", []):
             url = src.get("url", "")
-            if url and url not in seen:
-                seen.add(url)
-                raw_sim = src.get("similarity", 0.0)
-                clamped_sim = max(0.0, min(float(raw_sim), 1.0))
-                source_type = "Publication" if "academic" in agent else "Internet"
-                sources.append(
-                    DetectedSource(
-                        url=url,
-                        title=src.get("title"),
-                        similarity=clamped_sim,
-                        source_type=source_type,
-                    )
-                )
+            if url and url not in agent_meta:
+                agent_meta[url] = {
+                    "title": src.get("title"),
+                    "source_type": source_type,
+                }
+            elif url and url in agent_meta and not agent_meta[url]["title"]:
+                agent_meta[url]["title"] = src.get("title")
+
+    # --- 2. Group merged flagged passages by source URL -----------------------
+    source_passages: dict[str, list[FlaggedPassage]] = {}
+    for fp in flagged_passages:
+        if fp.source and fp.source.startswith("http"):
+            source_passages.setdefault(fp.source, []).append(fp)
+
+    # --- 3. Build DetectedSource objects from actual matches -------------------
+    sources: list[DetectedSource] = []
+    for url, fps in source_passages.items():
+        meta = agent_meta.get(url, {"title": None, "source_type": "Internet"})
+        max_sim = max(fp.similarity_score for fp in fps)
+        blocks = [
+            SourceTextBlock(
+                text=fp.text,
+                word_count=len(fp.text.split()),
+                similarity_score=fp.similarity_score,
+            )
+            for fp in fps
+        ]
+        total_words = sum(b.word_count for b in blocks)
+
+        sources.append(
+            DetectedSource(
+                url=url,
+                title=meta["title"],
+                similarity=max_sim,
+                source_type=meta["source_type"],
+                text_blocks=len(blocks),
+                matched_words=total_words,
+                matched_passages=blocks,
+            )
+        )
 
     sources.sort(key=lambda s: s.similarity, reverse=True)
 
-    # Assign source numbers and compute text_blocks / matched_words / passages
+    # Assign source numbers
     for idx, src in enumerate(sources, start=1):
         src.source_number = idx
-        blocks: list[SourceTextBlock] = []
-        total_words = 0
-        for fp in flagged_passages:
-            if fp.source == src.url:
-                wc = len(fp.text.split())
-                total_words += wc
-                blocks.append(
-                    SourceTextBlock(
-                        text=fp.text,
-                        word_count=wc,
-                        similarity_score=fp.similarity_score,
-                    )
-                )
-        src.text_blocks = len(blocks)
-        src.matched_words = total_words
-        src.matched_passages = blocks
 
     return sources
 
