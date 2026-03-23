@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
+from app.dependencies.rate_limit import enforce_usage_limit, record_usage
 from app.tools.rewriter_tool import rewrite_paragraph, rewrite_document
 from app.tools.general_rewriter import general_rewrite
 from app.utils.logger import get_logger
@@ -68,9 +69,11 @@ class RewriteDocumentResponse(BaseModel):
     response_model=RewriteParagraphResponse,
     status_code=status.HTTP_200_OK,
     summary="Rewrite a single paragraph to eliminate plagiarism",
+    dependencies=[Depends(enforce_usage_limit)],
 )
 async def rewrite_paragraph_endpoint(
     request: RewriteParagraphRequest,
+    http_request: Request = None,
 ) -> RewriteParagraphResponse:
     """Accept a flagged paragraph, rewrite it using AI, and return the
     rewritten version with the original preserved for comparison."""
@@ -97,6 +100,10 @@ async def rewrite_paragraph_endpoint(
             detail=f"AI rewrite failed: {exc}",
         )
 
+    # Record usage
+    if http_request:
+        record_usage(http_request, tool_type="rewrite")
+
     # Bridge tool output (rewrites list) to response model (rewritten string)
     rewrites = result.get("rewrites", [])
     return RewriteParagraphResponse(
@@ -114,9 +121,11 @@ async def rewrite_paragraph_endpoint(
     response_model=RewriteDocumentResponse,
     status_code=status.HTTP_200_OK,
     summary="Rewrite flagged passages in a full document to eliminate plagiarism",
+    dependencies=[Depends(enforce_usage_limit)],
 )
 async def rewrite_document_endpoint(
     request: RewriteDocumentRequest,
+    http_request: Request = None,
 ) -> RewriteDocumentResponse:
     """Accept a full document and a list of flagged passages, rewrite
     only the flagged sections using AI, and return the complete document
@@ -144,6 +153,10 @@ async def rewrite_document_endpoint(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"AI rewrite failed: {exc}",
         )
+
+    # Record usage
+    if http_request:
+        record_usage(http_request, tool_type="rewrite")
 
     return RewriteDocumentResponse(**result)
 
@@ -187,9 +200,11 @@ class GeneralRewriteResponse(BaseModel):
     response_model=GeneralRewriteResponse,
     status_code=status.HTTP_200_OK,
     summary="Rewrite text using the general-purpose writing assistant",
+    dependencies=[Depends(enforce_usage_limit)],
 )
 async def general_rewrite_endpoint(
     request: GeneralRewriteRequest,
+    http_request: Request = None,
 ) -> GeneralRewriteResponse:
     """Rewrite any text with mode, tone, and strength controls.
 
@@ -221,5 +236,9 @@ async def general_rewrite_endpoint(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"AI rewrite failed: {exc}",
         )
+
+    # Record usage
+    if http_request:
+        record_usage(http_request, tool_type="rewrite")
 
     return GeneralRewriteResponse(**result)

@@ -182,7 +182,7 @@ def _response_with_rate_headers(
 
     from app.config import settings as _settings
 
-    if tier == UserTier.PAID:
+    if tier in (UserTier.PRO, UserTier.PREMIUM):
         limit_val = "unlimited"
         remaining_val = "unlimited"
     elif tier == UserTier.FREE:

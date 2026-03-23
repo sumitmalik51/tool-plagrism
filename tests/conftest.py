@@ -19,3 +19,12 @@ _tmp.close()
 _test_db = SQLiteDatabase(Path(_tmp.name))
 _test_db.init_schema()
 reset_db(_test_db)
+
+
+@pytest.fixture(autouse=True)
+def _reset_usage_limiter():
+    """Clear the usage_logs table before each test to prevent cross-test
+    rate-limit interference."""
+    from app.services.rate_limiter import limiter
+    limiter.reset()
+    yield

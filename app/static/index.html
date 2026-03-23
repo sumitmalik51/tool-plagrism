@@ -187,6 +187,7 @@
           <a href="#grammar" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Grammar</a>
           <a href="#rewriter" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Rewrite</a>
           <a href="#history" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">History</a>
+          <a href="#pricing" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Pricing</a>
           <a href="https://github.com/sumitmalik51/tool-plagrism" target="_blank" class="text-sm text-muted hover:text-txt transition-colors flex items-center gap-1">
             <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
             GitHub
@@ -234,7 +235,7 @@
             <!-- Scans remaining -->
             <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-5">
               <div class="flex items-center justify-between mb-3">
-                <span class="text-xs text-muted font-medium uppercase tracking-wider">Scans Today</span>
+                <span class="text-xs text-muted font-medium uppercase tracking-wider">Uses Today</span>
                 <span class="text-lg">📊</span>
               </div>
               <div class="flex items-end gap-2 mb-2">
@@ -244,7 +245,7 @@
               <div class="usage-bar">
                 <div class="usage-fill bg-gradient-to-r from-accent to-[#00b894]" id="dashUsageBar" style="width: 0%"></div>
               </div>
-              <p class="text-xs text-muted mt-2"><span id="dashScansRemaining">3</span> scans remaining</p>
+              <p class="text-xs text-muted mt-2"><span id="dashScansRemaining">3</span> uses remaining</p>
             </div>
 
             <!-- Total scans -->
@@ -276,7 +277,8 @@
               <span class="text-xl font-bold" id="dashTierBadge">
                 <span class="px-3 py-1 rounded-full bg-accent/15 text-accent-l text-sm font-semibold border border-accent/25">Free</span>
               </span>
-              <p class="text-xs text-muted mt-3" id="dashTierMsg">3 scans/day included</p>
+              <p class="text-xs text-muted mt-3" id="dashTierMsg">3 uses/day included</p>
+              <a href="#pricing" id="dashUpgradeLink" class="inline-block mt-2 text-xs font-semibold text-accent-l hover:text-accent transition-colors">Upgrade →</a>
             </div>
           </div>
         </div>
@@ -494,6 +496,84 @@
       </div>
     </section>
     </div><!-- /landingContent -->
+
+    <!-- ══════════════ UPGRADE BANNER (shown on limit reached) ══════════════ -->
+    <div id="upgradeBanner" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-full mx-auto">
+      <div class="bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-2xl p-5 shadow-2xl shadow-accent/30 flex items-center gap-4">
+        <div class="text-3xl">🚀</div>
+        <div class="flex-1">
+          <h4 class="font-bold text-sm">Daily limit reached!</h4>
+          <p class="text-xs opacity-90 mt-0.5">Upgrade to Pro for unlimited access to all tools.</p>
+        </div>
+        <a href="#pricing" onclick="$('upgradeBanner').classList.add('hidden')" class="shrink-0 px-4 py-2 bg-white text-accent rounded-xl text-xs font-bold hover:bg-white/90 transition-colors">View Plans</a>
+        <button onclick="$('upgradeBanner').classList.add('hidden')" class="text-white/60 hover:text-white text-lg leading-none">&times;</button>
+      </div>
+    </div>
+
+    <!-- ══════════════ PRICING SECTION ══════════════ -->
+    <section id="pricing" class="py-20 px-6">
+      <div class="max-w-5xl mx-auto">
+        <div class="text-center mb-12">
+          <span class="px-3 py-1 rounded-full bg-accent/10 text-accent-l text-xs font-semibold border border-accent/20 mb-4 inline-block">PRICING</span>
+          <h2 class="text-3xl font-bold mb-3">Simple, transparent pricing</h2>
+          <p class="text-muted max-w-lg mx-auto">Start for free. Upgrade when you need more power.</p>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-6" id="pricingCards">
+          <!-- Free Plan -->
+          <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative">
+            <h3 class="text-lg font-bold mb-1">Free</h3>
+            <div class="flex items-end gap-1 mb-4">
+              <span class="text-4xl font-bold">$0</span>
+              <span class="text-muted text-sm mb-1">forever</span>
+            </div>
+            <ul class="space-y-3 text-sm flex-1 mb-6">
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> 3 tool uses per day</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Plagiarism detection</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> AI rewriter</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Readability analyzer</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Grammar checker</li>
+            </ul>
+            <button disabled class="w-full py-2.5 rounded-xl bg-surface2 text-muted text-sm font-semibold cursor-default border border-border">Current Plan</button>
+          </div>
+
+          <!-- Pro Plan (Most Popular) -->
+          <div class="bg-surface/80 backdrop-blur-sm border-2 border-accent rounded-2xl p-7 flex flex-col relative shadow-lg shadow-accent/10">
+            <span class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-accent text-white text-xs font-bold">MOST POPULAR</span>
+            <h3 class="text-lg font-bold mb-1">Pro</h3>
+            <div class="flex items-end gap-1 mb-4">
+              <span class="text-4xl font-bold">$9</span>
+              <span class="text-muted text-sm mb-1">/month</span>
+            </div>
+            <ul class="space-y-3 text-sm flex-1 mb-6">
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> <strong>Unlimited</strong> tool uses</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Everything in Free</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Priority processing</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Detailed source reports</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Scan history & analytics</li>
+            </ul>
+            <button onclick="handleUpgrade('pro')" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-bold hover:shadow-lg hover:shadow-accent/25 transition-all pricing-btn" data-plan="pro">Upgrade to Pro</button>
+          </div>
+
+          <!-- Premium Plan -->
+          <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative">
+            <h3 class="text-lg font-bold mb-1">Premium</h3>
+            <div class="flex items-end gap-1 mb-4">
+              <span class="text-4xl font-bold">$19</span>
+              <span class="text-muted text-sm mb-1">/month</span>
+            </div>
+            <ul class="space-y-3 text-sm flex-1 mb-6">
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Everything in Pro</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> API access</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Batch file analysis</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Custom integrations</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Priority support</li>
+            </ul>
+            <button onclick="handleUpgrade('premium')" class="w-full py-2.5 rounded-xl bg-surface2 text-txt text-sm font-bold border border-border hover:border-accent/50 hover:bg-accent/5 transition-all pricing-btn" data-plan="premium">Upgrade to Premium</button>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- ═══════════ Analysis Section ═══════════ -->
     <section id="analyze" class="py-20 px-6">
@@ -1182,7 +1262,8 @@
         const err = await res.json().catch(() => ({ detail: res.statusText }));
         if (res.status === 429) {
           const d = err.detail || {};
-          throw new Error(d.message || 'Daily scan limit reached. Try again tomorrow or upgrade your plan.');
+          if (typeof showUpgradeBanner === 'function') showUpgradeBanner();
+          throw new Error(d.message || 'Daily usage limit reached. Upgrade your plan for unlimited access.');
         }
         throw new Error(err.detail || 'Analysis failed');
       }
@@ -1190,7 +1271,7 @@
       const data = await res.json();
       lastReport = data;
       saveToHistory(data);
-      if (typeof incrementLocalScanCount === 'function') incrementLocalScanCount();
+      if (typeof loadUsageFromAPI === 'function') loadUsageFromAPI();
       showReportView(data);
     } catch (err) {
       $('errorBox').textContent = '⚠ ' + err.message;
@@ -2826,38 +2907,129 @@
       }
     } catch {}
 
-    // --- Update usage from local counter (best-effort) ---
-    updateUsageDisplay();
+    // --- Load usage from API (DB-backed) ---
+    await loadUsageFromAPI();
+
+    // --- Load user plan info ---
+    await loadUserPlan();
   }
 
-  function updateUsageDisplay() {
-    const today = new Date().toISOString().slice(0, 10);
-    const key = 'pg_scans_today_' + today;
-    const used = parseInt(localStorage.getItem(key) || '0', 10);
-    const limit = 3; // matches server default
-    const remaining = Math.max(limit - used, 0);
-    const pct = Math.min((used / limit) * 100, 100);
+  async function loadUsageFromAPI() {
+    try {
+      const res = await fetch('/api/v1/auth/usage');
+      if (res.ok) {
+        const data = await res.json();
+        const used = data.used_today || 0;
+        const limit = data.limit === 'unlimited' ? '∞' : data.limit;
+        const remaining = data.remaining === 'unlimited' ? -1 : (data.remaining || 0);
+        const isUnlimited = remaining === -1 || data.remaining === 'unlimited';
+        const numLimit = isUnlimited ? 1 : data.limit;
+        const pct = isUnlimited ? 0 : Math.min((used / numLimit) * 100, 100);
 
-    $('dashScansUsed').textContent = used;
-    $('dashScansLimit').textContent = limit;
-    $('dashScansRemaining').textContent = remaining;
-    $('dashUsageBar').style.width = pct + '%';
+        $('dashScansUsed').textContent = used;
+        $('dashScansLimit').textContent = limit;
+        $('dashScansRemaining').textContent = isUnlimited ? '∞' : remaining;
+        $('dashUsageBar').style.width = (isUnlimited ? 0 : pct) + '%';
 
-    // Color shift when approaching limit
-    if (pct >= 100) {
-      $('dashUsageBar').className = 'usage-fill bg-gradient-to-r from-danger to-[#d63031]';
-      $('dashScansRemaining').parentElement.classList.add('text-danger');
-    } else if (pct >= 66) {
-      $('dashUsageBar').className = 'usage-fill bg-gradient-to-r from-warn to-[#f39c12]';
+        if (!isUnlimited) {
+          if (pct >= 100) {
+            $('dashUsageBar').className = 'usage-fill bg-gradient-to-r from-danger to-[#d63031]';
+            $('dashScansRemaining').parentElement.classList.add('text-danger');
+          } else if (pct >= 66) {
+            $('dashUsageBar').className = 'usage-fill bg-gradient-to-r from-warn to-[#f39c12]';
+          } else {
+            $('dashUsageBar').className = 'usage-fill bg-gradient-to-r from-accent to-[#00b894]';
+          }
+        } else {
+          $('dashUsageBar').className = 'usage-fill bg-gradient-to-r from-accent to-[#00b894]';
+        }
+      }
+    } catch {}
+  }
+
+  async function loadUserPlan() {
+    try {
+      const userStr = localStorage.getItem('pg_user');
+      if (!userStr) return;
+      const user = JSON.parse(userStr);
+      const plan = user.plan_type || 'free';
+      updatePlanUI(plan);
+    } catch {}
+  }
+
+  function updatePlanUI(plan) {
+    const badge = $('dashTierBadge');
+    const msg = $('dashTierMsg');
+    const upgradeLink = $('dashUpgradeLink');
+
+    if (plan === 'pro') {
+      badge.innerHTML = '<span class="px-3 py-1 rounded-full bg-accent/15 text-accent-l text-sm font-semibold border border-accent/25">Pro</span>';
+      msg.textContent = 'Unlimited uses';
+      if (upgradeLink) upgradeLink.textContent = 'Upgrade to Premium →';
+    } else if (plan === 'premium') {
+      badge.innerHTML = '<span class="px-3 py-1 rounded-full bg-[#00b894]/15 text-[#00b894] text-sm font-semibold border border-[#00b894]/25">Premium</span>';
+      msg.textContent = 'Unlimited uses + API';
+      if (upgradeLink) upgradeLink.style.display = 'none';
+    } else {
+      badge.innerHTML = '<span class="px-3 py-1 rounded-full bg-accent/15 text-accent-l text-sm font-semibold border border-accent/25">Free</span>';
+      msg.textContent = '3 uses/day included';
+      if (upgradeLink) upgradeLink.textContent = 'Upgrade →';
+    }
+
+    // Update pricing buttons based on current plan
+    updatePricingButtons(plan);
+  }
+
+  function updatePricingButtons(currentPlan) {
+    document.querySelectorAll('.pricing-btn').forEach(btn => {
+      const btnPlan = btn.dataset.plan;
+      if (btnPlan === currentPlan) {
+        btn.disabled = true;
+        btn.textContent = 'Current Plan';
+        btn.className = 'w-full py-2.5 rounded-xl bg-surface2 text-muted text-sm font-semibold cursor-default border border-border pricing-btn';
+      }
+    });
+    // Free card button
+    const freeBtn = document.querySelector('#pricingCards > div:first-child button');
+    if (freeBtn && currentPlan !== 'free') {
+      freeBtn.textContent = currentPlan === 'pro' || currentPlan === 'premium' ? 'Downgrade not available' : 'Current Plan';
     }
   }
 
-  function incrementLocalScanCount() {
-    const today = new Date().toISOString().slice(0, 10);
-    const key = 'pg_scans_today_' + today;
-    const current = parseInt(localStorage.getItem(key) || '0', 10);
-    localStorage.setItem(key, String(current + 1));
-    updateUsageDisplay();
+  async function handleUpgrade(plan) {
+    const token = localStorage.getItem('pg_token');
+    if (!token) {
+      window.location.href = '/signup';
+      return;
+    }
+
+    try {
+      // For now, use mock upgrade directly
+      const res = await fetch('/api/v1/auth/mock-upgrade?plan=' + plan);
+      if (res.ok) {
+        const data = await res.json();
+        // Update local user object
+        const userStr = localStorage.getItem('pg_user');
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          user.plan_type = plan;
+          localStorage.setItem('pg_user', JSON.stringify(user));
+        }
+        updatePlanUI(plan);
+        await loadUsageFromAPI();
+        alert('🎉 Plan upgraded to ' + plan.charAt(0).toUpperCase() + plan.slice(1) + '! Enjoy unlimited access.');
+      } else {
+        const err = await res.json();
+        alert('Upgrade failed: ' + (err.detail || 'Unknown error'));
+      }
+    } catch (e) {
+      alert('Upgrade failed. Please try again.');
+    }
+  }
+
+  function showUpgradeBanner() {
+    const banner = $('upgradeBanner');
+    if (banner) banner.classList.remove('hidden');
   }
 
   function renderDashboardScans(scans) {

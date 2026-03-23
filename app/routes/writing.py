@@ -9,9 +9,10 @@ from __future__ import annotations
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel, Field
 
+from app.dependencies.rate_limit import enforce_usage_limit, record_usage
 from app.tools.citation_tool import (
     generate_citations_from_sources,
     generate_citation,
@@ -99,11 +100,15 @@ class ReadabilityRequest(BaseModel):
     "/readability",
     status_code=status.HTTP_200_OK,
     summary="Analyze text readability and statistics",
+    dependencies=[Depends(enforce_usage_limit)],
 )
-async def readability_endpoint(request: ReadabilityRequest) -> dict:
+async def readability_endpoint(request: ReadabilityRequest, http_request: Request = None) -> dict:
     """Compute readability scores, text statistics, and reading time."""
     logger.info("readability_requested", text_length=len(request.text))
-    return analyze_readability(request.text)
+    result = analyze_readability(request.text)
+    if http_request:
+        record_usage(http_request, tool_type="readability")
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -119,12 +124,15 @@ class GrammarRequest(BaseModel):
     "/grammar/check",
     status_code=status.HTTP_200_OK,
     summary="Check text for grammar, spelling, and style issues",
+    dependencies=[Depends(enforce_usage_limit)],
 )
-async def grammar_check_endpoint(request: GrammarRequest) -> dict:
+async def grammar_check_endpoint(request: GrammarRequest, http_request: Request = None) -> dict:
     """Analyze text for grammar errors, style issues, and suggest fixes."""
     logger.info("grammar_check_requested", text_length=len(request.text))
     try:
         result = await check_grammar(request.text)
+        if http_request:
+            record_usage(http_request, tool_type="grammar")
         return result
     except RuntimeError as exc:
         raise HTTPException(

@@ -121,15 +121,15 @@ def signup(name: str, email: str, password: str) -> dict[str, Any]:
 
     hashed = _hash_password(password)
     user_id = db.execute(
-        "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
-        (name, email, hashed),
+        "INSERT INTO users (name, email, password, plan_type) VALUES (?, ?, ?, ?)",
+        (name, email, hashed, "free"),
     )
 
     token = create_access_token(user_id, email)
     logger.info("user_created", user_id=user_id, email=email)
 
     return {
-        "user": {"id": user_id, "name": name, "email": email},
+        "user": {"id": user_id, "name": name, "email": email, "plan_type": "free"},
         "token": token,
     }
 
@@ -155,11 +155,18 @@ def login(email: str, password: str) -> dict[str, Any]:
     token = create_access_token(row["id"], row["email"])
     logger.info("user_login", user_id=row["id"], email=row["email"])
 
+    # Fetch plan_type for the user
+    user_full = db.fetch_one(
+        "SELECT plan_type FROM users WHERE id = ?", (row["id"],)
+    )
+    plan_type = user_full["plan_type"] if user_full else "free"
+
     return {
         "user": {
             "id": row["id"],
             "name": row["name"],
             "email": row["email"],
+            "plan_type": plan_type,
         },
         "token": token,
     }
@@ -169,7 +176,24 @@ def get_user_by_id(user_id: int) -> dict[str, Any] | None:
     """Fetch a user record by ID (without password)."""
     db = get_db()
     row = db.fetch_one(
-        "SELECT id, name, email, is_paid, created_at FROM users WHERE id = ?",
+        "SELECT id, name, email, is_paid, plan_type, created_at FROM users WHERE id = ?",
         (user_id,),
     )
     return row
+
+
+def update_user_plan(user_id: int, plan_type: str) -> bool:
+    """Update a user's subscription plan.  Returns True on success."""
+    valid_plans = ("free", "pro", "premium")
+    if plan_type not in valid_plans:
+        raise AuthError(f"Invalid plan type. Must be one of: {', '.join(valid_plans)}")
+
+    db = get_db()
+    is_paid = 1 if plan_type != "free" else 0
+    affected = db.execute(
+        "UPDATE users SET plan_type = ?, is_paid = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (plan_type, is_paid, user_id),
+    )
+    if affected:
+        logger.info("user_plan_updated", user_id=user_id, plan_type=plan_type)
+    return bool(affected)
