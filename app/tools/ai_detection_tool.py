@@ -48,17 +48,20 @@ async def detect_ai_text(text: str, chunks: list[str] | None = None) -> dict:
 
     # --- Indicator 1: Vocabulary richness (Type-Token Ratio) ------------------
     ttr = len(set(words)) / len(words) if words else 1.0
-    # AI text tends to have moderate TTR (0.4–0.6); very high or low is more human
-    ttr_signal = max(0, 1.0 - abs(ttr - 0.5) * 4)  # peaks at 0.5
+    # AI text tends to have a "comfortable middle" TTR (0.4–0.65).
+    # Very high TTR (rich vocabulary) or very low TTR (repetitive) are
+    # more typical of human text.  Signal peaks at 0.52 (typical GPT-4 range).
+    ttr_signal = max(0, 1.0 - abs(ttr - 0.52) * 3.5)
 
     # --- Indicator 2: Sentence length variance (burstiness) -------------------
     if len(sentences) >= 2:
         lengths = [len(s.split()) for s in sentences]
         mean_len = sum(lengths) / len(lengths)
-        variance = sum((l - mean_len) ** 2 for l in lengths) / len(lengths)
+        variance = sum((ln - mean_len) ** 2 for ln in lengths) / len(lengths)
         std_dev = math.sqrt(variance)
-        # AI tends to have low std_dev (uniform sentence length)
-        burstiness_signal = max(0, 1.0 - (std_dev / 15.0))
+        # AI tends to have low std_dev (uniform sentence length).
+        # Humans vary more — std_dev of 8-15 is common for humans.
+        burstiness_signal = max(0, 1.0 - (std_dev / 12.0))
     else:
         burstiness_signal = 0.5
 
@@ -69,11 +72,23 @@ async def detect_ai_text(text: str, chunks: list[str] | None = None) -> dict:
     repetition_ratio = repeated / max(len(trigram_counts), 1)
     repetition_signal = min(repetition_ratio * 10, 1.0)
 
+    # --- Indicator 4: Average sentence length uniformity ----------------------
+    # AI models produce sentences of remarkably consistent length
+    if len(sentences) >= 3:
+        lengths = [len(s.split()) for s in sentences]
+        median_len = sorted(lengths)[len(lengths) // 2]
+        # What fraction of sentences are within ±5 words of median?
+        near_median = sum(1 for ln in lengths if abs(ln - median_len) <= 5)
+        uniformity_signal = near_median / len(lengths)
+    else:
+        uniformity_signal = 0.5
+
     # --- Combine signals ------------------------------------------------------
     raw_score = (
-        ttr_signal * 0.35
-        + burstiness_signal * 0.40
-        + repetition_signal * 0.25
+        ttr_signal * 0.30
+        + burstiness_signal * 0.30
+        + repetition_signal * 0.15
+        + uniformity_signal * 0.25
     ) * 100
 
     score = round(min(max(raw_score, 0.0), 100.0), 2)
@@ -93,7 +108,7 @@ async def detect_ai_text(text: str, chunks: list[str] | None = None) -> dict:
                 if c_std < 3.0:  # very uniform → suspicious
                     flagged_chunks.append({
                         "chunk_index": i,
-                        "text": chunk[:200],
+                        "text": chunk[:500],
                         "reason": f"Low sentence length variance (std={c_std:.1f})",
                     })
 
@@ -104,6 +119,7 @@ async def detect_ai_text(text: str, chunks: list[str] | None = None) -> dict:
         "ttr_signal": round(ttr_signal, 4),
         "burstiness_signal": round(burstiness_signal, 4),
         "repetition_signal": round(repetition_signal, 4),
+        "uniformity_signal": round(uniformity_signal, 4),
         "sentence_count": len(sentences),
         "word_count": len(words),
     }

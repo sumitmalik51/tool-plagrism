@@ -34,3 +34,5 @@ Thumbs.db
 htmlcov/
 .coverage
 deploy.zip
+app-logs.zip
+*.zip

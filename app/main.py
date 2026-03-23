@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.routes.analyze import router as analyze_router
+from app.routes.rewrite import router as rewrite_router
 from app.routes.tools import router as tools_router
 from app.routes.upload import router as upload_router
 from app.utils.logger import setup_logging
@@ -48,6 +49,7 @@ app.add_middleware(
 # --- Register routers --------------------------------------------------------
 app.include_router(upload_router)
 app.include_router(analyze_router)
+app.include_router(rewrite_router)
 app.include_router(tools_router)
 
 

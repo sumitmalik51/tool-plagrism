@@ -270,12 +270,12 @@
           "chunk_size": {
             "type": "integer",
             "minimum": 50,
-            "description": "Target number of characters per chunk. Defaults to 500 if not specified."
+            "description": "Target number of characters per chunk. Defaults to 800 if not specified."
           },
           "overlap": {
             "type": "integer",
             "minimum": 0,
-            "description": "Number of overlapping characters between consecutive chunks. Defaults to 100 if not specified."
+            "description": "Number of overlapping characters between consecutive chunks. Defaults to 150 if not specified."
           }
         }
       },
@@ -436,7 +436,7 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 50,
-            "description": "Number of search results to return. Default: 5"
+            "description": "Number of search results to return. Default: 10"
           }
         }
       },
@@ -498,7 +498,7 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 20,
-            "description": "Maximum number of results to return. Default: 5"
+            "description": "Maximum number of results to return. Default: 10"
           }
         }
       },

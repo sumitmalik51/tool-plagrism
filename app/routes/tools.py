@@ -46,7 +46,7 @@ class SimilarityRequest(BaseModel):
 class WebSearchRequest(BaseModel):
     """Input for the web search endpoint."""
     query: str = Field(..., min_length=1, description="Search query")
-    count: int = Field(default=5, ge=1, le=50, description="Number of results")
+    count: int = Field(default=10, ge=1, le=50, description="Number of results")
 
 
 class AIDetectRequest(BaseModel):
@@ -58,7 +58,7 @@ class AIDetectRequest(BaseModel):
 class ScholarSearchRequest(BaseModel):
     """Input for the Google Scholar search endpoint."""
     query: str = Field(..., min_length=1, description="Search query for academic papers")
-    max_results: int = Field(default=5, ge=1, le=20, description="Maximum number of results")
+    max_results: int = Field(default=10, ge=1, le=20, description="Maximum number of results")
 
 
 class ChunkRequest(BaseModel):
@@ -227,10 +227,12 @@ async def generate_report_endpoint(request: GenerateReportRequest) -> dict:
         plagiarism_score=request.plagiarism_score,
     )
 
-    # --- Determine risk level -------------------------------------------------
-    if request.plagiarism_score >= 70:
+    # --- Determine risk level (match thresholds from config) -------------------
+    from app.config import settings as _settings
+
+    if request.plagiarism_score >= _settings.risk_threshold_high and request.confidence_score >= 0.4:
         risk_level = "HIGH"
-    elif request.plagiarism_score >= 35:
+    elif request.plagiarism_score >= _settings.risk_threshold_medium:
         risk_level = "MEDIUM"
     else:
         risk_level = "LOW"

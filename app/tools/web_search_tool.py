@@ -37,7 +37,7 @@ async def _search_bing(query: str, count: int) -> dict | None:
     params = {"q": query, "count": min(count, 50), "mkt": "en-US"}
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(BING_SEARCH_URL, headers=headers, params=params)
             if response.status_code == 401:
                 logger.warning("bing_api_key_unauthorized", hint="falling back to DuckDuckGo")
@@ -93,7 +93,7 @@ async def _search_ddg(query: str, count: int) -> dict:
 # Public API
 # ---------------------------------------------------------------------------
 
-async def search_web(query: str, count: int = 5) -> dict:
+async def search_web(query: str, count: int = 10) -> dict:
     """Search the web for *query*, returning up to *count* results.
 
     Tries Bing first (if key configured & valid), then DuckDuckGo.
@@ -159,3 +159,94 @@ async def search_multiple(queries: list[str], count_per_query: int = 3) -> dict:
         "results": all_results,
         "elapsed_s": elapsed,
     }
+
+
+# ---------------------------------------------------------------------------
+# Page content fetcher
+# ---------------------------------------------------------------------------
+
+import re as _re
+
+_TAG_RE = _re.compile(r"<[^>]+>")
+_MULTI_WS = _re.compile(r"\s{3,}")
+
+
+def _html_to_text(html: str) -> str:
+    """Very lightweight HTML → plain-text conversion.
+
+    Strips tags, collapses whitespace. Good enough for embedding comparison.
+    """
+    # Remove script and style blocks
+    text = _re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", html, flags=_re.DOTALL | _re.IGNORECASE)
+    text = _TAG_RE.sub(" ", text)
+    text = _MULTI_WS.sub(" ", text)
+    return text.strip()
+
+
+async def _fetch_one(client: httpx.AsyncClient, url: str) -> tuple[str, str]:
+    """Fetch a single URL and return ``(url, plain_text)``."""
+    try:
+        resp = await client.get(
+            url,
+            follow_redirects=True,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+                "Accept": "text/html,application/xhtml+xml",
+            },
+        )
+        if resp.status_code != 200:
+            return url, ""
+        content_type = resp.headers.get("content-type", "")
+        if "text/html" not in content_type and "text/plain" not in content_type:
+            return url, ""
+        html = resp.text
+        return url, _html_to_text(html)
+    except Exception:  # noqa: BLE001
+        return url, ""
+
+
+async def fetch_page_text(
+    urls: list[str],
+    timeout: float = 10.0,
+    max_concurrent: int = 5,
+) -> dict[str, str]:
+    """Fetch plain-text content from multiple URLs concurrently.
+
+    Args:
+        urls: URLs to fetch.
+        timeout: Per-request timeout in seconds.
+        max_concurrent: Max parallel requests.
+
+    Returns:
+        Dict mapping ``url → plain_text`` (empty string on failure).
+    """
+    if not urls:
+        return {}
+
+    start = time.perf_counter()
+    sem = asyncio.Semaphore(max_concurrent)
+
+    async def _guarded(client: httpx.AsyncClient, url: str) -> tuple[str, str]:
+        async with sem:
+            return await _fetch_one(client, url)
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        tasks = [_guarded(client, u) for u in urls]
+        results = await asyncio.gather(*tasks)
+
+    mapping = {url: text for url, text in results}
+    fetched = sum(1 for t in mapping.values() if t)
+    elapsed = round(time.perf_counter() - start, 3)
+
+    logger.info(
+        "pages_fetched",
+        total=len(urls),
+        fetched=fetched,
+        elapsed_s=elapsed,
+    )
+
+    return mapping

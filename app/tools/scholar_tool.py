@@ -106,7 +106,7 @@ def _parse_results(html_text: str, query: str) -> list[dict[str, Any]]:
 
         # Snippet
         snippet_match = _SNIPPET.search(block)
-        snippet = _strip_tags(snippet_match.group(1))[:500] if snippet_match else ""
+        snippet = _strip_tags(snippet_match.group(1))[:800] if snippet_match else ""
 
         # Citation count
         cited_match = _CITED_BY.search(block)
@@ -149,7 +149,7 @@ async def _fetch_scholar(query: str, max_results: int) -> list[dict[str, Any]]:
 
     try:
         async with httpx.AsyncClient(
-            timeout=15.0, follow_redirects=True
+            timeout=20.0, follow_redirects=True
         ) as client:
             resp = await client.get(_SCHOLAR_URL, params=params, headers=headers)
             resp.raise_for_status()
@@ -170,7 +170,7 @@ async def _fetch_scholar(query: str, max_results: int) -> list[dict[str, Any]]:
 # Public async API
 # ---------------------------------------------------------------------------
 
-async def search_scholar(query: str, max_results: int = 5) -> dict[str, Any]:
+async def search_scholar(query: str, max_results: int = 10) -> dict[str, Any]:
     """Search Google Scholar for academic papers matching *query*.
 
     Returns:
@@ -200,18 +200,22 @@ async def search_scholar_multi(
 ) -> dict[str, Any]:
     """Search Google Scholar for multiple queries and deduplicate results.
 
+    Queries are executed sequentially with a small delay to avoid
+    triggering Google Scholar rate limiting (429 / CAPTCHA).
+
     Returns:
         Dict with ``queries_searched``, ``total_results``, ``results``,
         ``elapsed_s``.
     """
     start = time.perf_counter()
 
-    tasks = [search_scholar(q, max_results=max_per_query) for q in queries]
-    raw_results = await asyncio.gather(*tasks)
-
-    seen_titles: set[str] = set()
     all_results: list[dict[str, Any]] = []
-    for r in raw_results:
+    seen_titles: set[str] = set()
+
+    for i, q in enumerate(queries):
+        if i > 0:
+            await asyncio.sleep(1.0)  # polite delay between requests
+        r = await search_scholar(q, max_results=max_per_query)
         for item in r.get("results", []):
             title_key = item["title"].lower().strip()
             if title_key and title_key not in seen_titles:

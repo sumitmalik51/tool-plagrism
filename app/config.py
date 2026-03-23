@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # File upload
-    max_upload_size_mb: int = 20
+    max_upload_size_mb: int = 50
     allowed_extensions: list[str] = [".pdf", ".docx", ".txt"]
     upload_dir: Path = Path("uploads")
 
@@ -26,13 +26,30 @@ class Settings(BaseSettings):
 
     # Semantic agent
     embedding_model: str = "all-MiniLM-L6-v2"
-    chunk_size: int = 500
-    chunk_overlap: int = 100
+    chunk_size: int = 800
+    chunk_overlap: int = 150
     semantic_similarity_threshold: float = 0.80
 
     # Risk classification thresholds (plagiarism_score 0-100)
     risk_threshold_high: float = 60.0
     risk_threshold_medium: float = 30.0
+
+    # Web search limits
+    web_search_max_queries: int = 8
+    web_search_results_per_query: int = 5
+    web_search_similarity_threshold: float = 0.50
+
+    # Academic / Scholar search limits
+    scholar_max_queries: int = 8
+    scholar_results_per_query: int = 5
+
+    # Azure OpenAI (for AI rewriter)
+    azure_openai_endpoint: str = ""
+    azure_openai_api_key: str = ""
+    azure_openai_deployment: str = "gpt-4o"
+    azure_openai_api_version: str = "2024-12-01-preview"
+    rewriter_max_tokens: int = 4096
+    rewriter_temperature: float = 0.7
 
     # External API keys
     bing_api_key: str = ""

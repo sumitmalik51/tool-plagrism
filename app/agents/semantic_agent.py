@@ -83,21 +83,21 @@ class SemanticAgent(BaseAgent):
         score_info = compute_overall_score(sim_matrix, threshold=threshold)
 
         # --- 4. Build flagged passages ----------------------------------------
-        seen_indices: set[int] = set()
+        seen_pairs: set[tuple[int, int]] = set()
         flagged: list[FlaggedPassage] = []
         for pair in pairs:
             idx_a: int = pair["chunk_a_idx"]
             idx_b: int = pair["chunk_b_idx"]
             # Avoid flagging the symmetric duplicate (a→b and b→a)
             key = (min(idx_a, idx_b), max(idx_a, idx_b))
-            if key in seen_indices:
+            if key in seen_pairs:
                 continue
-            seen_indices.add(key)
+            seen_pairs.add(key)
 
             flagged.append(
                 FlaggedPassage(
-                    text=chunks[idx_a][:300],
-                    similarity_score=pair["similarity"],
+                    text=chunks[idx_a][:500],
+                    similarity_score=min(pair["similarity"], 1.0),
                     source=f"internal_chunk_{idx_b}",
                     reason=(
                         f"Chunk {idx_a} is {pair['similarity']:.0%} similar "

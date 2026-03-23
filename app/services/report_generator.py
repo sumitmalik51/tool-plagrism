@@ -115,11 +115,14 @@ def _extract_sources(agent_outputs: list[AgentOutput]) -> list[DetectedSource]:
             url = src.get("url", "")
             if url and url not in seen:
                 seen.add(url)
+                raw_sim = src.get("similarity", 0.0)
+                # Clamp to [0, 1] — cosine similarity can be slightly negative
+                clamped_sim = max(0.0, min(float(raw_sim), 1.0))
                 sources.append(
                     DetectedSource(
                         url=url,
                         title=src.get("title"),
-                        similarity=src.get("similarity", 0.0),
+                        similarity=clamped_sim,
                     )
                 )
 

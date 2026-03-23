@@ -2,9 +2,20 @@
 
 Delegates all computation to the tools layer (web_search_tool, embedding_tool,
 similarity_tool). The agent only handles orchestration and interpretation.
+
+Search backends are handled transparently by the tool layer:
+  1. Bing (if PG_BING_API_KEY is set and valid)
+  2. DuckDuckGo (free fallback — no key needed)
+
+The agent does NOT gate on ``bing_api_key`` because the tool layer
+handles the Bing→DuckDuckGo fallback automatically.
 """
 
 from __future__ import annotations
+
+import re
+
+import numpy as np
 
 from app.agents.base_agent import BaseAgent
 from app.config import settings
@@ -12,7 +23,86 @@ from app.models.schemas import AgentInput, AgentOutput, FlaggedPassage
 from app.tools.content_extractor_tool import chunk_text
 from app.tools.embedding_tool import generate_embeddings
 from app.tools.similarity_tool import cosine_similarity_matrix, compute_overall_score
-from app.tools.web_search_tool import search_multiple
+from app.tools.web_search_tool import search_multiple, fetch_page_text
+
+
+# ---------------------------------------------------------------------------
+# Text cleaning helpers
+# ---------------------------------------------------------------------------
+
+_GLYPH_RE = re.compile(r"/gid\d{3,5}")
+_MULTI_WS = re.compile(r"[ \t]+")
+_MULTI_NL = re.compile(r"\n{3,}")
+
+# Common PDF ligature replacements
+_LIGATURES: dict[str, str] = {
+    "\ufb00": "ff",
+    "\ufb01": "fi",
+    "\ufb02": "fl",
+    "\ufb03": "ffi",
+    "\ufb04": "ffl",
+    "\u2019": "'",
+    "\u2018": "'",
+    "\u201c": '"',
+    "\u201d": '"',
+    "\u2013": "-",
+    "\u2014": "-",
+}
+
+
+def _clean_text(text: str) -> str:
+    """Remove PDF extraction artefacts and normalise whitespace."""
+    for lig, repl in _LIGATURES.items():
+        text = text.replace(lig, repl)
+    text = _GLYPH_RE.sub("", text)
+    text = _MULTI_WS.sub(" ", text)
+    text = _MULTI_NL.sub("\n\n", text)
+    return text.strip()
+
+
+def _extract_search_queries(
+    text: str,
+    max_queries: int = 8,
+) -> list[str]:
+    """Extract meaningful search queries from document text.
+
+    Strategy:
+      1. Chunk text with reasonable size for diverse coverage.
+      2. From each sampled chunk, pull the first complete sentence.
+      3. Return cleaned, non-trivial queries suitable for web search.
+    """
+    cleaned = _clean_text(text)
+    chunk_result = chunk_text(cleaned, chunk_size=500, overlap=0)
+    chunks = chunk_result["chunks"]
+
+    if not chunks:
+        return []
+
+    step = max(1, len(chunks) // max_queries)
+    queries: list[str] = []
+
+    for i in range(0, len(chunks), step):
+        raw = chunks[i].strip()
+
+        # Extract first complete sentence (ending in . ! or ?)
+        sent_match = re.match(r"(.+?[.!?])(?:\s|$)", raw, re.DOTALL)
+        if sent_match:
+            q = sent_match.group(1).strip()
+        else:
+            # No sentence boundary — take first 120 chars at word boundary
+            q = raw[:120].rsplit(" ", 1)[0].strip()
+
+        # Collapse internal newlines to spaces
+        q = q.replace("\n", " ").replace("\r", " ")
+        q = _MULTI_WS.sub(" ", q).strip()
+
+        # Only keep queries with enough meaningful content
+        if len(q) >= 20:
+            queries.append(q[:200])
+        if len(queries) >= max_queries:
+            break
+
+    return queries
 
 
 class WebSearchAgent(BaseAgent):
@@ -23,28 +113,28 @@ class WebSearchAgent(BaseAgent):
         return "web_search_agent"
 
     async def _analyze(self, agent_input: AgentInput) -> AgentOutput:
-        # Check if Bing API key is configured
-        if not settings.bing_api_key:
-            self.logger.warning(
-                "web_search_skipped",
-                document_id=agent_input.document_id,
-                reason="BING_API_KEY not configured",
-            )
+        # --- 1. Create search queries from document text ----------------------
+        queries = _extract_search_queries(
+            agent_input.text,
+            max_queries=settings.web_search_max_queries,
+        )
+
+        if not queries:
             return AgentOutput(
                 agent_name=self.name,
                 score=0.0,
-                confidence=0.0,
+                confidence=0.3,
                 flagged_passages=[],
-                details={"status": "skipped", "reason": "BING_API_KEY not configured"},
+                details={"status": "no_chunks", "reason": "Document too short to search"},
             )
 
-        # --- 1. Create search queries from text chunks ------------------------
-        chunk_result = chunk_text(agent_input.text, chunk_size=200, overlap=0)
-        chunks = chunk_result["chunks"]
+        # Also prepare document chunks for embedding comparison
+        cleaned_text = _clean_text(agent_input.text)
+        doc_chunk_result = chunk_text(cleaned_text, chunk_size=500, overlap=50)
+        doc_chunks = doc_chunk_result["chunks"]
 
-        # Use first few chunks as search queries (limit to avoid API abuse)
-        query_chunks = chunks[:5]
-        queries = [c[:150] for c in query_chunks]
+        if not doc_chunks:
+            doc_chunks = queries  # fallback
 
         # --- 2. Search the web ------------------------------------------------
         self.logger.info(
@@ -52,7 +142,9 @@ class WebSearchAgent(BaseAgent):
             document_id=agent_input.document_id,
             query_count=len(queries),
         )
-        search_result = await search_multiple(queries, count_per_query=3)
+        search_result = await search_multiple(
+            queries, count_per_query=settings.web_search_results_per_query,
+        )
 
         web_results = search_result.get("results", [])
         if not web_results:
@@ -67,9 +159,37 @@ class WebSearchAgent(BaseAgent):
                 },
             )
 
-        # --- 3. Compare snippets via embeddings (similarity_tool) -------------
-        snippets = [r["snippet"] for r in web_results if r.get("snippet")]
-        if not snippets:
+        # --- 3. Fetch actual page content for top URLs ------------------------
+        # This dramatically improves similarity by comparing against real
+        # page text instead of just short search snippets.
+        urls_to_fetch = [r["url"] for r in web_results[:15] if r.get("url")]
+        self.logger.info(
+            "fetching_page_content",
+            document_id=agent_input.document_id,
+            url_count=len(urls_to_fetch),
+        )
+        page_texts = await fetch_page_text(urls_to_fetch, timeout=10.0)
+
+        # Enrich each web_result with fetched page text (truncated for embedding)
+        for r in web_results:
+            fetched = page_texts.get(r.get("url", ""), "")
+            if fetched and len(fetched) > 100:
+                # Use first 2000 chars of page content for comparison
+                r["full_text"] = _clean_text(fetched[:2000])
+            else:
+                r["full_text"] = ""
+
+        # --- 4. Compare content via embeddings --------------------------------
+        # Build reference texts: prefer fetched page content, fall back to snippet
+        snippet_indices: list[int] = []
+        comparison_texts: list[str] = []
+        for idx, r in enumerate(web_results):
+            ref_text = r.get("full_text") or r.get("snippet", "")
+            if ref_text and len(ref_text.strip()) > 20:
+                snippet_indices.append(idx)
+                comparison_texts.append(ref_text.strip())
+
+        if not comparison_texts:
             return AgentOutput(
                 agent_name=self.name,
                 score=0.0,
@@ -78,33 +198,45 @@ class WebSearchAgent(BaseAgent):
                 details={"status": "no_snippets"},
             )
 
-        doc_embeddings = await generate_embeddings(query_chunks)
-        snippet_embeddings = await generate_embeddings(snippets)
+        doc_embeddings = await generate_embeddings(doc_chunks)
+        ref_embeddings = await generate_embeddings(comparison_texts)
 
-        sim_matrix = cosine_similarity_matrix(doc_embeddings, snippet_embeddings)
+        sim_matrix = cosine_similarity_matrix(doc_embeddings, ref_embeddings)
+        web_threshold = settings.web_search_similarity_threshold
         score_info = compute_overall_score(
-            sim_matrix, threshold=settings.semantic_similarity_threshold,
+            sim_matrix, threshold=web_threshold,
         )
 
-        # --- 4. Build flagged passages ----------------------------------------
+        # --- 5. Build flagged passages ----------------------------------------
         flagged: list[FlaggedPassage] = []
-        import numpy as np
+        # Track which sources have already been flagged (avoid duplicates)
+        seen_sources: set[str] = set()
 
         for i in range(sim_matrix.shape[0]):
             best_j = int(np.argmax(sim_matrix[i]))
-            best_sim = float(sim_matrix[i, best_j])
-            if best_sim >= settings.semantic_similarity_threshold:
+            best_sim = float(min(sim_matrix[i, best_j], 1.0))  # clamp FP rounding
+            if best_sim >= web_threshold:
+                # Map index back to original web_results index
+                orig_idx = snippet_indices[best_j]
+                source_url = web_results[orig_idx].get("url", "")
+
                 flagged.append(FlaggedPassage(
-                    text=query_chunks[i][:300],
+                    text=doc_chunks[i][:500],
                     similarity_score=best_sim,
-                    source=web_results[best_j].get("url", ""),
+                    source=source_url,
                     reason=(
                         f"Chunk matches web source with {best_sim:.0%} similarity: "
-                        f"{web_results[best_j].get('title', 'Unknown')}"
+                        f"{web_results[orig_idx].get('title', 'Unknown')}"
                     ),
                 ))
+                seen_sources.add(source_url)
 
         confidence = min(len(web_results) / 10, 1.0) * 0.6 + 0.2
+
+        # Build a map from web_results index → column in sim_matrix
+        snippet_col: dict[int, int] = {
+            orig: col for col, orig in enumerate(snippet_indices)
+        }
 
         self.logger.info(
             "web_search_complete",
@@ -123,9 +255,18 @@ class WebSearchAgent(BaseAgent):
                 "status": "completed",
                 "queries_searched": len(queries),
                 "web_results_found": len(web_results),
+                "pages_fetched": sum(1 for r in web_results if r.get("full_text")),
                 "sources": [
-                    {"url": r["url"], "title": r["title"], "similarity": 0.0}
-                    for r in web_results[:10]
+                    {
+                        "url": r["url"],
+                        "title": r["title"],
+                        "similarity": round(
+                            float(sim_matrix[:, snippet_col[idx]].max()), 4
+                        )
+                        if idx in snippet_col
+                        else 0.0,
+                    }
+                    for idx, r in enumerate(web_results[:20])
                 ],
             },
         )

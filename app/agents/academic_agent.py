@@ -23,23 +23,40 @@ from app.tools.scholar_tool import search_scholar_multi
 from app.tools.similarity_tool import cosine_similarity_matrix
 
 
-def _extract_queries(chunks: list[str], max_queries: int = 5) -> list[str]:
-    """Pick representative chunks as Scholar search queries.
+def _extract_queries(chunks: list[str], max_queries: int = 8) -> list[str]:
+    """Extract meaningful search queries from document chunks.
 
-    Strategy: take evenly-spaced chunks and truncate to ~120 chars so
-    they work well as search terms.
+    Strategy:
+      1. Pick evenly-spaced chunks for diversity.
+      2. Extract the first complete sentence (rather than arbitrary 120 chars)
+         so Scholar receives coherent search terms.
+      3. Strip very short or stop-word-heavy fragments.
     """
     if not chunks:
         return []
+
+    import re
+
     step = max(1, len(chunks) // max_queries)
     queries: list[str] = []
+
     for i in range(0, len(chunks), step):
-        # Take the first meaningful sentence-like fragment
-        q = chunks[i][:120].strip()
-        if len(q) > 20:
-            queries.append(q)
+        raw = chunks[i].strip()
+
+        # Extract first complete sentence (ending in . ! or ?)
+        sent_match = re.match(r"(.+?[.!?])(?:\s|$)", raw)
+        if sent_match:
+            q = sent_match.group(1).strip()
+        else:
+            # No sentence boundary found — take first 100 chars at word boundary
+            q = raw[:100].rsplit(" ", 1)[0].strip()
+
+        # Ensure query has enough content to be a useful search term
+        if len(q) >= 10:
+            queries.append(q[:150])  # Scholar handles up to ~256 chars
         if len(queries) >= max_queries:
             break
+
     return queries
 
 
@@ -70,14 +87,16 @@ class AcademicAgent(BaseAgent):
             )
 
         # --- 2. Search Google Scholar -----------------------------------------
-        queries = _extract_queries(chunks)
+        queries = _extract_queries(chunks, max_queries=settings.scholar_max_queries)
         self.logger.info(
             "scholar_queries_prepared",
             document_id=agent_input.document_id,
             query_count=len(queries),
         )
 
-        scholar_result = await search_scholar_multi(queries, max_per_query=3)
+        scholar_result = await search_scholar_multi(
+            queries, max_per_query=settings.scholar_results_per_query,
+        )
         papers = scholar_result.get("results", [])
 
         if not papers:
@@ -114,14 +133,18 @@ class AcademicAgent(BaseAgent):
         # --- 4. Cross-similarity (doc chunks vs paper abstracts) --------------
         sim_matrix = cosine_similarity_matrix(doc_embeddings, paper_embeddings)
 
-        threshold = settings.semantic_similarity_threshold
+        # Use a lower threshold for cross-source matching because abstracts
+        # are summaries — matching verbatim text produces ~0.6-0.8 similarity,
+        # not the 0.8+ seen in self-similarity.
+        base_threshold = settings.semantic_similarity_threshold
+        cross_threshold = max(base_threshold - 0.15, 0.50)
         flagged: list[FlaggedPassage] = []
         flagged_chunk_indices: set[int] = set()
 
         for i in range(sim_matrix.shape[0]):
             for j in range(sim_matrix.shape[1]):
-                sim_val = float(sim_matrix[i, j])
-                if sim_val >= threshold:
+                sim_val = float(min(sim_matrix[i, j], 1.0))  # clamp FP rounding
+                if sim_val >= cross_threshold:
                     flagged_chunk_indices.add(i)
                     paper = paper_meta[j]
                     authors = paper.get("authors", [])
@@ -134,7 +157,7 @@ class AcademicAgent(BaseAgent):
                     title = paper.get("title", "Unknown")
                     flagged.append(
                         FlaggedPassage(
-                            text=chunks[i][:300],
+                            text=chunks[i][:500],
                             similarity_score=sim_val,
                             source=paper.get("url") or paper.get("scholar_url", ""),
                             reason=(
@@ -162,7 +185,7 @@ class AcademicAgent(BaseAgent):
             agent_name=self.name,
             score=score,
             confidence=round(confidence, 2),
-            flagged_passages=flagged[:20],  # cap to avoid huge responses
+            flagged_passages=flagged[:50],  # cap to avoid huge responses
             details={
                 "status": "completed",
                 "chunk_count": len(chunks),
@@ -190,14 +213,14 @@ class AcademicAgent(BaseAgent):
 
         for i in range(sim_matrix.shape[0]):
             for j in range(i + 1, sim_matrix.shape[1]):
-                sim_val = float(sim_matrix[i, j])
+                sim_val = float(min(sim_matrix[i, j], 1.0))  # clamp FP rounding
                 if sim_val >= threshold:
                     pair = (i, j)
                     if pair not in seen_pairs:
                         seen_pairs.add(pair)
                         flagged.append(
                             FlaggedPassage(
-                                text=chunks[i][:300],
+                                text=chunks[i][:500],
                                 similarity_score=sim_val,
                                 source=f"academic_section_{j}",
                                 reason=(
