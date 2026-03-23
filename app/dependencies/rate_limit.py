@@ -39,11 +39,27 @@ def _client_ip(request: Request) -> str:
 def _resolve_identity(request: Request) -> tuple[str, UserTier]:
     """Determine the rate-limit identifier and user tier from the request.
 
+    Works even when the auth middleware is disabled (dev mode) by
+    falling back to direct JWT inspection from the Authorization header.
+
     Returns:
         (identifier, tier) — e.g. (``"user:42"``, ``UserTier.FREE``)
         or (``"ip:1.2.3.4"``, ``UserTier.ANONYMOUS``).
     """
     user_id: int | None = getattr(request.state, "user_id", None)
+
+    # If the auth middleware didn't run (dev mode / no API keys),
+    # try to extract user_id from the Bearer token directly.
+    if user_id is None:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            from app.services.auth_service import verify_access_token
+            token = auth_header.removeprefix("Bearer ").strip()
+            payload = verify_access_token(token)
+            if payload:
+                user_id = int(payload["sub"])
+                # Stash it so downstream code (record_usage) picks it up
+                request.state.user_id = user_id
 
     if user_id is not None:
         user = get_user_by_id(user_id)

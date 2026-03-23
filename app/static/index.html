@@ -1945,8 +1945,14 @@
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
+      if (res.status === 429) {
+        const d = err.detail || {};
+        if (typeof showUpgradeBanner === 'function') showUpgradeBanner();
+        throw new Error(d.message || 'Daily usage limit reached. Upgrade your plan for unlimited access.');
+      }
       throw new Error(err.detail || 'Rewrite failed');
     }
+    if (typeof loadUsageFromAPI === 'function') loadUsageFromAPI();
     return res.json();
   }
 
@@ -2110,8 +2116,14 @@
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
+        if (res.status === 429) {
+          const d = err.detail || {};
+          if (typeof showUpgradeBanner === 'function') showUpgradeBanner();
+          throw new Error(d.message || 'Daily usage limit reached. Upgrade your plan for unlimited access.');
+        }
         throw new Error(err.detail || 'Rewrite failed');
       }
+      if (typeof loadUsageFromAPI === 'function') loadUsageFromAPI();
       const data = await res.json();
 
       if (data.skipped) {
@@ -2453,7 +2465,14 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       });
-      if (!res.ok) throw new Error('Readability analysis failed');
+      if (!res.ok) {
+        if (res.status === 429) {
+          if (typeof showUpgradeBanner === 'function') showUpgradeBanner();
+          throw new Error('Daily usage limit reached. Upgrade your plan for unlimited access.');
+        }
+        throw new Error('Readability analysis failed');
+      }
+      if (typeof loadUsageFromAPI === 'function') loadUsageFromAPI();
       const data = await res.json();
       renderReadability(data);
     } catch (err) {
@@ -2552,7 +2571,14 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       });
-      if (!res.ok) throw new Error('Grammar check failed');
+      if (!res.ok) {
+        if (res.status === 429) {
+          if (typeof showUpgradeBanner === 'function') showUpgradeBanner();
+          throw new Error('Daily usage limit reached. Upgrade your plan for unlimited access.');
+        }
+        throw new Error('Grammar check failed');
+      }
+      if (typeof loadUsageFromAPI === 'function') loadUsageFromAPI();
       const data = await res.json();
       renderGrammar(data);
     } catch (err) {

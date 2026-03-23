@@ -69,10 +69,15 @@ class UsageRateLimiter:
     # ------------------------------------------------------------------
 
     def get_count(self, identifier: str) -> int:
-        """Return the total tool‐usage count for *identifier* today."""
+        """Return the total tool‐usage count for *identifier* today.
+
+        Uses a range comparison (``>= today AND < tomorrow``) that works
+        identically on both SQLite (TEXT dates) and Azure SQL (DATETIME2).
+        """
         from app.services.database import get_db
         db = get_db()
         today = self._today()
+        tomorrow = self._tomorrow()
 
         if identifier.startswith("user:"):
             raw = identifier.split(":", 1)[1]
@@ -80,16 +85,15 @@ class UsageRateLimiter:
                 user_id = int(raw)
                 row = db.fetch_one(
                     "SELECT COUNT(*) AS cnt FROM usage_logs "
-                    "WHERE user_id = ? AND CAST(created_at AS DATE) = CAST(? AS DATE)",
-                    (user_id, today),
+                    "WHERE user_id = ? AND created_at >= ? AND created_at < ?",
+                    (user_id, today, tomorrow),
                 )
             except ValueError:
                 # Non-numeric user identifier (e.g. tests with "user:pro")
-                # Fall back to ip_address-based lookup using the raw identifier
                 row = db.fetch_one(
                     "SELECT COUNT(*) AS cnt FROM usage_logs "
-                    "WHERE ip_address = ? AND CAST(created_at AS DATE) = CAST(? AS DATE)",
-                    (identifier, today),
+                    "WHERE ip_address = ? AND created_at >= ? AND created_at < ?",
+                    (identifier, today, tomorrow),
                 )
         else:
             # ip:x.x.x.x
@@ -97,8 +101,8 @@ class UsageRateLimiter:
             row = db.fetch_one(
                 "SELECT COUNT(*) AS cnt FROM usage_logs "
                 "WHERE ip_address = ? AND user_id IS NULL "
-                "AND CAST(created_at AS DATE) = CAST(? AS DATE)",
-                (ip, today),
+                "AND created_at >= ? AND created_at < ?",
+                (ip, today, tomorrow),
             )
 
         return row["cnt"] if row else 0
@@ -171,10 +175,10 @@ class UsageRateLimiter:
         remaining = self.get_remaining(identifier, tier)
         if remaining <= 0:
             limit = self._limit_for_tier(tier)
-            tomorrow = date.today().isoformat()
+            resets = self._tomorrow()
             raise LimitExceeded(
                 limit=limit,
-                resets_at=f"{tomorrow}T00:00:00Z (next day)",
+                resets_at=f"{resets}T00:00:00Z (next day)",
             )
 
         return remaining
@@ -202,7 +206,13 @@ class UsageRateLimiter:
 
     @staticmethod
     def _today() -> str:
-        return date.today().isoformat()
+        from datetime import datetime, timezone
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    @staticmethod
+    def _tomorrow() -> str:
+        from datetime import datetime, timezone, timedelta
+        return (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%d")
 
     @staticmethod
     def _limit_for_tier(tier: UserTier) -> int:
