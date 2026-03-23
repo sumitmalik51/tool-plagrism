@@ -1,15 +1,18 @@
-"""AI Rewriter tool — rewrites text using Azure OpenAI to eliminate plagiarism.
+"""
+AI Rewriter tool — PRODUCTION VERSION
 
-Standalone, framework-agnostic tool. Accepts clear inputs, returns structured JSON.
-Supports two modes:
-  1. **Paragraph**: Rewrites a single flagged passage.
-  2. **Document**: Rewrites an entire document, focusing on flagged sections.
+Combines:
+- Robust document handling
+- Anti-plagiarism optimized rewriting
+- Multi-variant outputs
+- Retry + fallback safety
 """
 
 from __future__ import annotations
 
-import asyncio
 import time
+import json
+import asyncio
 from typing import Literal
 
 import httpx
@@ -23,72 +26,64 @@ logger = get_logger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-# Minimum character length for text to be worth rewriting.
-# Fragments shorter than this are returned as-is with a skip note,
-# avoiding hallucinated AI output from meaningless snippets.
-MIN_REWRITE_LENGTH = 30  # ~5 words
-
-# Minimum word count — even if chars >= threshold, reject gibberish
+MIN_REWRITE_LENGTH = 30
 MIN_REWRITE_WORDS = 3
+MAX_RETRIES = 2
 
 # ---------------------------------------------------------------------------
 # System prompts
 # ---------------------------------------------------------------------------
 
-_PARAGRAPH_SYSTEM = """You are an expert academic writing assistant. Your task is to rewrite the given paragraph to eliminate plagiarism while:
-1. Preserving the original meaning and key information accurately.
-2. Using completely different sentence structures and word choices.
-3. Maintaining an academic/professional tone appropriate for the context.
-4. Ensuring the rewritten text is natural, fluent, and human-like.
-5. NOT adding new information that wasn't in the original.
-6. NOT removing critical data, facts, or citations from the original.
+_PARAGRAPH_SYSTEM = """You are an expert academic rewriting engine specialized in plagiarism removal.
 
-Return ONLY the rewritten text — no explanations, no preamble."""
+STRICT REQUIREMENTS:
+1. Preserve EXACT meaning, facts, numbers, intent.
+2. Use different sentence structures (not synonyms only).
+3. Avoid copying phrases longer than 3 words.
+4. Ensure output is plagiarism-safe.
+5. Do NOT add or remove information.
+6. Maintain requested tone.
+7. Keep similar length (±15%).
+8. Ensure natural human fluency.
 
-_DOCUMENT_SYSTEM = """You are an expert academic writing assistant. You will receive a full document with specific passages marked as [FLAGGED] that were detected as potentially plagiarised.
+REWRITE STRENGTH:
+- LOW: minimal change
+- MEDIUM: moderate
+- HIGH: aggressive restructuring
 
-Your task:
-1. Rewrite ONLY the [FLAGGED] sections to eliminate plagiarism.
-2. Leave unflagged sections UNCHANGED (copy them verbatim).
-3. For each flagged section, use completely different sentence structures and word choices.
-4. Preserve all meaning, facts, data, and citations.
-5. Maintain consistent tone and style throughout.
-6. Ensure smooth transitions between rewritten and unchanged sections.
+QUALITY CHECK:
+- Would plagiarism still trigger? If yes, rewrite.
+- Did meaning change? Fix it.
 
-Return the COMPLETE document with the rewrites applied — no explanations, no markers."""
+OUTPUT:
+Return ONLY JSON list of 3 rewrites.
+"""
 
+_DOCUMENT_SYSTEM = """You are an expert rewriting engine.
+
+Rules:
+1. Rewrite ONLY [FLAGGED] sections.
+2. Keep everything else unchanged.
+3. Ensure plagiarism-safe rewriting.
+4. Preserve meaning exactly.
+5. Maintain tone consistency.
+
+Return full document only.
+"""
 
 # ---------------------------------------------------------------------------
-# Azure OpenAI client helper
+# Azure OpenAI call with retry
 # ---------------------------------------------------------------------------
 
-async def _call_azure_openai(
-    system_prompt: str,
-    user_prompt: str,
-    max_tokens: int | None = None,
-    temperature: float | None = None,
-) -> str:
-    """Call Azure OpenAI Chat Completions API.
+async def _call_azure_openai(system_prompt, user_prompt):
 
-    Raises:
-        ValueError: If Azure OpenAI is not configured.
-        RuntimeError: If API call fails.
-    """
     endpoint = settings.azure_openai_endpoint.rstrip("/")
     api_key = settings.azure_openai_api_key
     deployment = settings.azure_openai_deployment
     api_version = settings.azure_openai_api_version
 
-    if not endpoint or not api_key:
-        raise ValueError(
-            "Azure OpenAI is not configured. "
-            "Set PG_AZURE_OPENAI_ENDPOINT and PG_AZURE_OPENAI_API_KEY."
-        )
+    url = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_version}"
 
-    url = (
-        f"{endpoint}/openai/deployments/{deployment}"
-        f"/chat/completions?api-version={api_version}"
-    )
     headers = {
         "Content-Type": "application/json",
         "api-key": api_key,
@@ -99,259 +94,188 @@ async def _call_azure_openai(
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        "max_tokens": max_tokens or settings.rewriter_max_tokens,
-        "temperature": temperature if temperature is not None else settings.rewriter_temperature,
+        "max_tokens": settings.rewriter_max_tokens,
+        "temperature": settings.rewriter_temperature,
         "model": deployment,
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(url, json=body, headers=headers)
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(url, json=body, headers=headers)
 
-        if response.status_code != 200:
-            error_detail = response.text[:500]
-            logger.error(
-                "azure_openai_error",
-                status=response.status_code,
-                detail=error_detail,
-            )
-            raise RuntimeError(
-                f"Azure OpenAI returned {response.status_code}: {error_detail}"
-            )
+            if response.status_code != 200:
+                raise RuntimeError(response.text[:300])
 
-        data = response.json()
+            data = response.json()
+            return data["choices"][0]["message"]["content"].strip()
 
-    choice = data.get("choices", [{}])[0]
-    content = choice.get("message", {}).get("content", "")
-
-    if not content:
-        raise RuntimeError("Azure OpenAI returned empty content")
-
-    return content.strip()
-
+        except Exception as e:
+            logger.warning("openai_retry", attempt=attempt, error=str(e))
+            if attempt == MAX_RETRIES:
+                raise
+            await asyncio.sleep(1.5 * (attempt + 1))
 
 # ---------------------------------------------------------------------------
-# Public API
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _safe_parse_rewrites(output: str) -> list[str]:
+    try:
+        parsed = json.loads(output)
+        if isinstance(parsed, list):
+            return parsed[:3]
+    except Exception:
+        pass
+
+    # fallback
+    return [output]
+
+# ---------------------------------------------------------------------------
+# Paragraph Rewrite
 # ---------------------------------------------------------------------------
 
 async def rewrite_paragraph(
     text: str,
     context: str = "",
-    tone: str = "academic",
+    tone: Literal["academic", "professional", "casual"] = "academic",
+    strength: Literal["low", "medium", "high"] = "medium",
 ) -> dict:
-    """Rewrite a single paragraph to eliminate plagiarism.
 
-    Args:
-        text: The flagged paragraph to rewrite.
-        context: Optional surrounding context for better rewrites.
-        tone: Writing tone — 'academic', 'professional', or 'casual'.
-
-    Returns:
-        Dict with ``original``, ``rewritten``, ``tone``, ``elapsed_s``.
-    """
     start = time.perf_counter()
 
-    # Guard: skip fragments that are too short to meaningfully rewrite
     stripped = text.strip()
-    word_count = len(stripped.split())
-    if len(stripped) < MIN_REWRITE_LENGTH or word_count < MIN_REWRITE_WORDS:
-        elapsed = round(time.perf_counter() - start, 3)
-        logger.info(
-            "rewrite_paragraph_skipped_too_short",
-            text_length=len(stripped),
-            word_count=word_count,
-        )
+    if len(stripped) < MIN_REWRITE_LENGTH or len(stripped.split()) < MIN_REWRITE_WORDS:
         return {
             "original": text,
-            "rewritten": text,  # return as-is
-            "tone": tone,
-            "elapsed_s": elapsed,
+            "rewrites": [text],
             "skipped": True,
-            "skip_reason": "Text too short to rewrite meaningfully",
         }
 
-    user_prompt = f"Tone: {tone}\n\n"
-    if context:
-        user_prompt += f"Context (surrounding text, for reference only — do NOT rewrite this):\n{context}\n\n"
-    user_prompt += f"Paragraph to rewrite:\n{text}"
+    user_prompt = f"""
+Tone: {tone}
+Rewrite Strength: {strength}
 
-    logger.info("rewrite_paragraph_started", text_length=len(text), tone=tone)
+{f"Context (reference only): {context}" if context else ""}
 
-    rewritten = await _call_azure_openai(
-        system_prompt=_PARAGRAPH_SYSTEM,
-        user_prompt=user_prompt,
-    )
+Rewrite this paragraph:
 
-    elapsed = round(time.perf_counter() - start, 3)
+{text}
+"""
 
-    logger.info(
-        "rewrite_paragraph_complete",
-        original_length=len(text),
-        rewritten_length=len(rewritten),
-        elapsed_s=elapsed,
-    )
+    raw = await _call_azure_openai(_PARAGRAPH_SYSTEM, user_prompt)
+    rewrites = _safe_parse_rewrites(raw)
 
     return {
         "original": text,
-        "rewritten": rewritten,
+        "rewrites": rewrites,
         "tone": tone,
-        "elapsed_s": elapsed,
+        "strength": strength,
+        "elapsed_s": round(time.perf_counter() - start, 3),
     }
 
+# ---------------------------------------------------------------------------
+# Document Rewrite
+# ---------------------------------------------------------------------------
 
 async def rewrite_document(
     document_text: str,
     flagged_passages: list[str],
     tone: str = "academic",
 ) -> dict:
-    """Rewrite flagged passages within a full document.
 
-    Args:
-        document_text: The entire document text.
-        flagged_passages: List of passages that were flagged as plagiarised.
-        tone: Writing tone — 'academic', 'professional', or 'casual'.
-
-    Returns:
-        Dict with ``original``, ``rewritten``, ``passages_rewritten``,
-        ``tone``, ``elapsed_s``.
-    """
     start = time.perf_counter()
-
-    # Mark flagged passages in the document
     marked_doc = document_text
     passages_found = 0
 
-    # Filter out trivially short passages before processing
+    # filter short
     flagged_passages = [
         p for p in flagged_passages
-        if len(p.strip()) >= MIN_REWRITE_LENGTH and len(p.strip().split()) >= MIN_REWRITE_WORDS
+        if len(p.strip()) >= MIN_REWRITE_LENGTH
     ]
 
     for passage in flagged_passages:
-        # Try exact match first, then fuzzy (first 80 chars)
         if passage in marked_doc:
             marked_doc = marked_doc.replace(
                 passage, f"[FLAGGED]{passage}[/FLAGGED]", 1
             )
             passages_found += 1
         else:
-            # Try matching by the first 80 chars (handles truncated passages)
             snippet = passage[:80]
             idx = marked_doc.find(snippet)
             if idx != -1:
-                # Find the end of the sentence or paragraph
                 end = marked_doc.find("\n", idx + len(snippet))
                 if end == -1:
-                    end = min(idx + len(passage) + 100, len(marked_doc))
-                original_section = marked_doc[idx:end]
+                    end = idx + len(snippet) + 100
+                section = marked_doc[idx:end]
                 marked_doc = (
                     marked_doc[:idx]
-                    + f"[FLAGGED]{original_section}[/FLAGGED]"
+                    + f"[FLAGGED]{section}[/FLAGGED]"
                     + marked_doc[end:]
                 )
                 passages_found += 1
 
     if passages_found == 0:
-        # No passages could be located — rewrite the entire document
-        logger.warning(
-            "no_flagged_passages_located",
-            total_flagged=len(flagged_passages),
-        )
-        user_prompt = (
-            f"Tone: {tone}\n\n"
-            f"The entire document below was flagged for potential plagiarism. "
-            f"Rewrite it completely while preserving all meaning:\n\n{document_text}"
-        )
+        user_prompt = f"""
+Tone: {tone}
+
+Rewrite entire document:
+
+{document_text}
+"""
     else:
-        user_prompt = (
-            f"Tone: {tone}\n\n"
-            f"Document with {passages_found} flagged section(s) marked with "
-            f"[FLAGGED]...[/FLAGGED] tags:\n\n{marked_doc}"
-        )
+        user_prompt = f"""
+Tone: {tone}
 
-    logger.info(
-        "rewrite_document_started",
-        doc_length=len(document_text),
-        flagged_count=len(flagged_passages),
-        passages_found=passages_found,
-        tone=tone,
-    )
+Document:
+{marked_doc}
+"""
 
-    # For very long documents, chunk and rewrite in parts
+    # chunk if large
     if len(user_prompt) > 15000:
-        rewritten = await _rewrite_long_document(
-            marked_doc, passages_found, tone
-        )
+        rewritten = await _rewrite_long_document(marked_doc, tone)
     else:
-        rewritten = await _call_azure_openai(
-            system_prompt=_DOCUMENT_SYSTEM,
-            user_prompt=user_prompt,
-        )
-
-    elapsed = round(time.perf_counter() - start, 3)
-
-    logger.info(
-        "rewrite_document_complete",
-        original_length=len(document_text),
-        rewritten_length=len(rewritten),
-        passages_rewritten=passages_found,
-        elapsed_s=elapsed,
-    )
+        rewritten = await _call_azure_openai(_DOCUMENT_SYSTEM, user_prompt)
 
     return {
         "original": document_text,
         "rewritten": rewritten,
         "passages_rewritten": passages_found,
-        "tone": tone,
-        "elapsed_s": elapsed,
+        "elapsed_s": round(time.perf_counter() - start, 3),
     }
 
+# ---------------------------------------------------------------------------
+# Long document chunking
+# ---------------------------------------------------------------------------
 
-async def _rewrite_long_document(
-    marked_doc: str,
-    passages_found: int,
-    tone: str,
-) -> str:
-    """Rewrite a long document by splitting it into sections.
+async def _rewrite_long_document(marked_doc: str, tone: str):
 
-    Each section is sent to the API individually, then reassembled.
-    """
-    # Split on double-newlines to preserve paragraph boundaries
     paragraphs = marked_doc.split("\n\n")
-    chunks: list[list[str]] = []
-    current_chunk: list[str] = []
-    current_length = 0
+    chunks = []
+    current = []
+    length = 0
 
-    for para in paragraphs:
-        if current_length + len(para) > 8000 and current_chunk:
-            chunks.append(current_chunk)
-            current_chunk = []
-            current_length = 0
-        current_chunk.append(para)
-        current_length += len(para) + 2
+    for p in paragraphs:
+        if length + len(p) > 8000 and current:
+            chunks.append(current)
+            current = []
+            length = 0
+        current.append(p)
+        length += len(p)
 
-    if current_chunk:
-        chunks.append(current_chunk)
+    if current:
+        chunks.append(current)
 
-    logger.info("rewrite_long_doc_chunked", chunk_count=len(chunks))
+    results = []
 
-    rewritten_parts: list[str] = []
-    for i, chunk in enumerate(chunks):
-        chunk_text = "\n\n".join(chunk)
+    for chunk in chunks:
+        text = "\n\n".join(chunk)
 
-        # Only send to API if chunk contains flagged content
-        if "[FLAGGED]" in chunk_text:
-            user_prompt = (
-                f"Tone: {tone}\n\n"
-                f"This is section {i + 1} of {len(chunks)} of a longer document. "
-                f"Rewrite ONLY the [FLAGGED] sections:\n\n{chunk_text}"
-            )
-            rewritten = await _call_azure_openai(
-                system_prompt=_DOCUMENT_SYSTEM,
-                user_prompt=user_prompt,
-            )
-            rewritten_parts.append(rewritten)
+        if "[FLAGGED]" in text:
+            prompt = f"Tone: {tone}\n\n{text}"
+            rewritten = await _call_azure_openai(_DOCUMENT_SYSTEM, prompt)
+            results.append(rewritten)
         else:
-            # No flagged content — keep as-is
-            rewritten_parts.append(chunk_text)
+            results.append(text)
 
-    return "\n\n".join(rewritten_parts)
+    return "\n\n".join(results)

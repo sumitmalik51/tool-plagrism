@@ -1,11 +1,14 @@
-"""Rewrite route — AI-powered plagiarism rewriting endpoints."""
+"""Rewrite route — AI-powered rewriting endpoints."""
 
 from __future__ import annotations
+
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.tools.rewriter_tool import rewrite_paragraph, rewrite_document
+from app.tools.general_rewriter import general_rewrite
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -53,7 +56,6 @@ class RewriteDocumentResponse(BaseModel):
     original: str
     rewritten: str
     passages_rewritten: int
-    tone: str
     elapsed_s: float
 
 
@@ -95,7 +97,16 @@ async def rewrite_paragraph_endpoint(
             detail=f"AI rewrite failed: {exc}",
         )
 
-    return RewriteParagraphResponse(**result)
+    # Bridge tool output (rewrites list) to response model (rewritten string)
+    rewrites = result.get("rewrites", [])
+    return RewriteParagraphResponse(
+        original=result["original"],
+        rewritten=rewrites[0] if rewrites else result["original"],
+        tone=result.get("tone", request.tone),
+        elapsed_s=result.get("elapsed_s", 0.0),
+        skipped=result.get("skipped", False),
+        skip_reason=result.get("skip_reason", ""),
+    )
 
 
 @router.post(
@@ -135,3 +146,80 @@ async def rewrite_document_endpoint(
         )
 
     return RewriteDocumentResponse(**result)
+
+
+# ---------------------------------------------------------------------------
+# General-purpose rewriter (NEW — not tied to plagiarism)
+# ---------------------------------------------------------------------------
+
+class GeneralRewriteRequest(BaseModel):
+    """Request body for the general-purpose rewriting tool."""
+
+    text: str = Field(..., min_length=1, description="Text to rewrite")
+    mode: Literal[
+        "paraphrase", "simplify", "expand",
+        "formal", "casual", "academic", "humanize",
+    ] = Field(default="paraphrase", description="Rewriting mode")
+    tone: Literal[
+        "friendly", "professional", "confident",
+        "persuasive", "neutral",
+    ] = Field(default="neutral", description="Desired tone")
+    strength: Literal["low", "medium", "high"] = Field(
+        default="medium", description="Rewrite intensity"
+    )
+
+
+class GeneralRewriteResponse(BaseModel):
+    """Response for the general-purpose rewriting tool."""
+
+    original: str
+    variations: list[str]
+    mode: str
+    tone: str
+    strength: str
+    skipped: bool = False
+    skip_reason: str = ""
+    elapsed_s: float
+
+
+@router.post(
+    "/rewrite/general",
+    response_model=GeneralRewriteResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Rewrite text using the general-purpose writing assistant",
+)
+async def general_rewrite_endpoint(
+    request: GeneralRewriteRequest,
+) -> GeneralRewriteResponse:
+    """Rewrite any text with mode, tone, and strength controls.
+
+    Unlike the plagiarism rewriter, this is a general writing assistant
+    that produces 3 diverse variations for every request.
+    """
+    logger.info(
+        "general_rewrite_requested",
+        text_length=len(request.text),
+        mode=request.mode,
+        tone=request.tone,
+        strength=request.strength,
+    )
+
+    try:
+        result = await general_rewrite(
+            text=request.text,
+            mode=request.mode,
+            tone=request.tone,
+            strength=request.strength,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        )
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"AI rewrite failed: {exc}",
+        )
+
+    return GeneralRewriteResponse(**result)

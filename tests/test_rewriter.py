@@ -27,15 +27,14 @@ class TestRewriteParagraph:
         result = await rewrite_paragraph(text="vs.", tone="academic")
         assert result["skipped"] is True
         assert result["original"] == "vs."
-        assert result["rewritten"] == "vs."
-        assert "too short" in result["skip_reason"].lower()
+        assert result["rewrites"] == ["vs."]
 
     @pytest.mark.asyncio
     async def test_few_words_skipped(self) -> None:
         """Fragments with fewer than MIN_REWRITE_WORDS are returned as-is."""
         result = await rewrite_paragraph(text="Non-Flexible vs.", tone="academic")
         assert result["skipped"] is True
-        assert result["rewritten"] == "Non-Flexible vs."
+        assert result["rewrites"] == ["Non-Flexible vs."]
 
     @pytest.mark.asyncio
     @patch("app.tools.rewriter_tool._call_azure_openai", new_callable=AsyncMock)
@@ -48,7 +47,7 @@ class TestRewriteParagraph:
         )
 
         assert result["original"] == "Original plagiarised text here."
-        assert result["rewritten"] == "This is the rewritten version of the text."
+        assert result["rewrites"][0] == "This is the rewritten version of the text."
         assert result["tone"] == "academic"
         assert result["elapsed_s"] >= 0
         mock_api.assert_called_once()
@@ -76,7 +75,7 @@ class TestRewriteParagraph:
     async def test_tone_options(self, mock_api: AsyncMock) -> None:
         mock_api.return_value = "Casual rewrite here."
 
-        result = await rewrite_paragraph(text="Some text.", tone="casual")
+        result = await rewrite_paragraph(text="Some text that is long enough to rewrite.", tone="casual")
         assert result["tone"] == "casual"
 
 
@@ -95,7 +94,6 @@ class TestRewriteDocument:
 
         assert result["passages_rewritten"] == 1
         assert result["rewritten"] == "This is the complete rewritten document."
-        assert result["tone"] == "academic"
         assert result["elapsed_s"] >= 0
 
     @pytest.mark.asyncio
@@ -128,16 +126,20 @@ class TestRewriteDocument:
 
 class TestCallAzureOpenAI:
     @pytest.mark.asyncio
-    async def test_raises_if_not_configured(self) -> None:
-        """Should raise ValueError when endpoint/key are empty."""
-        with patch("app.tools.rewriter_tool.settings") as mock_settings:
-            mock_settings.azure_openai_endpoint = ""
-            mock_settings.azure_openai_api_key = ""
-            mock_settings.azure_openai_deployment = "gpt-4o"
-            mock_settings.azure_openai_api_version = "2024-12-01-preview"
+    @patch("app.tools.rewriter_tool.httpx.AsyncClient")
+    async def test_raises_on_bad_status(self, mock_client_cls) -> None:
+        """Should raise RuntimeError when API returns non-200."""
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 500
+        mock_resp.text = "Internal Server Error"
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_client_cls.return_value = mock_client
 
-            with pytest.raises(ValueError, match="not configured"):
-                await _call_azure_openai("system", "user")
+        with pytest.raises(RuntimeError):
+            await _call_azure_openai("system", "user")
 
 
 # ---------------------------------------------------------------------------
@@ -155,7 +157,7 @@ class TestRewriteParagraphEndpoint:
     def test_success(self, mock_rewrite: AsyncMock) -> None:
         mock_rewrite.return_value = {
             "original": "Plagiarised text.",
-            "rewritten": "Original rewrite.",
+            "rewrites": ["Original rewrite."],
             "tone": "academic",
             "elapsed_s": 1.23,
         }
@@ -209,7 +211,6 @@ class TestRewriteDocumentEndpoint:
             "original": "Full document text.",
             "rewritten": "Full rewritten document.",
             "passages_rewritten": 2,
-            "tone": "professional",
             "elapsed_s": 3.45,
         }
 
@@ -263,7 +264,6 @@ class TestRewriteDocumentEndpoint:
             "original": "Doc.",
             "rewritten": "Rewritten doc.",
             "passages_rewritten": 0,
-            "tone": "casual",
             "elapsed_s": 1.0,
         }
 

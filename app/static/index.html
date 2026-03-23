@@ -151,6 +151,7 @@
         <div class="flex items-center gap-4">
           <a href="#features" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Features</a>
           <a href="#analyze" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Analyze</a>
+          <a href="#rewriter" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Rewrite</a>
           <a href="https://github.com/sumitmalik51/tool-plagrism" target="_blank" class="text-sm text-muted hover:text-txt transition-colors flex items-center gap-1">
             <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
             GitHub
@@ -374,6 +375,84 @@
 
         <!-- Error -->
         <div id="errorBox" class="hidden mt-6 px-5 py-4 bg-danger/10 border border-danger rounded-xl text-danger text-sm"></div>
+      </div>
+    </section>
+
+    <!-- ═══════════ Standalone Rewriter Section ═══════════ -->
+    <section id="rewriter" class="py-20 px-6 border-t border-border/50 bg-surface/20">
+      <div class="max-w-4xl mx-auto">
+        <div class="text-center mb-10">
+          <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#00b894]/10 border border-[#00b894]/20 text-[#00b894] text-sm font-medium mb-4">
+            <span class="w-2 h-2 bg-[#00b894] rounded-full animate-pulse"></span>
+            AI Writing Assistant
+          </div>
+          <h2 class="text-3xl font-bold mb-3">Rewrite &amp; Improve Your Text</h2>
+          <p class="text-muted max-w-xl mx-auto">Choose a mode, set your tone, adjust the strength — get 3 unique variations instantly. Powered by GPT-4o.</p>
+        </div>
+
+        <!-- Mode selector -->
+        <div class="flex flex-wrap justify-center gap-2 mb-6" id="rw-modes">
+          <button onclick="setRwMode('paraphrase')" data-mode="paraphrase" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-accent text-white">🔄 Paraphrase</button>
+          <button onclick="setRwMode('simplify')" data-mode="simplify" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">📖 Simplify</button>
+          <button onclick="setRwMode('expand')" data-mode="expand" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">📝 Expand</button>
+          <button onclick="setRwMode('formal')" data-mode="formal" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">🎩 Formal</button>
+          <button onclick="setRwMode('casual')" data-mode="casual" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">💬 Casual</button>
+          <button onclick="setRwMode('academic')" data-mode="academic" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">🎓 Academic</button>
+          <button onclick="setRwMode('humanize')" data-mode="humanize" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">🔥 Humanize</button>
+        </div>
+
+        <!-- Controls row: Tone + Strength -->
+        <div class="flex flex-wrap items-center justify-center gap-6 mb-6">
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-medium">Tone:</label>
+            <select id="rwTone" class="bg-surface2 text-txt text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:border-accent">
+              <option value="neutral">Neutral</option>
+              <option value="friendly">Friendly</option>
+              <option value="professional">Professional</option>
+              <option value="confident">Confident</option>
+              <option value="persuasive">Persuasive</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-3">
+            <label class="text-sm font-medium">Strength:</label>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-muted">Low</span>
+              <input type="range" id="rwStrength" min="0" max="2" value="1" step="1"
+                class="w-24 h-2 bg-surface2 rounded-full appearance-none cursor-pointer accent-accent"
+                oninput="updateStrengthLabel()">
+              <span class="text-xs text-muted">High</span>
+              <span id="rwStrengthLabel" class="text-xs font-semibold text-accent-l ml-1">Medium</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Text input -->
+        <div class="relative mb-4">
+          <textarea id="rwInput" rows="6" placeholder="Paste or type your text here…"
+            class="glow-input w-full bg-surface border border-border rounded-xl p-5 text-sm leading-relaxed text-txt placeholder-muted resize-y focus:outline-none transition-all"
+            oninput="$('rwCharCount').textContent = this.value.length + ' characters'"></textarea>
+          <div class="absolute bottom-3 right-4 text-xs text-muted" id="rwCharCount">0 characters</div>
+        </div>
+
+        <!-- Rewrite button -->
+        <div class="text-center mb-6">
+          <button id="rwBtn" onclick="doGeneralRewrite()" disabled
+            class="pulse-btn inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-[#00b894] to-[#00cec9] text-white rounded-xl text-[15px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-[#00b894]/25 hover:-translate-y-0.5 transition-all">
+            ✨ <span id="rwBtnText">Rewrite</span>
+          </button>
+        </div>
+
+        <!-- Loader -->
+        <div id="rwLoader" class="hidden flex-col items-center gap-4 mt-4">
+          <div class="w-10 h-10 border-4 border-border border-t-[#00b894] rounded-full spinner"></div>
+          <p class="text-muted text-sm" id="rwLoaderText">Generating 3 variations…</p>
+        </div>
+
+        <!-- Error -->
+        <div id="rwError" class="hidden mt-4 px-5 py-4 bg-danger/10 border border-danger rounded-xl text-danger text-sm"></div>
+
+        <!-- Results: 3 variation cards -->
+        <div id="rwResults" class="hidden space-y-4 mt-6"></div>
       </div>
     </section>
 
@@ -1468,6 +1547,142 @@
     const rewr = document.getElementById('docRewriteOutput');
     if (tab === 'original') { orig?.classList.remove('hidden'); rewr?.classList.add('hidden'); }
     else { orig?.classList.add('hidden'); rewr?.classList.remove('hidden'); }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     General-Purpose Rewriter (standalone tool)
+     ═══════════════════════════════════════════════════════════ */
+  let rwMode = 'paraphrase';
+
+  function setRwMode(mode) {
+    rwMode = mode;
+    document.querySelectorAll('.rw-mode-btn').forEach(btn => {
+      if (btn.dataset.mode === mode) {
+        btn.className = 'rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-accent text-white';
+      } else {
+        btn.className = 'rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent';
+      }
+    });
+  }
+
+  function getRwStrength() {
+    const v = parseInt($('rwStrength').value);
+    return ['low', 'medium', 'high'][v];
+  }
+
+  function updateStrengthLabel() {
+    const labels = ['Low', 'Medium', 'High'];
+    $('rwStrengthLabel').textContent = labels[parseInt($('rwStrength').value)];
+  }
+
+  // Enable button when text is entered
+  const rwInputEl = document.getElementById('rwInput');
+  if (rwInputEl) {
+    rwInputEl.addEventListener('input', () => {
+      $('rwBtn').disabled = rwInputEl.value.trim().length < 10;
+    });
+  }
+
+  async function doGeneralRewrite() {
+    const text = $('rwInput').value.trim();
+    if (text.length < 10) return;
+
+    // UI state
+    $('rwBtn').disabled = true;
+    $('rwBtnText').textContent = 'Rewriting…';
+    $('rwLoader').classList.remove('hidden');
+    $('rwLoader').classList.add('flex');
+    $('rwError').classList.add('hidden');
+    $('rwResults').classList.add('hidden');
+    $('rwResults').innerHTML = '';
+
+    try {
+      const res = await fetch('/api/v1/rewrite/general', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          mode: rwMode,
+          tone: $('rwTone').value,
+          strength: getRwStrength(),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || 'Rewrite failed');
+      }
+      const data = await res.json();
+
+      if (data.skipped) {
+        $('rwError').textContent = '⚠ ' + (data.skip_reason || 'Text too short.');
+        $('rwError').classList.remove('hidden');
+        return;
+      }
+
+      renderRwVariations(data);
+    } catch (err) {
+      $('rwError').textContent = '⚠ ' + err.message;
+      $('rwError').classList.remove('hidden');
+    } finally {
+      $('rwBtn').disabled = false;
+      $('rwBtnText').textContent = 'Rewrite';
+      $('rwLoader').classList.add('hidden');
+      $('rwLoader').classList.remove('flex');
+    }
+  }
+
+  function renderRwVariations(data) {
+    const container = $('rwResults');
+    container.innerHTML = '';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'flex items-center justify-between';
+    header.innerHTML = `
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-semibold text-[#00b894]">✨ ${data.variations.length} Variations</span>
+        <span class="text-xs text-muted">Mode: <strong>${data.mode}</strong> · Tone: <strong>${data.tone}</strong> · Strength: <strong>${data.strength}</strong></span>
+      </div>
+      <span class="text-xs text-muted">${data.elapsed_s}s</span>`;
+    container.appendChild(header);
+
+    // Original card
+    const origCard = document.createElement('div');
+    origCard.className = 'border border-border rounded-lg p-4';
+    origCard.innerHTML = `
+      <div class="text-[11px] uppercase tracking-wide text-muted mb-2 font-semibold">Original</div>
+      <div class="text-sm leading-relaxed text-muted">${esc(data.original)}</div>`;
+    container.appendChild(origCard);
+
+    // Variation cards
+    const varColors = ['#00b894', '#6c5ce7', '#e17055'];
+    const varLabels = ['Variation A', 'Variation B', 'Variation C'];
+
+    data.variations.forEach((v, i) => {
+      const color = varColors[i % varColors.length];
+      const label = varLabels[i] || `Variation ${i + 1}`;
+      const card = document.createElement('div');
+      card.className = 'border rounded-lg p-4 relative group';
+      card.style.borderColor = color + '40';
+      card.innerHTML = `
+        <div class="flex items-center justify-between mb-2">
+          <div class="text-[11px] uppercase tracking-wide font-semibold" style="color:${color}">${label}</div>
+          <button onclick="copyVariation(this, ${i})" class="text-xs px-2 py-1 rounded bg-surface2 border border-border text-muted hover:text-txt hover:border-accent transition-colors opacity-0 group-hover:opacity-100">📋 Copy</button>
+        </div>
+        <div class="text-sm leading-relaxed rw-var-text">${esc(v)}</div>`;
+      container.appendChild(card);
+    });
+
+    container.classList.remove('hidden');
+  }
+
+  function copyVariation(btn, idx) {
+    const card = btn.closest('.group');
+    const text = card?.querySelector('.rw-var-text')?.textContent || '';
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = '✅ Copied!';
+      setTimeout(() => { btn.textContent = '📋 Copy'; }, 1500);
+    });
   }
 </script>
 
