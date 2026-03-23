@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.middleware import AuthMiddleware, SecurityHeadersMiddleware
 from app.routes.analyze import router as analyze_router
+from app.routes.auth import router as auth_router
 from app.routes.rewrite import router as rewrite_router
 from app.routes.tools import router as tools_router
 from app.routes.upload import router as upload_router
@@ -32,6 +33,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Preload the embedding model so first request doesn't timeout
     from app.tools.embedding_tool import preload_model
     preload_model()
+    # Initialise database schema (creates tables if needed)
+    from app.services.database import get_db
+    get_db()
     yield
 
 
@@ -63,6 +67,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(AuthMiddleware)
 
 # --- Register routers --------------------------------------------------------
+app.include_router(auth_router)
 app.include_router(upload_router)
 app.include_router(analyze_router)
 app.include_router(rewrite_router)
@@ -120,6 +125,18 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 async def serve_ui() -> FileResponse:
     """Serve the single-page UI."""
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/login", include_in_schema=False)
+async def serve_login() -> FileResponse:
+    """Serve the login page."""
+    return FileResponse(STATIC_DIR / "login.html")
+
+
+@app.get("/signup", include_in_schema=False)
+async def serve_signup() -> FileResponse:
+    """Serve the signup page."""
+    return FileResponse(STATIC_DIR / "signup.html")
 
 
 # --- Health check -------------------------------------------------------------

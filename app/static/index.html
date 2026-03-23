@@ -161,6 +161,21 @@
             <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
             GitHub
           </a>
+          <!-- Auth: logged-out buttons -->
+          <div id="authLoggedOut" class="hidden flex items-center gap-2">
+            <a href="/login" class="text-sm text-muted hover:text-txt transition-colors font-medium">Sign In</a>
+            <a href="/signup" class="text-sm px-4 py-1.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-lg font-medium hover:shadow-lg hover:shadow-accent/25 transition-all">Sign Up</a>
+          </div>
+          <!-- Auth: logged-in user menu -->
+          <div id="authLoggedIn" class="hidden flex items-center gap-3">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-full bg-accent/20 border border-accent/40 grid place-items-center text-accent text-xs font-bold" id="userAvatar"></div>
+              <span class="text-sm font-medium hidden sm:block" id="userName"></span>
+            </div>
+            <button onclick="handleLogout()" class="text-sm text-muted hover:text-danger transition-colors" title="Sign out">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </button>
+          </div>
         </div>
       </div>
     </nav>
@@ -2564,6 +2579,71 @@
      Init — render history on page load
      ═══════════════════════════════════════════════════════════ */
   renderHistory();
+
+  /* ═══════════════════════════════════════════════════════════
+     Auth — manage login state in the navbar
+     ═══════════════════════════════════════════════════════════ */
+  function initAuth() {
+    const token = localStorage.getItem('pg_token');
+    const userStr = localStorage.getItem('pg_user');
+    const loggedOut = $('authLoggedOut');
+    const loggedIn  = $('authLoggedIn');
+
+    if (token && userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        $('userName').textContent = user.name || user.email;
+        $('userAvatar').textContent = (user.name || user.email || '?')[0].toUpperCase();
+        loggedIn.classList.remove('hidden');
+        loggedIn.style.display = 'flex';
+        loggedOut.classList.add('hidden');
+        loggedOut.style.display = 'none';
+      } catch {
+        showLoggedOutState();
+      }
+    } else {
+      showLoggedOutState();
+    }
+
+    function showLoggedOutState() {
+      loggedOut.classList.remove('hidden');
+      loggedOut.style.display = 'flex';
+      loggedIn.classList.add('hidden');
+      loggedIn.style.display = 'none';
+    }
+  }
+
+  function handleLogout() {
+    localStorage.removeItem('pg_token');
+    localStorage.removeItem('pg_user');
+    initAuth();
+  }
+
+  // Attach token to all fetch requests that go to our API
+  const _origFetch = window.fetch;
+  window.fetch = function(input, init) {
+    const url = typeof input === 'string' ? input : input.url;
+    if (url.startsWith('/api/')) {
+      init = init || {};
+      init.headers = init.headers || {};
+      const token = localStorage.getItem('pg_token');
+      if (token) {
+        // Support both Headers object and plain object
+        if (init.headers instanceof Headers) {
+          if (!init.headers.has('Authorization')) {
+            init.headers.set('Authorization', 'Bearer ' + token);
+          }
+        } else {
+          if (!init.headers['Authorization']) {
+            init.headers['Authorization'] = 'Bearer ' + token;
+          }
+        }
+      }
+    }
+    return _origFetch.call(this, input, init);
+  };
+
+  initAuth();
 </script>
 
 </body>

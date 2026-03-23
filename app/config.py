@@ -64,6 +64,19 @@ class Settings(BaseSettings):
     api_keys_raw: str = ""
     api_keys: list[str] = []
 
+    # JWT settings (for user login/signup flow)
+    jwt_secret: str = ""         # Set PG_JWT_SECRET in prod; auto-generated in dev
+    jwt_expiry_seconds: int = 86400  # 24 hours
+
+    # Scan rate limits (per day)
+    scan_limit_anonymous: int = 3   # max scans/day for anonymous (by IP)
+    scan_limit_free: int = 3        # max scans/day for free registered users
+
+    # Database — Azure SQL connection string.
+    # When empty, falls back to SQLite for local dev.
+    # Set PG_SQL_CONNECTION_STRING in production.
+    sql_connection_string: str = ""
+
     @model_validator(mode="after")
     def _parse_api_keys(self) -> "Settings":
         """Split ``api_keys_raw`` into a list."""

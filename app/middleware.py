@@ -1,12 +1,14 @@
 """Authentication & security middleware for PlagiarismGuard.
 
-Supports two authentication methods:
-1. **API Key** — ``X-API-Key`` header checked against ``PG_API_KEYS`` env var.
+Supports three authentication methods (checked in order):
+1. **JWT Bearer token** — ``Authorization: Bearer <token>`` header.
+   Issued by the signup/login endpoints for browser-based users.
+2. **API Key** — ``X-API-Key`` header checked against ``PG_API_KEYS`` env var.
    For service-to-service calls, CI pipelines, and external integrations.
-2. **Azure Easy Auth** — ``X-MS-CLIENT-PRINCIPAL`` header injected by
+3. **Azure Easy Auth** — ``X-MS-CLIENT-PRINCIPAL`` header injected by
    App Service Authentication. For browser users signed in via Entra ID.
 
-Public paths (health, docs, static assets) bypass auth entirely.
+Public paths (health, docs, static assets, auth endpoints) bypass auth entirely.
 """
 
 from __future__ import annotations
@@ -32,11 +34,14 @@ _PUBLIC_PATHS: set[str] = {
     "/openapi.json",
     "/openai-foundry.json",
     "/",
+    "/login",
+    "/signup",
 }
 
 # Path prefixes that never require authentication
 _PUBLIC_PREFIXES: tuple[str, ...] = (
     "/static/",
+    "/api/v1/auth/",
 )
 
 
@@ -79,17 +84,31 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not settings.api_keys:
             return await call_next(request)
 
-        # 3. Azure Easy Auth — App Service injects this header for
+        # 3. JWT Bearer token (issued by /api/v1/auth/login & /signup)
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            from app.services.auth_service import verify_access_token
+
+            token = auth_header.removeprefix("Bearer ").strip()
+            payload = verify_access_token(token)
+            if payload:
+                # Stash user info on request state for downstream use
+                request.state.user_id = int(payload["sub"])
+                request.state.user_email = payload.get("email", "")
+                return await call_next(request)
+            # Invalid/expired token — fall through to other checks
+
+        # 4. Azure Easy Auth — App Service injects this header for
         #    authenticated browser users
         if request.headers.get("X-MS-CLIENT-PRINCIPAL"):
             return await call_next(request)
 
-        # 4. API Key check
+        # 5. API Key check
         api_key = request.headers.get("X-API-Key", "")
         if api_key and _validate_api_key(api_key):
             return await call_next(request)
 
-        # 5. Unauthorized
+        # 6. Unauthorized
         logger.warning(
             "auth_rejected",
             path=path,

@@ -36,3 +36,9 @@ htmlcov/
 deploy.zip
 app-logs.zip
 *.zip
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+*.db-journal

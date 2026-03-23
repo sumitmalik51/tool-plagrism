@@ -21,6 +21,9 @@ ddgs>=9.0.0
 sentence-transformers>=3.0.0
 numpy>=1.26.0
 
+# Authentication
+PyJWT==2.9.0
+
 # Logging
 structlog==24.4.0
 
