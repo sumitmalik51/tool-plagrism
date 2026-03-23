@@ -3003,10 +3003,29 @@
 
   async function loadUserPlan() {
     try {
+      const token = localStorage.getItem('pg_token');
       const userStr = localStorage.getItem('pg_user');
       if (!userStr) return;
       const user = JSON.parse(userStr);
-      const plan = user.plan_type || 'free';
+      let plan = user.plan_type || 'free';
+
+      // Sync plan from server so changes reflect without re-login
+      if (token) {
+        try {
+          const res = await fetch('/api/v1/auth/me', {
+            headers: { 'Authorization': 'Bearer ' + token }
+          });
+          if (res.ok) {
+            const serverUser = await res.json();
+            if (serverUser.plan_type && serverUser.plan_type !== plan) {
+              plan = serverUser.plan_type;
+              user.plan_type = plan;
+              localStorage.setItem('pg_user', JSON.stringify(user));
+            }
+          }
+        } catch {}
+      }
+
       updatePlanUI(plan);
     } catch {}
   }
