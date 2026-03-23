@@ -18,6 +18,7 @@ from app.routes.analyze import router as analyze_router
 from app.routes.rewrite import router as rewrite_router
 from app.routes.tools import router as tools_router
 from app.routes.upload import router as upload_router
+from app.routes.writing import router as writing_router
 from app.utils.logger import setup_logging, get_logger
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -66,6 +67,7 @@ app.include_router(upload_router)
 app.include_router(analyze_router)
 app.include_router(rewrite_router)
 app.include_router(tools_router)
+app.include_router(writing_router)
 
 
 # --- Global exception handler ------------------------------------------------

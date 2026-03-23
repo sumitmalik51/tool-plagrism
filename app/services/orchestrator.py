@@ -26,12 +26,18 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-async def run_pipeline(document_id: str, text: str) -> PlagiarismReport:
+async def run_pipeline(
+    document_id: str,
+    text: str,
+    *,
+    excluded_domains: list[str] | None = None,
+) -> PlagiarismReport:
     """Execute the full plagiarism detection pipeline.
 
     Args:
         document_id: Unique identifier for the document.
         text: Extracted plain-text content of the document.
+        excluded_domains: Optional list of domains to exclude from results.
 
     Returns:
         A ``PlagiarismReport`` with scores, flagged passages, and explanation.
@@ -76,6 +82,10 @@ async def run_pipeline(document_id: str, text: str) -> PlagiarismReport:
         original_text=text,
     )
 
+    # --- 5. Filter excluded domains -------------------------------------------
+    if excluded_domains:
+        _filter_excluded_domains(report, excluded_domains)
+
     pipeline_elapsed = round(time.perf_counter() - pipeline_start, 3)
 
     logger.info(
@@ -87,3 +97,42 @@ async def run_pipeline(document_id: str, text: str) -> PlagiarismReport:
     )
 
     return report
+
+
+def _filter_excluded_domains(
+    report: PlagiarismReport,
+    excluded_domains: list[str],
+) -> None:
+    """Remove flagged passages and sources from excluded domains."""
+    from urllib.parse import urlparse
+
+    normalised = {d.lower().removeprefix("www.") for d in excluded_domains if d}
+
+    def _is_excluded(url: str | None) -> bool:
+        if not url:
+            return False
+        try:
+            host = urlparse(url).hostname or ""
+            host = host.lower().removeprefix("www.")
+            return host in normalised or any(host.endswith("." + d) for d in normalised)
+        except Exception:
+            return False
+
+    # Filter flagged passages
+    report.flagged_passages = [
+        fp for fp in report.flagged_passages
+        if not _is_excluded(fp.source)
+    ]
+
+    # Filter detected sources
+    report.detected_sources = [
+        ds for ds in report.detected_sources
+        if not _is_excluded(ds.url)
+    ]
+
+    logger.info(
+        "excluded_domains_applied",
+        excluded=list(normalised),
+        remaining_passages=len(report.flagged_passages),
+        remaining_sources=len(report.detected_sources),
+    )

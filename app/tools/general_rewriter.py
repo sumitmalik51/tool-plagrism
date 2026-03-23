@@ -66,6 +66,12 @@ GUIDELINES:
 4. Provide 3 distinct variations — each with a noticeably different style.
 5. Ensure natural, human-like writing throughout.
 6. Never add new factual claims or remove key information.
+Each rewrite MUST follow a DIFFERENT transformation strategy:
+1. Version A: Direct paraphrase (clean and concise)
+2. Version B: Structural rewrite (change sentence structure significantly)
+3. Version C: Stylistic variation (more expressive, engaging, or human-like)
+
+Ensure all three outputs are clearly distinct in structure, tone, and phrasing.
 
 MODE DEFINITIONS:
 - PARAPHRASE: Reword while keeping the same meaning. Vary sentence structure.

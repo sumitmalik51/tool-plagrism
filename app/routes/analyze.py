@@ -25,6 +25,10 @@ router = APIRouter(prefix="/api/v1", tags=["analysis"])
 class AnalyzeTextRequest(BaseModel):
     """JSON body for the /analyze-agent endpoint."""
     text: str = Field(..., min_length=1, description="Plain text to analyse for plagiarism")
+    excluded_domains: list[str] = Field(
+        default_factory=list,
+        description="List of domains to exclude from plagiarism detection (e.g. your own website)",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +106,7 @@ async def analyze_text(request: AnalyzeTextRequest) -> PlagiarismReport:
     report = await run_pipeline(
         document_id=document_id,
         text=request.text,
+        excluded_domains=request.excluded_domains or None,
     )
 
     logger.info(
