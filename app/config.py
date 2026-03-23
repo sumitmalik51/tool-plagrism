@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     scan_limit_anonymous: int = 3   # max scans/day for anonymous (by IP)
     scan_limit_free: int = 3        # max scans/day for free registered users
 
+    # Razorpay payment gateway
+    razorpay_key_id: str = ""       # Set PG_RAZORPAY_KEY_ID
+    razorpay_key_secret: str = ""   # Set PG_RAZORPAY_KEY_SECRET
+
     # Database — Azure SQL connection string.
     # When empty, falls back to SQLite for local dev.
     # Set PG_SQL_CONNECTION_STRING in production.

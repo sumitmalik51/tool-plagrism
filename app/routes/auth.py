@@ -1,11 +1,16 @@
-"""Authentication routes — signup, login, user profile, pricing, and dashboard data."""
+"""Authentication routes — signup, login, user profile, pricing, and Razorpay payments."""
 
 from __future__ import annotations
+
+import hashlib
+import hmac
+import structlog
 
 from pydantic import BaseModel, Field
 
 from fastapi import APIRouter, Header, HTTPException
 
+from app.config import settings
 from app.services.auth_service import (
     AuthError,
     login,
@@ -16,6 +21,8 @@ from app.services.auth_service import (
 )
 from app.services.persistence import get_user_scans, get_user_stats
 from app.services.rate_limiter import PLAN_TO_TIER, UserTier, limiter
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -174,6 +181,7 @@ PLANS = [
         "id": "free",
         "name": "Free",
         "price": 0,
+        "currency": "INR",
         "period": "forever",
         "features": [
             "3 tool uses per day",
@@ -187,7 +195,8 @@ PLANS = [
     {
         "id": "pro",
         "name": "Pro",
-        "price": 9,
+        "price": 499,
+        "currency": "INR",
         "period": "month",
         "popular": True,
         "features": [
@@ -202,7 +211,8 @@ PLANS = [
     {
         "id": "premium",
         "name": "Premium",
-        "price": 19,
+        "price": 999,
+        "currency": "INR",
         "period": "month",
         "features": [
             "Everything in Pro",
@@ -215,6 +225,12 @@ PLANS = [
     },
 ]
 
+# Map plan → amount in paise (Razorpay uses smallest currency unit)
+PLAN_AMOUNTS = {
+    "pro": 499_00,       # ₹499
+    "premium": 999_00,   # ₹999
+}
+
 
 @router.get("/plans")
 async def route_plans():
@@ -223,8 +239,149 @@ async def route_plans():
 
 
 # ---------------------------------------------------------------------------
-# Checkout / plan upgrade (Stripe placeholder)
+# Razorpay payment flow
 # ---------------------------------------------------------------------------
+
+def _get_razorpay_client():
+    """Create and return a Razorpay client instance."""
+    import razorpay
+    if not settings.razorpay_key_id or not settings.razorpay_key_secret:
+        raise HTTPException(status_code=503, detail="Payment gateway not configured.")
+    return razorpay.Client(auth=(settings.razorpay_key_id, settings.razorpay_key_secret))
+
+
+class CreateOrderRequest(BaseModel):
+    plan: str = Field(..., description="Plan to upgrade to: pro or premium")
+
+
+class VerifyPaymentRequest(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+    plan: str
+
+
+@router.post("/create-order")
+async def route_create_order(
+    body: CreateOrderRequest,
+    authorization: str = Header(default=""),
+):
+    """Create a Razorpay order for the selected plan."""
+    user_id = _get_user_id(authorization)
+
+    if body.plan not in PLAN_AMOUNTS:
+        raise HTTPException(status_code=400, detail="Invalid plan. Choose 'pro' or 'premium'.")
+
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    amount = PLAN_AMOUNTS[body.plan]
+    client = _get_razorpay_client()
+
+    try:
+        order = client.order.create({
+            "amount": amount,
+            "currency": "INR",
+            "receipt": f"user_{user_id}_{body.plan}",
+            "notes": {
+                "user_id": str(user_id),
+                "plan": body.plan,
+                "user_email": user.get("email", ""),
+            },
+        })
+    except Exception as exc:
+        logger.error("razorpay_order_create_failed", error=str(exc), user_id=user_id)
+        raise HTTPException(status_code=502, detail="Failed to create payment order.")
+
+    # Record the order in our DB
+    from app.services.database import get_db
+    db = get_db()
+    db.execute(
+        "INSERT INTO payments (user_id, razorpay_order_id, plan_name, amount, currency, status) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (user_id, order["id"], body.plan, amount, "INR", "created"),
+    )
+
+    logger.info("razorpay_order_created", order_id=order["id"], user_id=user_id, plan=body.plan)
+
+    return {
+        "order_id": order["id"],
+        "amount": amount,
+        "currency": "INR",
+        "key_id": settings.razorpay_key_id,
+        "plan": body.plan,
+        "user_name": user.get("name", ""),
+        "user_email": user.get("email", ""),
+    }
+
+
+@router.post("/verify-payment")
+async def route_verify_payment(
+    body: VerifyPaymentRequest,
+    authorization: str = Header(default=""),
+):
+    """Verify Razorpay payment signature and upgrade the user's plan."""
+    user_id = _get_user_id(authorization)
+
+    if body.plan not in PLAN_AMOUNTS:
+        raise HTTPException(status_code=400, detail="Invalid plan.")
+
+    # Verify signature using HMAC SHA256
+    message = f"{body.razorpay_order_id}|{body.razorpay_payment_id}"
+    expected_signature = hmac.new(
+        settings.razorpay_key_secret.encode("utf-8"),
+        message.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    if not hmac.compare_digest(expected_signature, body.razorpay_signature):
+        logger.warning(
+            "razorpay_signature_mismatch",
+            order_id=body.razorpay_order_id,
+            user_id=user_id,
+        )
+        # Update payment status to failed
+        from app.services.database import get_db
+        db = get_db()
+        db.execute(
+            "UPDATE payments SET status = ?, updated_at = CURRENT_TIMESTAMP "
+            "WHERE razorpay_order_id = ?",
+            ("failed", body.razorpay_order_id),
+        )
+        raise HTTPException(status_code=400, detail="Payment verification failed. Invalid signature.")
+
+    # Signature valid — update payment record and upgrade plan
+    from app.services.database import get_db
+    db = get_db()
+    db.execute(
+        "UPDATE payments SET razorpay_payment_id = ?, razorpay_signature = ?, "
+        "status = ?, updated_at = CURRENT_TIMESTAMP WHERE razorpay_order_id = ?",
+        (body.razorpay_payment_id, body.razorpay_signature, "paid", body.razorpay_order_id),
+    )
+
+    # Upgrade the user's plan
+    try:
+        update_user_plan(user_id, body.plan)
+    except AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    logger.info(
+        "payment_verified_plan_upgraded",
+        order_id=body.razorpay_order_id,
+        payment_id=body.razorpay_payment_id,
+        user_id=user_id,
+        plan=body.plan,
+    )
+
+    return {
+        "success": True,
+        "plan_type": body.plan,
+        "message": f"Payment successful! Plan upgraded to {body.plan}.",
+    }
+
+
+# Keep legacy endpoints for backwards compatibility
 
 class CheckoutRequest(BaseModel):
     plan: str = Field(..., description="Plan to upgrade to: pro or premium")
@@ -235,18 +392,13 @@ async def route_create_checkout(
     body: CheckoutRequest,
     authorization: str = Header(default=""),
 ):
-    """Create a Stripe checkout session (placeholder — returns mock URL)."""
+    """Legacy endpoint — redirects to Razorpay create-order."""
     user_id = _get_user_id(authorization)
-
     if body.plan not in ("pro", "premium"):
         raise HTTPException(status_code=400, detail="Invalid plan. Choose 'pro' or 'premium'.")
-
-    # In production, create a real Stripe session here.
-    # For now, return a mock URL.
     return {
-        "checkout_url": f"/api/v1/auth/mock-upgrade?plan={body.plan}",
+        "message": "Use /api/v1/auth/create-order for Razorpay payments.",
         "plan": body.plan,
-        "message": "Stripe integration pending. Use the mock upgrade endpoint for testing.",
     }
 
 
@@ -255,12 +407,10 @@ async def route_mock_upgrade(
     plan: str = "pro",
     authorization: str = Header(default=""),
 ):
-    """Mock upgrade endpoint — immediately sets the user's plan (for testing)."""
+    """Mock upgrade endpoint — immediately sets the user's plan (for testing only)."""
     user_id = _get_user_id(authorization)
-
     try:
         update_user_plan(user_id, plan)
     except AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-
     return {"success": True, "plan_type": plan, "message": f"Plan upgraded to {plan}."}

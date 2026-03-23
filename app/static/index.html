@@ -7,6 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -524,7 +525,7 @@
           <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative">
             <h3 class="text-lg font-bold mb-1">Free</h3>
             <div class="flex items-end gap-1 mb-4">
-              <span class="text-4xl font-bold">$0</span>
+              <span class="text-4xl font-bold">₹0</span>
               <span class="text-muted text-sm mb-1">forever</span>
             </div>
             <ul class="space-y-3 text-sm flex-1 mb-6">
@@ -542,7 +543,7 @@
             <span class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-accent text-white text-xs font-bold">MOST POPULAR</span>
             <h3 class="text-lg font-bold mb-1">Pro</h3>
             <div class="flex items-end gap-1 mb-4">
-              <span class="text-4xl font-bold">$9</span>
+              <span class="text-4xl font-bold">₹499</span>
               <span class="text-muted text-sm mb-1">/month</span>
             </div>
             <ul class="space-y-3 text-sm flex-1 mb-6">
@@ -559,7 +560,7 @@
           <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative">
             <h3 class="text-lg font-bold mb-1">Premium</h3>
             <div class="flex items-end gap-1 mb-4">
-              <span class="text-4xl font-bold">$19</span>
+              <span class="text-4xl font-bold">₹999</span>
               <span class="text-muted text-sm mb-1">/month</span>
             </div>
             <ul class="space-y-3 text-sm flex-1 mb-6">
@@ -3030,24 +3031,86 @@
     }
 
     try {
-      // For now, use mock upgrade directly
-      const res = await fetch('/api/v1/auth/mock-upgrade?plan=' + plan);
-      if (res.ok) {
-        const data = await res.json();
-        // Update local user object
-        const userStr = localStorage.getItem('pg_user');
-        if (userStr) {
-          const user = JSON.parse(userStr);
-          user.plan_type = plan;
-          localStorage.setItem('pg_user', JSON.stringify(user));
-        }
-        updatePlanUI(plan);
-        await loadUsageFromAPI();
-        alert('🎉 Plan upgraded to ' + plan.charAt(0).toUpperCase() + plan.slice(1) + '! Enjoy unlimited access.');
-      } else {
-        const err = await res.json();
-        alert('Upgrade failed: ' + (err.detail || 'Unknown error'));
+      // 1. Create Razorpay order on backend
+      const orderRes = await fetch('/api/v1/auth/create-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token,
+        },
+        body: JSON.stringify({ plan }),
+      });
+
+      if (!orderRes.ok) {
+        const err = await orderRes.json();
+        alert('Failed to create order: ' + (err.detail || 'Unknown error'));
+        return;
       }
+
+      const order = await orderRes.json();
+
+      // 2. Open Razorpay Checkout popup
+      const options = {
+        key: order.key_id,
+        amount: order.amount,
+        currency: order.currency,
+        name: 'PlagiarismGuard',
+        description: plan.charAt(0).toUpperCase() + plan.slice(1) + ' Plan - Monthly',
+        order_id: order.order_id,
+        prefill: {
+          name: order.user_name || '',
+          email: order.user_email || '',
+        },
+        theme: { color: '#6c5ce7' },
+        handler: async function (response) {
+          // 3. Verify payment on backend
+          try {
+            const verifyRes = await fetch('/api/v1/auth/verify-payment', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token,
+              },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                plan: plan,
+              }),
+            });
+
+            if (verifyRes.ok) {
+              const data = await verifyRes.json();
+              // Update local user object
+              const userStr = localStorage.getItem('pg_user');
+              if (userStr) {
+                const user = JSON.parse(userStr);
+                user.plan_type = plan;
+                localStorage.setItem('pg_user', JSON.stringify(user));
+              }
+              updatePlanUI(plan);
+              await loadUsageFromAPI();
+              alert('Payment successful! Plan upgraded to ' + plan.charAt(0).toUpperCase() + plan.slice(1) + '! Enjoy unlimited access.');
+            } else {
+              const err = await verifyRes.json();
+              alert('Payment verification failed: ' + (err.detail || 'Unknown error'));
+            }
+          } catch (e) {
+            alert('Payment verification failed. Please contact support.');
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            console.log('Razorpay checkout dismissed');
+          },
+        },
+      };
+
+      const rzp = new Razorpay(options);
+      rzp.on('payment.failed', function (response) {
+        alert('Payment failed: ' + (response.error.description || 'Unknown error') + '. Please try again.');
+      });
+      rzp.open();
     } catch (e) {
       alert('Upgrade failed. Please try again.');
     }

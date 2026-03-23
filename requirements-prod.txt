@@ -25,6 +25,10 @@ numpy>=1.26.0
 # Authentication
 PyJWT==2.9.0
 
+# Payments
+razorpay==1.4.2
+setuptools>=75.0.0
+
 # Database (Azure SQL)
 pyodbc==5.2.0
 
