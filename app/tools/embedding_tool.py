@@ -48,7 +48,7 @@ def preload_model() -> None:
         logger.error("model_preload_failed", error=str(exc))
 
 
-def get_model():
+def get_model() -> SentenceTransformer | None:
     """Return the cached model instance, or *None* if not yet loaded."""
     try:
         return _load_model()
