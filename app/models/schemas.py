@@ -77,6 +77,14 @@ class AgentOutput(BaseModel):
 # Aggregated / Final Report
 # ---------------------------------------------------------------------------
 
+class SourceTextBlock(BaseModel):
+    """A single matched text block belonging to a detected source."""
+
+    text: str = Field(..., description="The flagged passage text")
+    word_count: int = Field(default=0, description="Number of words in this block")
+    similarity_score: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
 class DetectedSource(BaseModel):
     """A source detected during plagiarism analysis."""
 
@@ -87,6 +95,7 @@ class DetectedSource(BaseModel):
     similarity: float = Field(..., ge=0.0, le=1.0, description="Similarity with the source")
     text_blocks: int = Field(default=0, description="Number of flagged passages from this source")
     matched_words: int = Field(default=0, description="Total word count of matching passages")
+    matched_passages: list[SourceTextBlock] = Field(default_factory=list, description="Text blocks from this source")
 
 
 class MatchGroup(BaseModel):

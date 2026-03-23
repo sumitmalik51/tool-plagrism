@@ -672,16 +672,23 @@
   }
 
   /* ═══════════════════════════════════════════════════════════
-     Sources
+     Sources — Expandable cards with text block navigator
      ═══════════════════════════════════════════════════════════ */
+  // Track which source is expanded and current text block index
+  let expandedSource = null;
+  let blockIndex = {};  // { srcNum: currentIndex }
+
   function renderSources(sources) {
-    const totalSources = sources.filter(s => s.text_blocks > 0 || s.matched_words > 0).length || sources.length;
     $('sourceSummary').textContent = `${sources.length} source${sources.length !== 1 ? 's' : ''}`;
 
     if (sources.length === 0) {
       $('sourceList').innerHTML = '<p class="text-muted text-sm">No external sources detected.</p>';
       return;
     }
+
+    // Reset state
+    expandedSource = null;
+    blockIndex = {};
 
     let html = '';
     sources.forEach(s => {
@@ -699,29 +706,143 @@
       if (!displayName) displayName = 'Unknown source';
 
       const simPct = s.similarity < 0.01 ? '<1%' : (s.similarity * 100).toFixed(0) + '%';
+      blockIndex[num] = 0;
 
       html += `
-        <div class="source-card rounded-lg border border-border p-3" data-srcnum="${num}" onclick="highlightSource(${num})">
-          <div class="flex items-start gap-2.5">
-            <span class="src-badge shrink-0 mt-0.5" style="background:${color}">${num}</span>
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 mb-1">
-                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${typeBg}">${typeLabel}</span>
+        <div class="source-card rounded-lg border border-border overflow-hidden" data-srcnum="${num}" id="src-card-${num}">
+          <!-- Card header (always visible) -->
+          <div class="p-3 cursor-pointer" onclick="toggleSourceExpand(${num})">
+            <div class="flex items-start gap-2.5">
+              <span class="src-badge shrink-0 mt-0.5" style="background:${color}">${num}</span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${typeBg}">${typeLabel}</span>
+                </div>
+                <div class="text-sm truncate" title="${esc(s.url || '')}">${esc(displayName)}</div>
+                <div class="flex items-center gap-3 mt-1 text-xs text-muted">
+                  <span>📄 ${s.text_blocks || 0} text block${(s.text_blocks||0) !== 1 ? 's' : ''}</span>
+                  <span>🔤 ${s.matched_words || 0} matched words</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-1 shrink-0">
                 <span class="text-sm font-bold" style="color:${color}">${simPct}</span>
-              </div>
-              <div class="text-sm truncate" title="${esc(s.url || '')}">
-                ${s.url ? `<a href="${esc(s.url)}" target="_blank" class="hover:underline">${esc(displayName)}</a>` : esc(displayName)}
-              </div>
-              <div class="flex items-center gap-3 mt-1.5 text-xs text-muted">
-                <span>📄 ${s.text_blocks || 0} text block${(s.text_blocks||0) !== 1 ? 's' : ''}</span>
-                <span>🔤 ${s.matched_words || 0} matched words</span>
+                <span class="text-muted text-xs transition-transform" id="src-arrow-${num}">▼</span>
               </div>
             </div>
+          </div>
+
+          <!-- Expanded detail (hidden by default) -->
+          <div class="hidden border-t border-border bg-surface2/50 px-3 py-3 space-y-3" id="src-detail-${num}">
+            <!-- Text block navigator -->
+            <div class="flex items-center justify-between text-xs text-muted" id="src-nav-${num}">
+              <div class="flex items-center gap-2">
+                <button onclick="event.stopPropagation(); prevBlock(${num})" class="w-6 h-6 rounded bg-surface border border-border flex items-center justify-center hover:border-accent hover:text-txt transition-colors">&lt;</button>
+                <span id="src-nav-label-${num}">1 of ${s.text_blocks || 1}</span>
+                <button onclick="event.stopPropagation(); nextBlock(${num})" class="w-6 h-6 rounded bg-surface border border-border flex items-center justify-center hover:border-accent hover:text-txt transition-colors">&gt;</button>
+              </div>
+              <span id="src-block-words-${num}" class="font-medium"></span>
+            </div>
+
+            <!-- Source URL link -->
+            ${s.url ? `<a href="${esc(s.url)}" target="_blank" class="text-accent-l hover:underline text-xs flex items-center gap-1 truncate" onclick="event.stopPropagation()">
+              ${esc(s.url)} ↗
+            </a>` : ''}
+
+            <!-- Source text block content -->
+            <div id="src-block-content-${num}" class="text-sm leading-relaxed p-3 bg-surface rounded-md border border-border text-muted"></div>
           </div>
         </div>`;
     });
 
     $('sourceList').innerHTML = html;
+  }
+
+  function toggleSourceExpand(srcNum) {
+    const wasSame = expandedSource === srcNum;
+    const sources = lastReport?.detected_sources || [];
+
+    // Collapse previous
+    if (expandedSource !== null) {
+      const prevDetail = $(`src-detail-${expandedSource}`);
+      const prevArrow = $(`src-arrow-${expandedSource}`);
+      const prevCard = $(`src-card-${expandedSource}`);
+      if (prevDetail) prevDetail.classList.add('hidden');
+      if (prevArrow) prevArrow.style.transform = '';
+      if (prevCard) prevCard.classList.remove('active');
+    }
+
+    if (wasSame) {
+      expandedSource = null;
+      highlightSource(null);
+      return;
+    }
+
+    // Expand new
+    expandedSource = srcNum;
+    const detail = $(`src-detail-${srcNum}`);
+    const arrow = $(`src-arrow-${srcNum}`);
+    const card = $(`src-card-${srcNum}`);
+    if (detail) detail.classList.remove('hidden');
+    if (arrow) arrow.style.transform = 'rotate(180deg)';
+    if (card) card.classList.add('active');
+
+    // Show first text block
+    blockIndex[srcNum] = 0;
+    renderTextBlock(srcNum);
+
+    // Highlight in document
+    highlightSource(srcNum);
+  }
+
+  function renderTextBlock(srcNum) {
+    const sources = lastReport?.detected_sources || [];
+    const src = sources.find(s => s.source_number === srcNum);
+    if (!src || !src.matched_passages || src.matched_passages.length === 0) {
+      const content = $(`src-block-content-${srcNum}`);
+      if (content) content.innerHTML = '<span class="italic">No text blocks available.</span>';
+      return;
+    }
+
+    const idx = blockIndex[srcNum] || 0;
+    const block = src.matched_passages[idx];
+    const total = src.matched_passages.length;
+
+    // Update navigator
+    const navLabel = $(`src-nav-label-${srcNum}`);
+    if (navLabel) navLabel.textContent = `${idx + 1} of ${total}`;
+
+    const wordsLabel = $(`src-block-words-${srcNum}`);
+    if (wordsLabel) wordsLabel.textContent = `${block.word_count} words`;
+
+    // Render text block with highlighted words
+    const content = $(`src-block-content-${srcNum}`);
+    if (content) {
+      const color = SOURCE_COLORS[(srcNum - 1) % 10] || '#888';
+      // Highlight the matched text with colored underline
+      content.innerHTML = `<span style="border-bottom: 2px solid ${color}; padding-bottom: 1px;">${esc(block.text)}</span>`;
+    }
+
+    // Scroll to corresponding highlight in document viewer
+    const docHighlights = document.querySelectorAll(`#docViewer [data-src="${srcNum}"]`);
+    if (docHighlights[idx]) {
+      docHighlights[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  function nextBlock(srcNum) {
+    const src = (lastReport?.detected_sources || []).find(s => s.source_number === srcNum);
+    if (!src || !src.matched_passages) return;
+    const total = src.matched_passages.length;
+    blockIndex[srcNum] = ((blockIndex[srcNum] || 0) + 1) % total;
+    renderTextBlock(srcNum);
+  }
+
+  function prevBlock(srcNum) {
+    const src = (lastReport?.detected_sources || []).find(s => s.source_number === srcNum);
+    if (!src || !src.matched_passages) return;
+    const total = src.matched_passages.length;
+    blockIndex[srcNum] = ((blockIndex[srcNum] || 0) - 1 + total) % total;
+    renderTextBlock(srcNum);
   }
 
   /* ═══════════════════════════════════════════════════════════

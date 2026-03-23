@@ -17,6 +17,7 @@ from app.models.schemas import (
     MatchGroup,
     PlagiarismReport,
     RiskLevel,
+    SourceTextBlock,
 )
 from app.utils.logger import get_logger
 
@@ -151,17 +152,25 @@ def _extract_sources(
 
     sources.sort(key=lambda s: s.similarity, reverse=True)
 
-    # Assign source numbers and compute text_blocks / matched_words
+    # Assign source numbers and compute text_blocks / matched_words / passages
     for idx, src in enumerate(sources, start=1):
         src.source_number = idx
-        blocks = 0
-        words = 0
+        blocks: list[SourceTextBlock] = []
+        total_words = 0
         for fp in flagged_passages:
             if fp.source == src.url:
-                blocks += 1
-                words += len(fp.text.split())
-        src.text_blocks = blocks
-        src.matched_words = words
+                wc = len(fp.text.split())
+                total_words += wc
+                blocks.append(
+                    SourceTextBlock(
+                        text=fp.text,
+                        word_count=wc,
+                        similarity_score=fp.similarity_score,
+                    )
+                )
+        src.text_blocks = len(blocks)
+        src.matched_words = total_words
+        src.matched_passages = blocks
 
     return sources
 
