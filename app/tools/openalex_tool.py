@@ -122,7 +122,7 @@ async def _fetch_openalex(
 
     try:
         async with httpx.AsyncClient(
-            timeout=15.0, follow_redirects=True
+            timeout=30.0, follow_redirects=True
         ) as client:
             resp = await client.get(_OPENALEX_WORKS_URL, params=params)
             resp.raise_for_status()
