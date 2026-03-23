@@ -52,7 +52,7 @@ def build_report(
         agent_outputs, aggregation_output.flagged_passages
     )
 
-    # --- Build match groups (Turnitin-style categorisation) --------------------
+    # --- Build match groups (categorised by detection type) --------------------
     match_groups = _build_match_groups(
         aggregation_output.flagged_passages, original_text
     )
@@ -109,7 +109,7 @@ def _extract_sources(
     """Pull detected source URLs from agent flagged passages and details.
 
     Sources are deduplicated by URL, enriched with type, text_blocks,
-    and matched_words for Turnitin-style display.
+    and matched_words for the similarity report display.
     """
     seen: set[str] = set()
     sources: list[DetectedSource] = []
@@ -211,7 +211,7 @@ def _build_match_groups(
     flagged_passages: list[FlaggedPassage],
     original_text: str,
 ) -> list[MatchGroup]:
-    """Build Turnitin-style match groups from flagged passages.
+    """Build categorised match groups from flagged passages.
 
     Percentage is estimated as matched-words / total-words.
     """

@@ -88,7 +88,7 @@ class SourceTextBlock(BaseModel):
 class DetectedSource(BaseModel):
     """A source detected during plagiarism analysis."""
 
-    source_number: int = Field(default=0, description="1-based index for Turnitin-style referencing")
+    source_number: int = Field(default=0, description="1-based index for source referencing")
     source_type: str = Field(default="Internet", description="Internet | Publication | Internal")
     url: str | None = Field(default=None, description="URL of the matched source")
     title: str | None = Field(default=None, description="Title of the matched source")
@@ -99,7 +99,7 @@ class DetectedSource(BaseModel):
 
 
 class MatchGroup(BaseModel):
-    """Categorised match group (Turnitin-style)."""
+    """Categorised match group for the similarity report."""
 
     category: str = Field(..., description="Web Match | Academic Match | Internal Duplication | AI Generated")
     icon: str = Field(default="", description="Emoji icon for the category")
@@ -115,7 +115,7 @@ class PlagiarismReport(BaseModel):
     confidence_score: float = Field(..., ge=0.0, le=1.0, description="Overall confidence")
     risk_level: RiskLevel
     original_text: str = Field(default="", description="Original document text for the document viewer")
-    match_groups: list[MatchGroup] = Field(default_factory=list, description="Turnitin-style match groups")
+    match_groups: list[MatchGroup] = Field(default_factory=list, description="Categorised match groups")
     detected_sources: list[DetectedSource] = Field(default_factory=list)
     flagged_passages: list[FlaggedPassage] = Field(default_factory=list)
     agent_results: list[AgentOutput] = Field(default_factory=list)
