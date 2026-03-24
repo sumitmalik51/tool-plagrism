@@ -193,6 +193,7 @@ async def route_me(authorization: str = Header(default="")):
         "name": user["name"],
         "email": user["email"],
         "plan_type": user.get("plan_type", "free"),
+        "trial_ends_at": user.get("trial_ends_at"),
     }
 
 
@@ -219,10 +220,21 @@ def _get_user_id(authorization: str) -> int:
 async def route_user_scans(
     authorization: str = Header(default=""),
     limit: int = 50,
+    risk_level: str | None = None,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
+    search: str | None = None,
 ):
-    """Return the authenticated user's scan history."""
+    """Return the authenticated user's scan history with filtering and sorting."""
     user_id = _get_user_id(authorization)
-    scans = get_user_scans(user_id, limit=limit)
+    scans = get_user_scans(
+        user_id,
+        limit=limit,
+        risk_level=risk_level,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        search=search,
+    )
     # Strip large report_json from list view
     for s in scans:
         s.pop("report_json", None)

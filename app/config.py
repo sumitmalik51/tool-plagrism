@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # File upload
     max_upload_size_mb: int = 50
-    allowed_extensions: list[str] = [".pdf", ".docx", ".txt"]
+    allowed_extensions: list[str] = [".pdf", ".docx", ".txt", ".tex"]
     upload_dir: Path = Path("uploads")
 
     # Agent weights (used by aggregation_agent)

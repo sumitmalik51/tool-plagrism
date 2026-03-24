@@ -232,6 +232,7 @@ CREATE TABLE IF NOT EXISTS users (
     password    TEXT          NOT NULL,
     is_paid     INTEGER       NOT NULL DEFAULT 0,
     plan_type   TEXT          NOT NULL DEFAULT 'free',
+    trial_ends_at TEXT        NULL,
     created_at  TEXT          NOT NULL DEFAULT (datetime('now')),
     updated_at  TEXT          NOT NULL DEFAULT (datetime('now'))
 );
@@ -300,6 +301,7 @@ CREATE TABLE users (
     password    NVARCHAR(500)     NOT NULL,
     is_paid     BIT               NOT NULL DEFAULT 0,
     plan_type   NVARCHAR(20)      NOT NULL DEFAULT 'free',
+    trial_ends_at DATETIME2       NULL,
     created_at  DATETIME2         NOT NULL DEFAULT GETUTCDATE(),
     updated_at  DATETIME2         NOT NULL DEFAULT GETUTCDATE()
 );
@@ -375,6 +377,9 @@ CREATE TABLE payments (
 ---
 IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('users') AND name = 'plan_type')
 ALTER TABLE users ADD plan_type NVARCHAR(20) NOT NULL DEFAULT 'free';
+---
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('users') AND name = 'trial_ends_at')
+ALTER TABLE users ADD trial_ends_at DATETIME2 NULL;
 """
 
 

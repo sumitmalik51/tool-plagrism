@@ -20,6 +20,8 @@ from app.agents.semantic_agent import SemanticAgent
 from app.agents.web_search_agent import WebSearchAgent
 from app.models.schemas import AgentInput, AgentOutput, PlagiarismReport
 from app.tools.content_extractor_tool import chunk_text
+from app.tools.citation_stripper import prepare_text_for_scanning
+from app.tools.language_detector import detect_language
 from app.config import settings
 from app.utils.logger import get_logger
 
@@ -46,10 +48,29 @@ async def run_pipeline(
 
     pipeline_start = time.perf_counter()
 
+    # --- 0a. Detect document language -----------------------------------------
+    lang_info = detect_language(text)
+    logger.info(
+        "language_detected",
+        document_id=document_id,
+        language=lang_info["language"],
+        language_name=lang_info["language_name"],
+        confidence=lang_info["confidence"],
+    )
+
+    # --- 0b. Citation-aware preprocessing — strip references & inline cites ---
+    scan_text, citation_meta = prepare_text_for_scanning(text)
+    logger.info(
+        "citation_preprocessing_done",
+        document_id=document_id,
+        chars_removed=citation_meta["chars_removed"],
+        ref_section_removed=citation_meta["reference_section_removed"],
+    )
+
     # --- 1. Chunk the text (via content_extractor_tool) -----------------------
-    chunk_result = chunk_text(text, chunk_size=settings.chunk_size, overlap=settings.chunk_overlap)
+    chunk_result = chunk_text(scan_text, chunk_size=settings.chunk_size, overlap=settings.chunk_overlap)
     chunks = chunk_result["chunks"]
-    agent_input = AgentInput(document_id=document_id, text=text, chunks=chunks)
+    agent_input = AgentInput(document_id=document_id, text=scan_text, chunks=chunks)
 
     logger.info("chunks_prepared", document_id=document_id, chunk_count=len(chunks))
 
@@ -81,6 +102,11 @@ async def run_pipeline(
         document_id, aggregation_output, agent_outputs,
         original_text=text,
     )
+
+    # Attach language and citation metadata to the report
+    report.language = lang_info.get("language", "en")
+    report.language_name = lang_info.get("language_name", "English")
+    report.citation_metadata = citation_meta
 
     # --- 5. Filter excluded domains -------------------------------------------
     if excluded_domains:

@@ -1,4 +1,4 @@
-"""Content extractor tool — extracts text from PDF, DOCX, and TXT files.
+"""Content extractor tool — extracts text from PDF, DOCX, TXT, and LaTeX files.
 
 Standalone, framework-agnostic tool. Returns structured JSON.
 Also provides text chunking functionality.
@@ -6,6 +6,7 @@ Also provides text chunking functionality.
 
 from __future__ import annotations
 
+import re
 import time
 from io import BytesIO
 from pathlib import Path
@@ -39,6 +40,7 @@ async def extract_text(file_bytes: bytes, filename: str) -> dict:
         ".pdf": _extract_from_pdf,
         ".docx": _extract_from_docx,
         ".txt": _extract_from_txt,
+        ".tex": _extract_from_latex,
     }
 
     extractor = extractors.get(ext)
@@ -170,6 +172,49 @@ def _extract_from_docx(file_bytes: bytes) -> str:
 
 def _extract_from_txt(file_bytes: bytes) -> str:
     return file_bytes.decode("utf-8", errors="replace")
+
+
+def _extract_from_latex(file_bytes: bytes) -> str:
+    """Extract plain text from a LaTeX (.tex) file by stripping commands."""
+    raw = file_bytes.decode("utf-8", errors="replace")
+
+    # Remove comments (lines starting with %)
+    raw = re.sub(r"(?m)%.*$", "", raw)
+
+    # Remove common preamble commands
+    raw = re.sub(r"\\documentclass(\[.*?\])?\{.*?\}", "", raw)
+    raw = re.sub(r"\\usepackage(\[.*?\])?\{.*?\}", "", raw)
+    raw = re.sub(r"\\(begin|end)\{(document|abstract|figure|table|equation|align|itemize|enumerate|description|thebibliography|verbatim|lstlisting|tabular|array)\}", "", raw)
+
+    # Remove label, ref, cite kept as text: [AuthorYear] style
+    raw = re.sub(r"\\label\{[^}]*\}", "", raw)
+    raw = re.sub(r"\\(ref|eqref|pageref)\{[^}]*\}", "[ref]", raw)
+    raw = re.sub(r"\\(cite|citep|citet|parencite|textcite|autocite)(\[[^\]]*\])?\{([^}]*)\}", r"[\3]", raw)
+
+    # Preserve text from formatting commands
+    raw = re.sub(r"\\(textbf|textit|emph|underline|texttt|textrm|textsf|textsc)\{([^}]*)\}", r"\2", raw)
+    raw = re.sub(r"\\(title|author|date|chapter|section|subsection|subsubsection|paragraph|subparagraph)\*?\{([^}]*)\}", r"\2", raw)
+    raw = re.sub(r"\\(footnote|footnotetext)\{([^}]*)\}", r" \2", raw)
+    raw = re.sub(r"\\caption\{([^}]*)\}", r"\1", raw)
+
+    # Remove math environments but keep simple inline math text
+    raw = re.sub(r"\$\$.*?\$\$", " [equation] ", raw, flags=re.DOTALL)
+    raw = re.sub(r"\$([^$]+)\$", r"\1", raw)
+    raw = re.sub(r"\\begin\{(equation|align|gather|multline)\*?\}.*?\\end\{\1\*?\}", " [equation] ", raw, flags=re.DOTALL)
+
+    # Remove remaining LaTeX commands but keep their text arguments
+    raw = re.sub(r"\\[a-zA-Z]+\*?(\{[^}]*\})?", "", raw)
+
+    # Clean up braces and special chars
+    raw = raw.replace("{", "").replace("}", "")
+    raw = raw.replace("~", " ").replace("``", '"').replace("''", '"')
+    raw = re.sub(r"\\[&%$#_]", "", raw)
+
+    # Normalise whitespace
+    raw = re.sub(r"[ \t]+", " ", raw)
+    raw = re.sub(r"\n{3,}", "\n\n", raw)
+
+    return raw.strip()
 
 
 def _find_sentence_boundary(text: str, start: int, end: int) -> int:

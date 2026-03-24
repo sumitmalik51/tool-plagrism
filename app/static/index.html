@@ -318,6 +318,10 @@
               </span>
               <p class="text-xs text-muted mt-3" id="dashTierMsg">3 uses/day included</p>
               <a href="#pricing" id="dashUpgradeLink" class="inline-block mt-2 text-xs font-semibold text-accent-l hover:text-accent transition-colors">Upgrade →</a>
+              <!-- Trial banner -->
+              <div id="trialBanner" class="hidden mt-3 px-3 py-2 bg-amber-500/10 border border-amber-500/25 rounded-lg">
+                <span id="trialMsg" class="text-xs font-semibold text-amber-400">Pro trial: 3 days remaining</span>
+              </div>
             </div>
           </div>
         </div>
@@ -588,7 +592,7 @@
         <div class="text-center mb-12">
           <span class="px-3 py-1 rounded-full bg-accent/10 text-accent-l text-xs font-semibold border border-accent/20 mb-4 inline-block">PRICING</span>
           <h2 class="text-3xl font-bold mb-3">Plans for every researcher</h2>
-          <p class="text-muted max-w-lg mx-auto">Start with the Basic plan. Upgrade when your research demands more.</p>
+          <p class="text-muted max-w-lg mx-auto">Start with a free 3-day Pro trial. Upgrade when your research demands more.</p>
         </div>
 
         <div class="grid md:grid-cols-3 gap-6" id="pricingCards">
@@ -775,8 +779,8 @@
             class="border-2 border-dashed border-border rounded-xl p-12 text-center cursor-pointer bg-surface hover:border-accent hover:bg-surface2 transition-all">
             <div class="text-5xl mb-3">📄</div>
             <p class="text-muted"><strong class="text-txt">Drop your document(s) here</strong> or click to browse</p>
-            <p class="text-xs text-muted mt-1">Supports PDF, DOCX, TXT &bull; Max 20 MB &bull; Up to 10 files for batch</p>
-            <input type="file" id="fileInput" accept=".pdf,.docx,.txt" multiple class="hidden" />
+            <p class="text-xs text-muted mt-1">Supports PDF, DOCX, TXT, LaTeX (.tex) &bull; Max 20 MB &bull; Up to 10 files for batch</p>
+            <input type="file" id="fileInput" accept=".pdf,.docx,.txt,.tex" multiple class="hidden" />
           </div>
 
           <div id="selectedFile" class="hidden mt-4 flex items-center gap-3 px-4 py-3 bg-surface2 rounded-lg text-sm">
@@ -908,7 +912,7 @@
 
     <!-- ═══════════ Scan History Section (DB-backed, logged-in only) ═══════════ -->
     <section id="history" class="py-20 px-6 border-t border-border/50">
-      <div class="max-w-4xl mx-auto">
+      <div class="max-w-5xl mx-auto">
         <!-- Not logged in message -->
         <div id="historyLoginPrompt" class="hidden text-center py-16">
           <div class="text-5xl mb-4">🔒</div>
@@ -946,6 +950,35 @@
               <div class="text-2xl font-bold text-accent-l" id="histDocuments">0</div>
               <div class="text-xs text-muted mt-1">Documents</div>
             </div>
+          </div>
+
+          <!-- Filters & Search Bar -->
+          <div class="flex flex-wrap items-center gap-3 mb-4">
+            <div class="flex-1 min-w-[200px]">
+              <input type="text" id="histSearch" placeholder="Search by filename…"
+                class="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-txt placeholder-muted focus:outline-none focus:border-accent transition-colors" />
+            </div>
+            <select id="histRiskFilter"
+              class="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-txt focus:outline-none focus:border-accent">
+              <option value="">All Risks</option>
+              <option value="LOW">🟢 Low</option>
+              <option value="MEDIUM">🟡 Medium</option>
+              <option value="HIGH">🔴 High</option>
+            </select>
+            <select id="histSortBy"
+              class="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-txt focus:outline-none focus:border-accent">
+              <option value="created_at">Date</option>
+              <option value="plagiarism_score">Score</option>
+              <option value="sources_count">Sources</option>
+            </select>
+            <button id="histSortOrder" onclick="toggleHistSortOrder()" title="Toggle sort order"
+              class="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-muted hover:text-txt hover:border-accent transition-colors">
+              ↓ Newest
+            </button>
+            <button onclick="exportScanHistoryCSV()" title="Export as CSV"
+              class="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-muted hover:text-txt hover:border-accent transition-colors">
+              📥 Export
+            </button>
           </div>
 
           <!-- Full history list from DB -->
@@ -1176,6 +1209,10 @@
             <span>Confidence: <strong class="text-txt" id="sidebarConfidence">—</strong></span>
             <span>Agents: <strong class="text-txt" id="sidebarAgents">—</strong></span>
             <span>Flagged: <strong class="text-txt" id="sidebarFlagged">—</strong></span>
+          </div>
+          <div class="flex items-center gap-2 mt-2 flex-wrap">
+            <span id="sidebarLang" class="hidden px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/15 text-blue-400 border border-blue-500/25" title="Detected language">English</span>
+            <span id="sidebarCitation" class="hidden px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-500/15 text-yellow-400 border border-yellow-500/25" title="Citation-aware scanning">0 chars excluded</span>
           </div>
 
           <!-- Rephrase prompt (shown when flagged passages exist) -->
@@ -1513,6 +1550,28 @@
     $('sidebarAgents').textContent = agents.length;
     $('sidebarFlagged').textContent = passages.length;
 
+    // Show language badge if detected
+    const langBadge = document.getElementById('sidebarLang');
+    if (langBadge) {
+      const langName = data.language_name || 'English';
+      langBadge.textContent = langName;
+      langBadge.title = `Detected language: ${langName}`;
+      langBadge.classList.remove('hidden');
+    }
+
+    // Show citation metadata if applicable
+    const citBadge = document.getElementById('sidebarCitation');
+    if (citBadge && data.citation_metadata) {
+      const cm = data.citation_metadata;
+      if (cm.reference_section_removed || cm.chars_removed > 0) {
+        citBadge.textContent = `${cm.chars_removed} chars excluded`;
+        citBadge.title = `Citation-aware: ${cm.chars_removed} characters from citations/references excluded from analysis`;
+        citBadge.classList.remove('hidden');
+      } else {
+        citBadge.classList.add('hidden');
+      }
+    }
+
     // Show plagiarism-to-rewrite prompt if flagged passages found
     const rephrasePrompt = document.getElementById('rephrasePrompt');
     if (rephrasePrompt) {
@@ -1829,6 +1888,14 @@
 
           <!-- Expanded detail (hidden by default) -->
           <div class="hidden border-t border-border bg-surface2/50 px-3 py-3 space-y-3" id="src-detail-${num}">
+            <!-- Source similarity meter -->
+            <div class="flex items-center gap-3">
+              <div class="flex-1 h-1.5 bg-surface rounded-full overflow-hidden">
+                <div class="h-full rounded-full" style="width:${(s.similarity * 100).toFixed(0)}%; background:${color}"></div>
+              </div>
+              <span class="text-xs font-bold" style="color:${color}">${simPct} match</span>
+            </div>
+
             <!-- Text block navigator -->
             <div class="flex items-center justify-between text-xs text-muted" id="src-nav-${num}">
               <div class="flex items-center gap-2">
@@ -1836,15 +1903,19 @@
                 <span id="src-nav-label-${num}">1 of ${s.text_blocks || 1}</span>
                 <button onclick="event.stopPropagation(); nextBlock(${num})" class="w-6 h-6 rounded bg-surface border border-border flex items-center justify-center hover:border-accent hover:text-txt transition-colors">&gt;</button>
               </div>
-              <span id="src-block-words-${num}" class="font-medium"></span>
+              <div class="flex items-center gap-2">
+                <span id="src-block-sim-${num}" class="text-[10px] px-1.5 py-0.5 rounded bg-surface border border-border"></span>
+                <span id="src-block-words-${num}" class="font-medium"></span>
+              </div>
             </div>
 
             <!-- Source URL link -->
             ${s.url ? `<a href="${esc(s.url)}" target="_blank" class="text-accent-l hover:underline text-xs flex items-center gap-1 truncate" onclick="event.stopPropagation()">
-              ${esc(s.url)} ↗
+              🔗 ${esc(s.url)} ↗
             </a>` : ''}
 
-            <!-- Source text block content -->
+            <!-- Source text block content — side-by-side comparison -->
+            <div class="text-[10px] uppercase tracking-wide text-muted font-semibold">Matched Text in Your Document</div>
             <div id="src-block-content-${num}" class="text-sm leading-relaxed p-3 bg-surface rounded-md border border-border text-muted"></div>
           </div>
         </div>`;
@@ -1909,6 +1980,14 @@
 
     const wordsLabel = $(`src-block-words-${srcNum}`);
     if (wordsLabel) wordsLabel.textContent = `${block.word_count} words`;
+
+    // Show per-block similarity score
+    const simLabel = $(`src-block-sim-${srcNum}`);
+    if (simLabel && block.similarity_score !== undefined) {
+      const simPct = (block.similarity_score * 100).toFixed(0);
+      simLabel.textContent = `${simPct}% similar`;
+      simLabel.style.color = block.similarity_score > 0.7 ? 'var(--color-danger)' : block.similarity_score > 0.4 ? 'var(--color-warn)' : 'var(--color-ok)';
+    }
 
     // Render text block with highlighted words
     const content = $(`src-block-content-${srcNum}`);
@@ -2929,6 +3008,47 @@
     // No-op: rewrites are not tracked in DB currently
   }
 
+  let _histSortOrder = 'desc';
+  let _histSearchTimeout = null;
+  let _cachedScans = [];
+
+  // Attach filter & search event listeners
+  document.addEventListener('DOMContentLoaded', () => {
+    const searchEl = $('histSearch');
+    if (searchEl) searchEl.addEventListener('input', () => {
+      clearTimeout(_histSearchTimeout);
+      _histSearchTimeout = setTimeout(() => loadScanHistory(), 300);
+    });
+    const riskEl = $('histRiskFilter');
+    if (riskEl) riskEl.addEventListener('change', () => loadScanHistory());
+    const sortEl = $('histSortBy');
+    if (sortEl) sortEl.addEventListener('change', () => loadScanHistory());
+  });
+
+  function toggleHistSortOrder() {
+    _histSortOrder = _histSortOrder === 'desc' ? 'asc' : 'desc';
+    const btn = $('histSortOrder');
+    btn.textContent = _histSortOrder === 'desc' ? '↓ Newest' : '↑ Oldest';
+    loadScanHistory();
+  }
+
+  function exportScanHistoryCSV() {
+    if (!_cachedScans.length) { showToast('No scans to export', 'error'); return; }
+    const headers = ['Date', 'Filename', 'Score (%)', 'Risk', 'Sources', 'Flagged'];
+    const rows = _cachedScans.map(s => [
+      s.created_at || '', s.filename || s.document_id || '',
+      Math.round(s.plagiarism_score || 0), s.risk_level || 'LOW',
+      s.sources_count || 0, s.flagged_count || 0,
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'plagiarism-scan-history.csv'; a.click();
+    URL.revokeObjectURL(url);
+    showToast('Scan history exported as CSV');
+  }
+
   async function loadScanHistory() {
     if (!isLoggedIn()) {
       $('historyLoginPrompt').classList.remove('hidden');
@@ -2942,9 +3062,19 @@
     $('historyEmpty').classList.add('hidden');
 
     try {
+      // Build query params from filter UI
+      const params = new URLSearchParams({ limit: '50' });
+      const searchVal = ($('histSearch')?.value || '').trim();
+      if (searchVal) params.set('search', searchVal);
+      const riskVal = $('histRiskFilter')?.value || '';
+      if (riskVal) params.set('risk_level', riskVal);
+      const sortBy = $('histSortBy')?.value || 'created_at';
+      params.set('sort_by', sortBy);
+      params.set('sort_order', _histSortOrder);
+
       const [statsRes, scansRes] = await Promise.all([
         fetch('/api/v1/auth/stats', { headers: _authHeaders() }),
-        fetch('/api/v1/auth/scans?limit=50', { headers: _authHeaders() }),
+        fetch('/api/v1/auth/scans?' + params.toString(), { headers: _authHeaders() }),
       ]);
 
       // Stats
@@ -2961,6 +3091,7 @@
       if (scansRes.ok) {
         const data = await scansRes.json();
         const scans = data.scans || [];
+        _cachedScans = scans;
         $('historyCount').textContent = `${scans.length} scan${scans.length !== 1 ? 's' : ''}`;
 
         if (scans.length === 0) {
@@ -2974,18 +3105,22 @@
             const risk = (s.risk_level || 'LOW').toUpperCase();
             const riskColors = { LOW: 'bg-ok/20 text-ok', MEDIUM: 'bg-warn/20 text-warn', HIGH: 'bg-danger/20 text-danger' };
             const date = s.created_at ? timeAgo(s.created_at) : '';
+            const fullDate = s.created_at ? new Date(s.created_at).toLocaleString() : '';
             const filename = s.filename || (s.document_id || '').substring(0, 12) + '…';
             const sources = s.sources_count || 0;
             const flagged = s.flagged_count || 0;
+            const fileType = s.file_type || 'text';
+            const fileIcon = { pdf: '📕', docx: '📘', txt: '📝', tex: '📐', text: '📝' }[fileType] || '📄';
             return `
-              <div class="bg-surface border border-border rounded-lg p-4 flex items-center gap-4 hover:border-accent/50 transition-colors cursor-pointer"
-                   onclick="viewScanDetail('${esc(s.document_id)}')">
-                <div class="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold" style="background:${scoreColor(score)}20;color:${scoreColor(score)}">${score}%</div>
+              <div class="bg-surface border border-border rounded-lg p-4 flex items-center gap-4 hover:border-accent/50 transition-colors cursor-pointer group"
+                   onclick="viewScanDetail('${esc(s.document_id)}')" title="${esc(fullDate)}">
+                <div class="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold shrink-0" style="background:${scoreColor(score)}20;color:${scoreColor(score)}">${score}%</div>
                 <div class="flex-1 min-w-0">
-                  <div class="text-sm font-medium truncate">${esc(filename)}</div>
+                  <div class="text-sm font-medium truncate flex items-center gap-1.5">${fileIcon} ${esc(filename)}</div>
                   <div class="text-xs text-muted mt-0.5">${date} · ${flagged} flagged · ${sources} sources</div>
                 </div>
                 <span class="px-2 py-0.5 rounded text-[10px] font-bold ${riskColors[risk] || ''}">${risk}</span>
+                <span class="text-muted text-xs opacity-0 group-hover:opacity-100 transition-opacity">View →</span>
               </div>`;
           }).join('');
         }
@@ -3264,6 +3399,7 @@
       if (!userStr) return;
       const user = JSON.parse(userStr);
       let plan = user.plan_type || 'free';
+      let trialEndsAt = user.trial_ends_at || null;
 
       // Sync plan from server so changes reflect without re-login
       if (token) {
@@ -3278,18 +3414,42 @@
               user.plan_type = plan;
               localStorage.setItem('pg_user', JSON.stringify(user));
             }
+            if (serverUser.trial_ends_at !== undefined) {
+              trialEndsAt = serverUser.trial_ends_at;
+              user.trial_ends_at = trialEndsAt;
+              localStorage.setItem('pg_user', JSON.stringify(user));
+            }
           }
         } catch {}
       }
 
-      updatePlanUI(plan);
+      updatePlanUI(plan, trialEndsAt);
     } catch {}
   }
 
-  function updatePlanUI(plan) {
+  function updatePlanUI(plan, trialEndsAt) {
     const badge = $('dashTierBadge');
     const msg = $('dashTierMsg');
     const upgradeLink = $('dashUpgradeLink');
+
+    // Show trial banner if applicable
+    const trialBanner = $('trialBanner');
+    if (trialBanner) {
+      if (trialEndsAt && plan === 'pro') {
+        const endDate = new Date(trialEndsAt);
+        const now = new Date();
+        const daysLeft = Math.max(0, Math.ceil((endDate - now) / (1000 * 60 * 60 * 24)));
+        if (daysLeft > 0) {
+          trialBanner.classList.remove('hidden');
+          const trialMsg = $('trialMsg');
+          if (trialMsg) trialMsg.textContent = `Pro trial: ${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining`;
+        } else {
+          trialBanner.classList.add('hidden');
+        }
+      } else {
+        trialBanner.classList.add('hidden');
+      }
+    }
 
     if (plan === 'pro') {
       badge.innerHTML = '<span class="px-3 py-1 rounded-full bg-accent/15 text-accent-l text-sm font-semibold border border-accent/25">Research</span>';

@@ -12,6 +12,7 @@ import hmac
 import os
 import secrets
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import jwt  # PyJWT
@@ -121,9 +122,13 @@ def signup(name: str, email: str, password: str) -> dict[str, Any]:
 
     hashed = _hash_password(password)
     verification_token = secrets.token_urlsafe(32)
+
+    # Grant a 3-day Pro trial to every new user
+    trial_ends_at = (datetime.now(timezone.utc) + timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _ensure_trial_ends_at_column(db)
     user_id = db.execute(
-        "INSERT INTO users (name, email, password, plan_type) VALUES (?, ?, ?, ?)",
-        (name, email, hashed, "free"),
+        "INSERT INTO users (name, email, password, plan_type, trial_ends_at) VALUES (?, ?, ?, ?, ?)",
+        (name, email, hashed, "pro", trial_ends_at),
     )
 
     # Store verification token
@@ -140,7 +145,7 @@ def signup(name: str, email: str, password: str) -> dict[str, Any]:
     logger.info("user_created", user_id=user_id, email=email)
 
     return {
-        "user": {"id": user_id, "name": name, "email": email, "plan_type": "free"},
+        "user": {"id": user_id, "name": name, "email": email, "plan_type": "pro", "trial_ends_at": trial_ends_at},
         "token": token,
         "verification_token": verification_token,
     }
@@ -167,11 +172,16 @@ def login(email: str, password: str) -> dict[str, Any]:
     token = create_access_token(row["id"], row["email"])
     logger.info("user_login", user_id=row["id"], email=row["email"])
 
-    # Fetch plan_type for the user
+    # Fetch plan_type and trial info for the user
+    _ensure_trial_ends_at_column(db)
     user_full = db.fetch_one(
-        "SELECT plan_type FROM users WHERE id = ?", (row["id"],)
+        "SELECT plan_type, trial_ends_at FROM users WHERE id = ?", (row["id"],)
     )
     plan_type = user_full["plan_type"] if user_full else "free"
+    trial_ends_at = user_full.get("trial_ends_at") if user_full else None
+
+    # Check if trial has expired — downgrade to free
+    plan_type, trial_ends_at = _check_trial_expiry(db, row["id"], plan_type, trial_ends_at)
 
     return {
         "user": {
@@ -179,18 +189,29 @@ def login(email: str, password: str) -> dict[str, Any]:
             "name": row["name"],
             "email": row["email"],
             "plan_type": plan_type,
+            "trial_ends_at": trial_ends_at,
         },
         "token": token,
     }
 
 
 def get_user_by_id(user_id: int) -> dict[str, Any] | None:
-    """Fetch a user record by ID (without password)."""
+    """Fetch a user record by ID (without password).
+
+    Also checks and handles trial expiry automatically.
+    """
     db = get_db()
+    _ensure_trial_ends_at_column(db)
     row = db.fetch_one(
-        "SELECT id, name, email, is_paid, plan_type, created_at FROM users WHERE id = ?",
+        "SELECT id, name, email, is_paid, plan_type, trial_ends_at, created_at FROM users WHERE id = ?",
         (user_id,),
     )
+    if row:
+        plan_type, trial_ends_at = _check_trial_expiry(
+            db, row["id"], row.get("plan_type", "free"), row.get("trial_ends_at")
+        )
+        row["plan_type"] = plan_type
+        row["trial_ends_at"] = trial_ends_at
     return row
 
 
@@ -406,3 +427,56 @@ def _ensure_email_verified_column(db) -> None:
             )
         except Exception:
             pass  # Column already exists
+
+
+def _ensure_trial_ends_at_column(db) -> None:
+    """Add trial_ends_at column to users table if not present."""
+    try:
+        db.execute("ALTER TABLE users ADD COLUMN trial_ends_at TEXT NULL")
+    except Exception:
+        try:
+            db.execute(
+                "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('users') AND name = 'trial_ends_at') "
+                "ALTER TABLE users ADD trial_ends_at DATETIME2 NULL"
+            )
+        except Exception:
+            pass  # Column already exists
+
+
+def _check_trial_expiry(db, user_id: int, plan_type: str, trial_ends_at) -> tuple[str, str | None]:
+    """Check if a user's Pro trial has expired and downgrade if necessary.
+
+    Returns (effective_plan_type, trial_ends_at_str).
+    """
+    if not trial_ends_at:
+        return plan_type, None
+
+    # Parse trial_ends_at (could be ISO string or datetime)
+    trial_str = str(trial_ends_at)
+    try:
+        if "T" in trial_str:
+            trial_dt = datetime.fromisoformat(trial_str.replace("Z", "+00:00"))
+        else:
+            trial_dt = datetime.fromisoformat(trial_str).replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return plan_type, trial_str
+
+    now = datetime.now(timezone.utc)
+    if now >= trial_dt and plan_type == "pro":
+        # Trial expired — check if user has any successful payment
+        from app.services.database import get_db as _get_db
+        payment = db.fetch_one(
+            "SELECT id FROM payments WHERE user_id = ? AND status = 'paid'",
+            (user_id,),
+        )
+        if not payment:
+            # No payment → downgrade to free
+            db.execute(
+                "UPDATE users SET plan_type = 'free', is_paid = 0, trial_ends_at = NULL, "
+                "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (user_id,),
+            )
+            logger.info("trial_expired_downgraded", user_id=user_id)
+            return "free", None
+
+    return plan_type, trial_str
