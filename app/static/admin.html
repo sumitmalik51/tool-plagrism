@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <title>PlagiarismGuard — Admin Panel</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bg:       '#0f1117',
+            surface:  '#1a1d27',
+            surface2: '#242836',
+            border:   '#2e3348',
+            txt:      '#e1e4ed',
+            muted:    '#8b8fa3',
+            accent:   '#6c5ce7',
+            'accent-l':'#a29bfe',
+            ok:       '#00b894',
+            warn:     '#fdcb6e',
+            danger:   '#e17055',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin .8s linear infinite; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .stat-card { background: rgba(26,29,39,.8); border: 1px solid #2e3348; border-radius: 16px; padding: 24px; transition: border-color .3s; }
+    .stat-card:hover { border-color: #6c5ce7; }
+    .table-row:hover { background: rgba(108,92,231,.05); }
+    .plan-badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .plan-free { background: rgba(108,92,231,.12); color: #a29bfe; border: 1px solid rgba(108,92,231,.25); }
+    .plan-pro { background: rgba(0,184,148,.12); color: #00b894; border: 1px solid rgba(0,184,148,.25); }
+    .plan-premium { background: rgba(253,203,110,.12); color: #fdcb6e; border: 1px solid rgba(253,203,110,.25); }
+  </style>
+</head>
+<body class="bg-bg text-txt min-h-screen">
+
+  <!-- Navbar -->
+  <nav class="fixed top-0 left-0 right-0 z-50 bg-bg/80 backdrop-blur-xl border-b border-border/50">
+    <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-gradient-to-br from-accent to-[#00b894] rounded-xl grid place-items-center text-white font-bold text-lg shadow-lg shadow-accent/20">P</div>
+        <span class="text-lg font-bold">PlagiarismGuard</span>
+        <span class="text-[10px] text-danger bg-danger/10 px-2 py-0.5 rounded-full font-semibold tracking-wider uppercase border border-danger/20">Admin</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="/" class="text-sm text-muted hover:text-txt transition-colors">Back to App</a>
+        <button onclick="handleLogout()" class="text-sm text-muted hover:text-danger transition-colors">Sign Out</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Auth gate -->
+  <div id="authGate" class="pt-32 text-center px-6">
+    <div class="max-w-md mx-auto">
+      <div class="text-5xl mb-4">🔒</div>
+      <h1 class="text-2xl font-bold mb-2">Admin Access Required</h1>
+      <p class="text-muted text-sm mb-6">Sign in with an admin account to access the dashboard.</p>
+      <a href="/login?redirect=/admin" class="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:shadow-accent/25 transition-all">
+        Sign In
+      </a>
+    </div>
+  </div>
+
+  <!-- Forbidden gate -->
+  <div id="forbiddenGate" class="hidden pt-32 text-center px-6">
+    <div class="max-w-md mx-auto">
+      <div class="text-5xl mb-4">⛔</div>
+      <h1 class="text-2xl font-bold mb-2">Access Denied</h1>
+      <p class="text-muted text-sm mb-6">Your account does not have admin privileges.</p>
+      <a href="/" class="inline-flex items-center gap-2 px-6 py-3 bg-surface2 border border-border text-txt rounded-xl text-sm font-semibold hover:border-accent transition-all">
+        Back to App
+      </a>
+    </div>
+  </div>
+
+  <!-- Admin Dashboard -->
+  <div id="adminDashboard" class="hidden pt-20">
+
+    <!-- Header -->
+    <section class="px-6 pt-8 pb-6">
+      <div class="max-w-7xl mx-auto">
+        <h1 class="text-2xl font-bold mb-1">Admin Dashboard</h1>
+        <p class="text-muted text-sm">User management and platform analytics</p>
+      </div>
+    </section>
+
+    <!-- Stats Cards -->
+    <section class="px-6 pb-8">
+      <div class="max-w-7xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="stat-card">
+          <div class="text-xs text-muted font-medium uppercase tracking-wider mb-2">Total Users</div>
+          <div class="text-3xl font-bold" id="statTotalUsers">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="text-xs text-muted font-medium uppercase tracking-wider mb-2">Total Scans</div>
+          <div class="text-3xl font-bold text-accent-l" id="statTotalScans">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="text-xs text-muted font-medium uppercase tracking-wider mb-2">Paid Users</div>
+          <div class="text-3xl font-bold text-ok" id="statPaidUsers">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="text-xs text-muted font-medium uppercase tracking-wider mb-2">Revenue</div>
+          <div class="text-3xl font-bold text-warn" id="statRevenue">—</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Plan Distribution -->
+    <section class="px-6 pb-8">
+      <div class="max-w-7xl mx-auto">
+        <h2 class="text-lg font-semibold mb-4">Plan Distribution</h2>
+        <div class="grid grid-cols-3 gap-4" id="planDistribution">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Signup Trend -->
+    <section class="px-6 pb-8">
+      <div class="max-w-7xl mx-auto">
+        <h2 class="text-lg font-semibold mb-4">Daily Signups (Last 14 Days)</h2>
+        <div class="bg-surface/80 border border-border rounded-2xl p-6 overflow-x-auto">
+          <div class="flex items-end gap-2 h-32 min-w-[400px]" id="signupChart">
+            <!-- Bars filled by JS -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Analytics: Scan Volume + Tool Usage -->
+    <section class="px-6 pb-8">
+      <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Scan Volume -->
+        <div>
+          <h2 class="text-lg font-semibold mb-4">Scan Volume (Last 14 Days)</h2>
+          <div class="bg-surface/80 border border-border rounded-2xl p-6 overflow-x-auto">
+            <div class="flex items-end gap-2 h-32 min-w-[300px]" id="scanChart">
+              <p class="text-muted text-xs">Loading…</p>
+            </div>
+          </div>
+        </div>
+        <!-- Tool Usage -->
+        <div>
+          <h2 class="text-lg font-semibold mb-4">Tool Usage Breakdown</h2>
+          <div class="bg-surface/80 border border-border rounded-2xl p-6" id="toolUsageContainer">
+            <p class="text-muted text-xs">Loading…</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Analytics: Risk Distribution + Avg Score + Top Users -->
+    <section class="px-6 pb-8">
+      <div class="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="stat-card">
+          <div class="text-xs text-muted font-medium uppercase tracking-wider mb-2">Avg Plagiarism Score</div>
+          <div class="text-3xl font-bold text-accent-l" id="statAvgScore">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="text-xs text-muted font-medium uppercase tracking-wider mb-2">Risk Distribution</div>
+          <div id="riskDistribution" class="space-y-2 mt-2">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="text-xs text-muted font-medium uppercase tracking-wider mb-2">Top Active Users</div>
+          <div id="topUsersList" class="space-y-1 mt-2 max-h-32 overflow-y-auto text-xs">—</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- User Table -->
+    <section class="px-6 pb-12">
+      <div class="max-w-7xl mx-auto">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+          <h2 class="text-lg font-semibold">All Users</h2>
+          <div class="flex items-center gap-3">
+            <input type="text" id="searchInput" placeholder="Search name or email…"
+              class="bg-surface2 border border-border rounded-lg px-3 py-2 text-sm text-txt placeholder-muted focus:outline-none focus:border-accent w-56" />
+            <select id="planFilter"
+              class="bg-surface2 border border-border rounded-lg px-3 py-2 text-sm text-txt focus:outline-none focus:border-accent">
+              <option value="all">All Plans</option>
+              <option value="free">Basic (Free)</option>
+              <option value="pro">Research (Pro)</option>
+              <option value="premium">Advanced (Premium)</option>
+            </select>
+            <button onclick="loadUsers(1)" class="px-4 py-2 bg-accent/10 border border-accent/20 text-accent-l rounded-lg text-sm font-semibold hover:bg-accent/20 transition-colors">
+              Search
+            </button>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="bg-surface/80 border border-border rounded-2xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-border text-left">
+                  <th class="px-5 py-3 text-xs text-muted font-semibold uppercase tracking-wider">ID</th>
+                  <th class="px-5 py-3 text-xs text-muted font-semibold uppercase tracking-wider">Name</th>
+                  <th class="px-5 py-3 text-xs text-muted font-semibold uppercase tracking-wider">Email</th>
+                  <th class="px-5 py-3 text-xs text-muted font-semibold uppercase tracking-wider">Plan</th>
+                  <th class="px-5 py-3 text-xs text-muted font-semibold uppercase tracking-wider">Scans</th>
+                  <th class="px-5 py-3 text-xs text-muted font-semibold uppercase tracking-wider">Uses</th>
+                  <th class="px-5 py-3 text-xs text-muted font-semibold uppercase tracking-wider">Joined</th>
+                  <th class="px-5 py-3 text-xs text-muted font-semibold uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="userTableBody">
+                <!-- Filled by JS -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          <div class="flex items-center justify-between px-5 py-3 border-t border-border">
+            <div class="text-xs text-muted" id="paginationInfo">—</div>
+            <div class="flex items-center gap-2">
+              <button onclick="prevPage()" id="prevBtn" disabled
+                class="px-3 py-1.5 bg-surface2 border border-border rounded-lg text-xs text-muted hover:text-txt hover:border-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                Previous
+              </button>
+              <span class="text-xs text-muted" id="pageIndicator">1</span>
+              <button onclick="nextPage()" id="nextBtn" disabled
+                class="px-3 py-1.5 bg-surface2 border border-border rounded-lg text-xs text-muted hover:text-txt hover:border-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /adminDashboard -->
+
+  <script>
+    // =========================================================================
+    // State
+    // =========================================================================
+    let currentPage = 1;
+    let totalPages = 1;
+    let token = '';
+
+    const PLAN_LABELS = { free: 'Basic', pro: 'Research', premium: 'Advanced' };
+
+    // =========================================================================
+    // Init
+    // =========================================================================
+    (async function init() {
+      token = localStorage.getItem('pg_token');
+      if (!token) {
+        document.getElementById('authGate').classList.remove('hidden');
+        return;
+      }
+
+      // Check if user is admin by calling admin/stats
+      try {
+        const res = await apiFetch('/api/v1/admin/stats');
+        if (res.status === 403) {
+          document.getElementById('authGate').classList.add('hidden');
+          document.getElementById('forbiddenGate').classList.remove('hidden');
+          return;
+        }
+        if (res.status === 401) {
+          document.getElementById('authGate').classList.remove('hidden');
+          return;
+        }
+        if (!res.ok) {
+          document.getElementById('authGate').classList.remove('hidden');
+          return;
+        }
+
+        const stats = await res.json();
+        document.getElementById('authGate').classList.add('hidden');
+        document.getElementById('adminDashboard').classList.remove('hidden');
+        renderStats(stats);
+        loadUsers(1);
+        loadAnalytics();
+      } catch (err) {
+        console.error('Admin init failed:', err);
+        document.getElementById('authGate').classList.remove('hidden');
+      }
+    })();
+
+    // =========================================================================
+    // API helper
+    // =========================================================================
+    function apiFetch(url, options = {}) {
+      return fetch(url, {
+        ...options,
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json',
+          ...(options.headers || {}),
+        },
+      });
+    }
+
+    // =========================================================================
+    // Render stats
+    // =========================================================================
+    function renderStats(stats) {
+      document.getElementById('statTotalUsers').textContent = stats.total_users.toLocaleString();
+      document.getElementById('statTotalScans').textContent = stats.total_scans.toLocaleString();
+
+      const paidCount = (stats.plans.pro || 0) + (stats.plans.premium || 0);
+      document.getElementById('statPaidUsers').textContent = paidCount.toLocaleString();
+      document.getElementById('statRevenue').textContent = '₹' + stats.total_revenue_inr.toLocaleString();
+
+      // Plan distribution
+      const planDiv = document.getElementById('planDistribution');
+      const planData = [
+        { key: 'free', label: 'Basic', count: stats.plans.free || 0, cls: 'plan-free', color: '#a29bfe' },
+        { key: 'pro', label: 'Research', count: stats.plans.pro || 0, cls: 'plan-pro', color: '#00b894' },
+        { key: 'premium', label: 'Advanced', count: stats.plans.premium || 0, cls: 'plan-premium', color: '#fdcb6e' },
+      ];
+      planDiv.innerHTML = planData.map(p => `
+        <div class="stat-card">
+          <div class="flex items-center justify-between mb-3">
+            <span class="plan-badge ${p.cls}">${p.label}</span>
+            <span class="text-xs text-muted">${stats.total_users > 0 ? Math.round((p.count / stats.total_users) * 100) : 0}%</span>
+          </div>
+          <div class="text-2xl font-bold" style="color: ${p.color}">${p.count}</div>
+          <div class="mt-2 h-1.5 bg-surface2 rounded-full overflow-hidden">
+            <div class="h-full rounded-full" style="width: ${stats.total_users > 0 ? (p.count / stats.total_users * 100) : 0}%; background: ${p.color};"></div>
+          </div>
+        </div>
+      `).join('');
+
+      // Signup chart (last 14 days)
+      const chart = document.getElementById('signupChart');
+      const days = (stats.signups_by_day || []).slice(0, 14).reverse();
+      if (days.length === 0) {
+        chart.innerHTML = '<p class="text-muted text-xs">No signup data available.</p>';
+        return;
+      }
+      const maxCount = Math.max(...days.map(d => d.cnt), 1);
+      chart.innerHTML = days.map(d => {
+        const height = Math.max((d.cnt / maxCount) * 100, 4);
+        const dayLabel = typeof d.day === 'string' ? d.day.slice(5) : d.day;
+        return `
+          <div class="flex flex-col items-center gap-1 flex-1">
+            <span class="text-[10px] text-txt font-semibold">${d.cnt}</span>
+            <div class="w-full rounded-t-md bg-accent/70" style="height: ${height}%;"></div>
+            <span class="text-[9px] text-muted">${dayLabel}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // =========================================================================
+    // Load analytics
+    // =========================================================================
+    async function loadAnalytics() {
+      try {
+        const res = await apiFetch('/api/v1/admin/analytics');
+        if (!res.ok) return;
+        const data = await res.json();
+        renderAnalytics(data);
+      } catch (err) {
+        console.error('Failed to load analytics:', err);
+      }
+    }
+
+    function renderAnalytics(data) {
+      // Scan volume chart
+      const scanChart = document.getElementById('scanChart');
+      const scanDays = (data.scans_by_day || []).slice(0, 14).reverse();
+      if (scanDays.length === 0) {
+        scanChart.innerHTML = '<p class="text-muted text-xs">No scan data available.</p>';
+      } else {
+        const maxCnt = Math.max(...scanDays.map(d => d.cnt), 1);
+        scanChart.innerHTML = scanDays.map(d => {
+          const height = Math.max((d.cnt / maxCnt) * 100, 4);
+          const dayLabel = typeof d.day === 'string' ? d.day.slice(5) : d.day;
+          return `
+            <div class="flex flex-col items-center gap-1 flex-1">
+              <span class="text-[10px] text-txt font-semibold">${d.cnt}</span>
+              <div class="w-full rounded-t-md bg-ok/70" style="height: ${height}%;"></div>
+              <span class="text-[9px] text-muted">${dayLabel}</span>
+            </div>`;
+        }).join('');
+      }
+
+      // Tool usage breakdown
+      const toolContainer = document.getElementById('toolUsageContainer');
+      const tools = data.tool_usage || [];
+      if (tools.length === 0) {
+        toolContainer.innerHTML = '<p class="text-muted text-xs">No usage data available.</p>';
+      } else {
+        const maxTool = Math.max(...tools.map(t => t.cnt), 1);
+        const toolColors = { scan: '#6c5ce7', rewrite: '#00b894', grammar: '#fdcb6e', readability: '#e17055', citation: '#a29bfe' };
+        toolContainer.innerHTML = tools.map(t => {
+          const pct = Math.round((t.cnt / maxTool) * 100);
+          const color = toolColors[t.tool_type] || '#6c5ce7';
+          return `
+            <div class="flex items-center gap-3 mb-3">
+              <span class="text-xs text-muted w-20 shrink-0 capitalize">${t.tool_type}</span>
+              <div class="flex-1 h-5 bg-surface2 rounded-full overflow-hidden">
+                <div class="h-full rounded-full" style="width: ${pct}%; background: ${color};"></div>
+              </div>
+              <span class="text-xs text-txt font-semibold w-10 text-right">${t.cnt}</span>
+            </div>`;
+        }).join('');
+      }
+
+      // Average plagiarism score
+      document.getElementById('statAvgScore').textContent = data.avg_plagiarism_score + '%';
+
+      // Risk distribution
+      const riskDiv = document.getElementById('riskDistribution');
+      const riskColors = { HIGH: '#e17055', MEDIUM: '#fdcb6e', LOW: '#00b894' };
+      const risk = data.risk_distribution || {};
+      if (Object.keys(risk).length === 0) {
+        riskDiv.innerHTML = '<p class="text-muted text-xs">No data</p>';
+      } else {
+        riskDiv.innerHTML = Object.entries(risk).map(([level, cnt]) => `
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium" style="color: ${riskColors[level] || '#8b8fa3'}">${level}</span>
+            <span class="text-xs text-txt font-semibold">${cnt}</span>
+          </div>`).join('');
+      }
+
+      // Top users
+      const topDiv = document.getElementById('topUsersList');
+      const topUsers = data.top_users || [];
+      if (topUsers.length === 0) {
+        topDiv.innerHTML = '<p class="text-muted text-xs">No data</p>';
+      } else {
+        topDiv.innerHTML = topUsers.map((u, i) => `
+          <div class="flex items-center justify-between">
+            <span class="text-muted">${i + 1}. ${u.name || u.email}</span>
+            <span class="text-txt font-semibold">${u.scan_count} scans</span>
+          </div>`).join('');
+      }
+    }
+
+    // =========================================================================
+    // Load users
+    // =========================================================================
+    async function loadUsers(page) {
+      currentPage = page;
+      const search = document.getElementById('searchInput').value.trim();
+      const planFilter = document.getElementById('planFilter').value;
+      const params = new URLSearchParams({ page, per_page: 50, plan_filter: planFilter });
+      if (search) params.set('search', search);
+
+      try {
+        const res = await apiFetch('/api/v1/admin/users?' + params);
+        if (!res.ok) return;
+        const data = await res.json();
+        totalPages = data.total_pages;
+        renderUserTable(data);
+      } catch (err) {
+        console.error('Failed to load users:', err);
+      }
+    }
+
+    function renderUserTable(data) {
+      const tbody = document.getElementById('userTableBody');
+      if (data.users.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" class="px-5 py-10 text-center text-muted text-sm">No users found.</td>
+          </tr>`;
+      } else {
+        tbody.innerHTML = data.users.map(u => {
+          const planCls = u.plan_type === 'premium' ? 'plan-premium' : u.plan_type === 'pro' ? 'plan-pro' : 'plan-free';
+          const planLabel = PLAN_LABELS[u.plan_type] || u.plan_type;
+          const joined = u.created_at ? new Date(u.created_at).toLocaleDateString() : '—';
+          return `
+            <tr class="table-row border-b border-border/50" id="user-row-${u.id}">
+              <td class="px-5 py-3 text-muted">${u.id}</td>
+              <td class="px-5 py-3 font-medium">${esc(u.name)}</td>
+              <td class="px-5 py-3 text-muted">${esc(u.email)}</td>
+              <td class="px-5 py-3"><span class="plan-badge ${planCls}" id="plan-badge-${u.id}">${planLabel}</span></td>
+              <td class="px-5 py-3 text-center">${u.scan_count ?? 0}</td>
+              <td class="px-5 py-3 text-center">${u.usage_count ?? 0}</td>
+              <td class="px-5 py-3 text-muted text-xs">${joined}</td>
+              <td class="px-5 py-3">
+                <select onchange="changePlan(${u.id}, this.value, this)" class="bg-surface2 border border-border rounded-lg px-2 py-1 text-xs text-txt focus:outline-none focus:border-accent cursor-pointer">
+                  <option value="free" ${u.plan_type === 'free' ? 'selected' : ''}>Basic</option>
+                  <option value="pro" ${u.plan_type === 'pro' ? 'selected' : ''}>Research</option>
+                  <option value="premium" ${u.plan_type === 'premium' ? 'selected' : ''}>Advanced</option>
+                </select>
+              </td>
+            </tr>`;
+        }).join('');
+      }
+
+      // Pagination info
+      const start = (data.page - 1) * data.per_page + 1;
+      const end = Math.min(data.page * data.per_page, data.total);
+      document.getElementById('paginationInfo').textContent =
+        data.total > 0 ? `Showing ${start}–${end} of ${data.total} users` : 'No users';
+      document.getElementById('pageIndicator').textContent = `${data.page} / ${data.total_pages}`;
+      document.getElementById('prevBtn').disabled = data.page <= 1;
+      document.getElementById('nextBtn').disabled = data.page >= data.total_pages;
+    }
+
+    function prevPage() { if (currentPage > 1) loadUsers(currentPage - 1); }
+    function nextPage() { if (currentPage < totalPages) loadUsers(currentPage + 1); }
+
+    // Allow Enter key in search
+    document.getElementById('searchInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') loadUsers(1);
+    });
+
+    // =========================================================================
+    // Helpers
+    // =========================================================================
+    function esc(str) {
+      const d = document.createElement('div');
+      d.textContent = str || '';
+      return d.innerHTML;
+    }
+
+    function handleLogout() {
+      localStorage.removeItem('pg_token');
+      localStorage.removeItem('pg_user');
+      window.location.href = '/login';
+    }
+
+    // =========================================================================
+    // Change plan (admin override)
+    // =========================================================================
+    async function changePlan(userId, newPlan, selectEl) {
+      if (!confirm(`Change user #${userId} to "${PLAN_LABELS[newPlan] || newPlan}" plan?`)) {
+        // Revert select to previous value
+        loadUsers(currentPage);
+        return;
+      }
+
+      selectEl.disabled = true;
+      try {
+        const res = await apiFetch('/api/v1/admin/update-plan', {
+          method: 'POST',
+          body: JSON.stringify({ user_id: userId, plan_type: newPlan }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert('Failed: ' + (data.detail || 'Unknown error'));
+          loadUsers(currentPage);
+          return;
+        }
+
+        // Update badge inline
+        const badge = document.getElementById('plan-badge-' + userId);
+        if (badge) {
+          const planCls = newPlan === 'premium' ? 'plan-premium' : newPlan === 'pro' ? 'plan-pro' : 'plan-free';
+          badge.className = 'plan-badge ' + planCls;
+          badge.textContent = PLAN_LABELS[newPlan] || newPlan;
+        }
+
+        // Flash success on the row
+        const row = document.getElementById('user-row-' + userId);
+        if (row) {
+          row.style.background = 'rgba(0,184,148,.08)';
+          setTimeout(() => row.style.background = '', 1500);
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+        loadUsers(currentPage);
+      } finally {
+        selectEl.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

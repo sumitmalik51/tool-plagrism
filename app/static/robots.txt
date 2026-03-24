@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /login
+Disallow: /signup
+
+Sitemap: https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net/sitemap.xml

@@ -154,7 +154,7 @@ class AzureSQLDatabase(Database):
             self._local.conn = self._pyodbc.connect(
                 self._connection_string,
                 autocommit=False,
-                timeout=settings.db_connection_timeout,
+                timeout=30,
             )
         return self._local.conn
 
@@ -231,6 +231,8 @@ CREATE TABLE IF NOT EXISTS users (
     email       TEXT          NOT NULL UNIQUE COLLATE NOCASE,
     password    TEXT          NOT NULL,
     is_paid     INTEGER       NOT NULL DEFAULT 0,
+    plan_type   TEXT          NOT NULL DEFAULT 'free',
+    trial_ends_at TEXT        NULL,
     created_at  TEXT          NOT NULL DEFAULT (datetime('now')),
     updated_at  TEXT          NOT NULL DEFAULT (datetime('now'))
 );
@@ -260,9 +262,34 @@ CREATE TABLE IF NOT EXISTS scans (
     FOREIGN KEY (document_id) REFERENCES documents(document_id)
 );
 
+CREATE TABLE IF NOT EXISTS usage_logs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER,
+    ip_address  TEXT,
+    tool_type   TEXT          NOT NULL,
+    created_at  TEXT          NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS payments (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id         INTEGER       NOT NULL REFERENCES users(id),
+    razorpay_order_id   TEXT      NOT NULL UNIQUE,
+    razorpay_payment_id TEXT      NULL,
+    razorpay_signature  TEXT      NULL,
+    plan_name       TEXT          NOT NULL,
+    amount          INTEGER       NOT NULL,
+    currency        TEXT          NOT NULL DEFAULT 'INR',
+    status          TEXT          NOT NULL DEFAULT 'created',
+    created_at      TEXT          NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT          NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents(user_id);
 CREATE INDEX IF NOT EXISTS idx_scans_user_id ON scans(user_id);
 CREATE INDEX IF NOT EXISTS idx_scans_document_id ON scans(document_id);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_user_id ON usage_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_ip ON usage_logs(ip_address);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_created ON usage_logs(created_at);
 """
 
 _MSSQL_SCHEMA = """
@@ -273,6 +300,8 @@ CREATE TABLE users (
     email       NVARCHAR(255)     NOT NULL UNIQUE,
     password    NVARCHAR(500)     NOT NULL,
     is_paid     BIT               NOT NULL DEFAULT 0,
+    plan_type   NVARCHAR(20)      NOT NULL DEFAULT 'free',
+    trial_ends_at DATETIME2       NULL,
     created_at  DATETIME2         NOT NULL DEFAULT GETUTCDATE(),
     updated_at  DATETIME2         NOT NULL DEFAULT GETUTCDATE()
 );
@@ -304,6 +333,15 @@ CREATE TABLE scans (
     FOREIGN KEY (document_id) REFERENCES documents(document_id)
 );
 ---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'usage_logs')
+CREATE TABLE usage_logs (
+    id          INT IDENTITY(1,1) PRIMARY KEY,
+    user_id     INT               NULL,
+    ip_address  NVARCHAR(45)      NULL,
+    tool_type   NVARCHAR(30)      NOT NULL,
+    created_at  DATETIME2         NOT NULL DEFAULT GETUTCDATE()
+);
+---
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_documents_user_id')
 CREATE INDEX idx_documents_user_id ON documents(user_id);
 ---
@@ -312,6 +350,36 @@ CREATE INDEX idx_scans_user_id ON scans(user_id);
 ---
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_scans_document_id')
 CREATE INDEX idx_scans_document_id ON scans(document_id);
+---
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_usage_logs_user_id')
+CREATE INDEX idx_usage_logs_user_id ON usage_logs(user_id);
+---
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_usage_logs_ip')
+CREATE INDEX idx_usage_logs_ip ON usage_logs(ip_address);
+---
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_usage_logs_created')
+CREATE INDEX idx_usage_logs_created ON usage_logs(created_at);
+---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'payments')
+CREATE TABLE payments (
+    id                  INT IDENTITY(1,1) PRIMARY KEY,
+    user_id             INT               NOT NULL REFERENCES users(id),
+    razorpay_order_id   NVARCHAR(100)     NOT NULL UNIQUE,
+    razorpay_payment_id NVARCHAR(100)     NULL,
+    razorpay_signature  NVARCHAR(255)     NULL,
+    plan_name           NVARCHAR(20)      NOT NULL,
+    amount              INT               NOT NULL,
+    currency            NVARCHAR(10)      NOT NULL DEFAULT 'INR',
+    status              NVARCHAR(20)      NOT NULL DEFAULT 'created',
+    created_at          DATETIME2         NOT NULL DEFAULT GETUTCDATE(),
+    updated_at          DATETIME2         NOT NULL DEFAULT GETUTCDATE()
+);
+---
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('users') AND name = 'plan_type')
+ALTER TABLE users ADD plan_type NVARCHAR(20) NOT NULL DEFAULT 'free';
+---
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('users') AND name = 'trial_ends_at')
+ALTER TABLE users ADD trial_ends_at DATETIME2 NULL;
 """
 
 

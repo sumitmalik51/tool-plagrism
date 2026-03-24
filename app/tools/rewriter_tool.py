@@ -34,29 +34,47 @@ MAX_RETRIES = 2
 # System prompts
 # ---------------------------------------------------------------------------
 
-_PARAGRAPH_SYSTEM = """You are an expert academic rewriting engine specialized in plagiarism removal.
+_PARAGRAPH_SYSTEM = """You are an expert academic writing assistant specializing in plagiarism-safe rewriting for research papers, theses, and journal publications.
+
+Your task is to rewrite the provided text to ensure originality while preserving the exact meaning, technical accuracy, and citations.
 
 STRICT REQUIREMENTS:
-1. Preserve EXACT meaning, facts, numbers, intent.
-2. Use different sentence structures (not synonyms only).
-3. Avoid copying phrases longer than 3 words.
-4. Ensure output is plagiarism-safe.
-5. Do NOT add or remove information.
-6. Maintain requested tone.
-7. Keep similar length (±15%).
-8. Ensure natural human fluency.
 
-REWRITE STRENGTH:
-- LOW: minimal change
-- MEDIUM: moderate
-- HIGH: aggressive restructuring
+1. Change sentence structure significantly — do NOT follow the same order or phrasing as the original.
+2. Reorganize ideas where possible to reduce similarity.
+3. Do NOT copy phrases longer than 3 consecutive words from the original text.
+4. Preserve all citations, numbers, and technical terms exactly.
+5. Maintain a formal academic tone suitable for PhD-level writing.
+6. Avoid overly complex or "AI-sounding" vocabulary — prefer clear, natural academic language.
+7. Do NOT introduce new information or remove important details.
+8. Keep the length approximately similar (±15%).
 
-QUALITY CHECK:
-- Would plagiarism still trigger? If yes, rewrite.
-- Did meaning change? Fix it.
+REWRITE STRATEGY:
 
-OUTPUT:
-Return ONLY JSON list of 3 rewrites.
+Produce exactly 3 distinct versions using different approaches:
+
+Version 1 — Structural Rewrite:
+- Change sentence order and structure significantly
+- Combine or split sentences where needed
+
+Version 2 — Analytical Rewrite:
+- Slightly shift emphasis (e.g., cause → effect, example → concept)
+- Maintain logical clarity but vary presentation
+
+Version 3 — Natural Academic Rewrite:
+- Simplify language while keeping it formal
+- Make it sound like a human researcher wrote it (not AI)
+
+QUALITY CHECK BEFORE OUTPUT:
+
+- Would this still be flagged by a plagiarism checker? If yes, rewrite again.
+- Does it preserve the original meaning fully? If no, fix it.
+
+OUTPUT FORMAT:
+
+Return ONLY a JSON array of 3 rewritten strings. Example:
+["Version 1 text here.", "Version 2 text here.", "Version 3 text here."]
+Do NOT wrap in objects or add keys — just plain text strings in a JSON array.
 """
 
 _DOCUMENT_SYSTEM = """You are an expert rewriting engine.
@@ -124,12 +142,35 @@ def _safe_parse_rewrites(output: str) -> list[str]:
     try:
         parsed = json.loads(output)
         if isinstance(parsed, list):
-            return parsed[:3]
+            # Ensure each element is a plain string
+            result = []
+            for item in parsed[:3]:
+                if isinstance(item, str):
+                    result.append(item)
+                elif isinstance(item, dict):
+                    # AI sometimes returns {"text": "...", ...}
+                    result.append(
+                        item.get("text")
+                        or item.get("rewrite")
+                        or item.get("rewritten")
+                        or item.get("content")
+                        or str(item)
+                    )
+                else:
+                    result.append(str(item))
+            return result if result else [output]
+        elif isinstance(parsed, str):
+            return [parsed]
     except Exception:
         pass
 
-    # fallback
-    return [output]
+    # fallback: strip markdown code fences if present
+    cleaned = output.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        return _safe_parse_rewrites(cleaned)
+
+    return [cleaned]
 
 # ---------------------------------------------------------------------------
 # Paragraph Rewrite

@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
+from app.dependencies.rate_limit import enforce_usage_limit, record_usage
 from app.tools.rewriter_tool import rewrite_paragraph, rewrite_document
 from app.tools.general_rewriter import general_rewrite
 from app.utils.logger import get_logger
@@ -23,11 +24,8 @@ router = APIRouter(prefix="/api/v1", tags=["rewrite"])
 class RewriteParagraphRequest(BaseModel):
     """Request body for paragraph rewriting."""
 
-    text: str = Field(
-        ..., min_length=1, max_length=50_000,
-        description="The flagged paragraph to rewrite",
-    )
-    context: str = Field(default="", max_length=50_000, description="Surrounding text for context")
+    text: str = Field(..., min_length=1, description="The flagged paragraph to rewrite")
+    context: str = Field(default="", description="Surrounding text for context")
     tone: str = Field(default="academic", description="Writing tone: academic, professional, casual")
 
 
@@ -45,10 +43,7 @@ class RewriteParagraphResponse(BaseModel):
 class RewriteDocumentRequest(BaseModel):
     """Request body for full document rewriting."""
 
-    text: str = Field(
-        ..., min_length=1, max_length=500_000,
-        description="The full document text",
-    )
+    text: str = Field(..., min_length=1, description="The full document text")
     flagged_passages: list[str] = Field(
         default_factory=list,
         description="Passages flagged as plagiarised (will be targeted for rewriting)",
@@ -74,9 +69,11 @@ class RewriteDocumentResponse(BaseModel):
     response_model=RewriteParagraphResponse,
     status_code=status.HTTP_200_OK,
     summary="Rewrite a single paragraph to eliminate plagiarism",
+    dependencies=[Depends(enforce_usage_limit)],
 )
 async def rewrite_paragraph_endpoint(
     request: RewriteParagraphRequest,
+    http_request: Request = None,
 ) -> RewriteParagraphResponse:
     """Accept a flagged paragraph, rewrite it using AI, and return the
     rewritten version with the original preserved for comparison."""
@@ -103,11 +100,19 @@ async def rewrite_paragraph_endpoint(
             detail=f"AI rewrite failed: {exc}",
         )
 
+    # Record usage
+    if http_request:
+        record_usage(http_request, tool_type="rewrite")
+
     # Bridge tool output (rewrites list) to response model (rewritten string)
     rewrites = result.get("rewrites", [])
+    best = rewrites[0] if rewrites else result["original"]
+    # Guard: if AI returned a dict instead of a string, extract text
+    if isinstance(best, dict):
+        best = best.get("text") or best.get("rewrite") or best.get("rewritten") or str(best)
     return RewriteParagraphResponse(
         original=result["original"],
-        rewritten=rewrites[0] if rewrites else result["original"],
+        rewritten=str(best),
         tone=result.get("tone", request.tone),
         elapsed_s=result.get("elapsed_s", 0.0),
         skipped=result.get("skipped", False),
@@ -120,9 +125,11 @@ async def rewrite_paragraph_endpoint(
     response_model=RewriteDocumentResponse,
     status_code=status.HTTP_200_OK,
     summary="Rewrite flagged passages in a full document to eliminate plagiarism",
+    dependencies=[Depends(enforce_usage_limit)],
 )
 async def rewrite_document_endpoint(
     request: RewriteDocumentRequest,
+    http_request: Request = None,
 ) -> RewriteDocumentResponse:
     """Accept a full document and a list of flagged passages, rewrite
     only the flagged sections using AI, and return the complete document
@@ -151,6 +158,10 @@ async def rewrite_document_endpoint(
             detail=f"AI rewrite failed: {exc}",
         )
 
+    # Record usage
+    if http_request:
+        record_usage(http_request, tool_type="rewrite")
+
     return RewriteDocumentResponse(**result)
 
 
@@ -161,10 +172,7 @@ async def rewrite_document_endpoint(
 class GeneralRewriteRequest(BaseModel):
     """Request body for the general-purpose rewriting tool."""
 
-    text: str = Field(
-        ..., min_length=1, max_length=50_000,
-        description="Text to rewrite",
-    )
+    text: str = Field(..., min_length=1, description="Text to rewrite")
     mode: Literal[
         "paraphrase", "simplify", "expand",
         "formal", "casual", "academic", "humanize",
@@ -196,9 +204,11 @@ class GeneralRewriteResponse(BaseModel):
     response_model=GeneralRewriteResponse,
     status_code=status.HTTP_200_OK,
     summary="Rewrite text using the general-purpose writing assistant",
+    dependencies=[Depends(enforce_usage_limit)],
 )
 async def general_rewrite_endpoint(
     request: GeneralRewriteRequest,
+    http_request: Request = None,
 ) -> GeneralRewriteResponse:
     """Rewrite any text with mode, tone, and strength controls.
 
@@ -230,5 +240,9 @@ async def general_rewrite_endpoint(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"AI rewrite failed: {exc}",
         )
+
+    # Record usage
+    if http_request:
+        record_usage(http_request, tool_type="rewrite")
 
     return GeneralRewriteResponse(**result)

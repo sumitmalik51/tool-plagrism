@@ -9,9 +9,10 @@ from __future__ import annotations
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel, Field
 
+from app.dependencies.rate_limit import enforce_usage_limit, record_usage
 from app.tools.citation_tool import (
     generate_citations_from_sources,
     generate_citation,
@@ -21,7 +22,6 @@ from app.tools.readability_tool import analyze_readability
 from app.tools.grammar_tool import check_grammar
 from app.services.ingestion import ingest_file
 from app.services.orchestrator import run_pipeline
-from app.config import settings
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -93,18 +93,22 @@ async def generate_all_styles_endpoint(request: CitationAllStylesRequest) -> dic
 
 class ReadabilityRequest(BaseModel):
     """Request for readability analysis."""
-    text: str = Field(..., min_length=1, max_length=500_000, description="Text to analyze")
+    text: str = Field(..., min_length=1, description="Text to analyze")
 
 
 @router.post(
     "/readability",
     status_code=status.HTTP_200_OK,
     summary="Analyze text readability and statistics",
+    dependencies=[Depends(enforce_usage_limit)],
 )
-async def readability_endpoint(request: ReadabilityRequest) -> dict:
+async def readability_endpoint(request: ReadabilityRequest, http_request: Request = None) -> dict:
     """Compute readability scores, text statistics, and reading time."""
     logger.info("readability_requested", text_length=len(request.text))
-    return analyze_readability(request.text)
+    result = analyze_readability(request.text)
+    if http_request:
+        record_usage(http_request, tool_type="readability")
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -113,19 +117,22 @@ async def readability_endpoint(request: ReadabilityRequest) -> dict:
 
 class GrammarRequest(BaseModel):
     """Request for grammar checking."""
-    text: str = Field(..., min_length=1, max_length=100_000, description="Text to check")
+    text: str = Field(..., min_length=1, description="Text to check")
 
 
 @router.post(
     "/grammar/check",
     status_code=status.HTTP_200_OK,
     summary="Check text for grammar, spelling, and style issues",
+    dependencies=[Depends(enforce_usage_limit)],
 )
-async def grammar_check_endpoint(request: GrammarRequest) -> dict:
+async def grammar_check_endpoint(request: GrammarRequest, http_request: Request = None) -> dict:
     """Analyze text for grammar errors, style issues, and suggest fixes."""
     logger.info("grammar_check_requested", text_length=len(request.text))
     try:
         result = await check_grammar(request.text)
+        if http_request:
+            record_usage(http_request, tool_type="grammar")
         return result
     except RuntimeError as exc:
         raise HTTPException(
@@ -154,10 +161,10 @@ async def analyze_batch_endpoint(files: list[UploadFile]) -> dict:
             detail="At least one file is required.",
         )
 
-    if len(files) > settings.batch_max_files:
+    if len(files) > 10:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Maximum {settings.batch_max_files} files per batch.",
+            detail="Maximum 10 files per batch.",
         )
 
     results: list[dict] = []

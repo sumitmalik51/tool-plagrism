@@ -1,27 +1,26 @@
-"""In-memory scan rate limiter — tracks daily scan counts per user/IP.
+"""DB-backed usage rate limiter — tracks daily tool usage per user/IP.
 
-Enforces per-day scan limits:
+Enforces per-day usage limits across ALL tools (scans, rewrite,
+readability, grammar) combined:
 - Anonymous users (tracked by IP): configurable daily limit (default 3)
-- Free registered users (tracked by user_id): configurable daily limit (default 3)
-- Paid / Pro users: unlimited scans
+- Free registered users (tracked by user_id): 3/day
+- Pro users: unlimited
+- Premium users: unlimited
 
-Storage: in-memory dict for now, ready to swap for Redis.
-Key format: ``scan_count:{identifier}:{YYYY-MM-DD}``
+Storage: ``usage_logs`` table in the database.
 
 Usage::
 
     from app.services.rate_limiter import limiter
 
-    remaining = limiter.check("user:42")   # raises LimitExceeded if 0
-    limiter.increment("user:42")
+    remaining = limiter.check("user:42", UserTier.FREE)
+    limiter.record_usage("user:42", "scan", user_id=42)
 """
 
 from __future__ import annotations
 
-import threading
-from datetime import date, datetime, timezone
+from datetime import date
 from enum import Enum
-from typing import Any
 
 from app.config import settings
 from app.utils.logger import get_logger
@@ -33,75 +32,131 @@ class UserTier(str, Enum):
     """User subscription tier."""
     ANONYMOUS = "anonymous"
     FREE = "free"
-    PAID = "paid"
+    PRO = "pro"
+    PREMIUM = "premium"
+
+
+# Backwards-compat alias so existing code referencing PAID keeps working
+UserTier.PAID = UserTier.PRO  # type: ignore[attr-defined]
+
+
+# Map plan_type strings → UserTier
+PLAN_TO_TIER: dict[str, UserTier] = {
+    "free": UserTier.FREE,
+    "pro": UserTier.PRO,
+    "premium": UserTier.PREMIUM,
+}
 
 
 class LimitExceeded(Exception):
-    """Raised when a user has exhausted their daily scan quota."""
+    """Raised when a user has exhausted their daily usage quota."""
 
     def __init__(self, limit: int, resets_at: str):
         self.limit = limit
         self.resets_at = resets_at
-        super().__init__(f"Daily scan limit ({limit}) reached. Resets at {resets_at}.")
+        super().__init__(f"Daily usage limit ({limit}) reached. Resets at {resets_at}.")
 
 
-class ScanRateLimiter:
-    """In-memory daily scan counter.
+class UsageRateLimiter:
+    """DB-backed daily usage counter across all tools.
 
-    Thread-safe. Automatically expires entries from previous days on access.
-    Designed as a drop-in that can later be backed by Redis without changing
-    the public API.
+    Queries the ``usage_logs`` table for today's count and inserts new
+    rows to record tool usage.
     """
-
-    def __init__(self) -> None:
-        self._store: dict[str, int] = {}
-        self._lock = threading.Lock()
-
-    # ------------------------------------------------------------------
-    # Key helpers
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _today() -> str:
-        return date.today().isoformat()  # e.g. "2025-07-15"
-
-    @staticmethod
-    def _key(identifier: str, day: str | None = None) -> str:
-        """Build a storage key.
-
-        Args:
-            identifier: ``ip:<addr>`` for anonymous or ``user:<id>`` for
-                        authenticated users.
-            day: ISO date string; defaults to today.
-        """
-        day = day or ScanRateLimiter._today()
-        return f"scan_count:{identifier}:{day}"
 
     # ------------------------------------------------------------------
     # Core operations
     # ------------------------------------------------------------------
 
     def get_count(self, identifier: str) -> int:
-        """Return the current scan count for *identifier* today."""
-        key = self._key(identifier)
-        with self._lock:
-            return self._store.get(key, 0)
+        """Return the total tool‐usage count for *identifier* today.
 
+        Uses a range comparison (``>= today AND < tomorrow``) that works
+        identically on both SQLite (TEXT dates) and Azure SQL (DATETIME2).
+        """
+        from app.services.database import get_db
+        db = get_db()
+        today = self._today()
+        tomorrow = self._tomorrow()
+
+        if identifier.startswith("user:"):
+            raw = identifier.split(":", 1)[1]
+            try:
+                user_id = int(raw)
+                row = db.fetch_one(
+                    "SELECT COUNT(*) AS cnt FROM usage_logs "
+                    "WHERE user_id = ? AND created_at >= ? AND created_at < ?",
+                    (user_id, today, tomorrow),
+                )
+            except ValueError:
+                # Non-numeric user identifier (e.g. tests with "user:pro")
+                row = db.fetch_one(
+                    "SELECT COUNT(*) AS cnt FROM usage_logs "
+                    "WHERE ip_address = ? AND created_at >= ? AND created_at < ?",
+                    (identifier, today, tomorrow),
+                )
+        else:
+            # ip:x.x.x.x
+            ip = identifier.split(":", 1)[1]
+            row = db.fetch_one(
+                "SELECT COUNT(*) AS cnt FROM usage_logs "
+                "WHERE ip_address = ? AND user_id IS NULL "
+                "AND created_at >= ? AND created_at < ?",
+                (ip, today, tomorrow),
+            )
+
+        return row["cnt"] if row else 0
+
+    def record_usage(
+        self,
+        identifier: str,
+        tool_type: str,
+        *,
+        user_id: int | None = None,
+        ip_address: str | None = None,
+    ) -> int:
+        """Insert a usage_log row and return the new daily count."""
+        from app.services.database import get_db
+        db = get_db()
+
+        db.execute(
+            "INSERT INTO usage_logs (user_id, ip_address, tool_type) VALUES (?, ?, ?)",
+            (user_id, ip_address, tool_type),
+        )
+
+        count = self.get_count(identifier)
+        logger.debug(
+            "usage_recorded",
+            identifier=identifier,
+            tool_type=tool_type,
+            daily_count=count,
+        )
+        return count
+
+    # Legacy alias kept for test/route compatibility
     def increment(self, identifier: str) -> int:
-        """Increment and return the new scan count for today."""
-        key = self._key(identifier)
-        with self._lock:
-            current = self._store.get(key, 0) + 1
-            self._store[key] = current
-            logger.debug("rate_limit_increment", identifier=identifier, count=current)
-            return current
+        """Increment counter (legacy shim — prefer record_usage)."""
+        user_id = None
+        ip_address = None
+        if identifier.startswith("user:"):
+            raw = identifier.split(":", 1)[1]
+            try:
+                user_id = int(raw)
+            except ValueError:
+                # Non-numeric (e.g. "user:pro" in tests) — store as ip_address
+                ip_address = identifier
+        else:
+            ip_address = identifier.split(":", 1)[1]
+        return self.record_usage(
+            identifier, "scan", user_id=user_id, ip_address=ip_address,
+        )
 
     def get_remaining(self, identifier: str, tier: UserTier) -> int:
-        """Return how many scans remain for *identifier* today.
+        """Return how many uses remain for *identifier* today.
 
-        Returns ``-1`` for paid users (unlimited).
+        Returns ``-1`` for pro/premium users (unlimited).
         """
-        if tier == UserTier.PAID:
+        if tier in (UserTier.PRO, UserTier.PREMIUM):
             return -1  # unlimited
 
         limit = self._limit_for_tier(tier)
@@ -109,46 +164,55 @@ class ScanRateLimiter:
         return max(limit - used, 0)
 
     def check(self, identifier: str, tier: UserTier) -> int:
-        """Check whether *identifier* can still scan today.
+        """Check whether *identifier* can still use tools today.
 
-        Returns the number of remaining scans.
+        Returns the number of remaining uses.
         Raises ``LimitExceeded`` if 0 remaining.
         """
-        if tier == UserTier.PAID:
+        if tier in (UserTier.PRO, UserTier.PREMIUM):
             return -1  # unlimited
 
         remaining = self.get_remaining(identifier, tier)
         if remaining <= 0:
             limit = self._limit_for_tier(tier)
-            # Next reset is midnight UTC tomorrow
-            tomorrow = date.today().isoformat()
-            raise LimitExceeded(limit=limit, resets_at=f"{tomorrow}T00:00:00Z (next day)")
+            resets = self._tomorrow()
+            raise LimitExceeded(
+                limit=limit,
+                resets_at=f"{resets}T00:00:00Z (next day)",
+            )
 
         return remaining
 
     # ------------------------------------------------------------------
-    # Housekeeping
+    # Housekeeping (kept for API compat / tests)
     # ------------------------------------------------------------------
 
     def cleanup_old_entries(self) -> int:
-        """Remove entries from previous days. Returns count of removed keys."""
-        today = self._today()
-        with self._lock:
-            old_keys = [k for k in self._store if not k.endswith(f":{today}")]
-            for k in old_keys:
-                del self._store[k]
-            if old_keys:
-                logger.info("rate_limit_cleanup", removed=len(old_keys))
-            return len(old_keys)
+        """No-op — DB handles retention. Kept for API compatibility."""
+        return 0
 
     def reset(self) -> None:
-        """Clear all entries (useful in tests)."""
-        with self._lock:
-            self._store.clear()
+        """Clear all usage_logs (useful in tests)."""
+        from app.services.database import get_db
+        try:
+            db = get_db()
+            db.execute("DELETE FROM usage_logs")
+        except Exception:
+            pass  # DB not initialised yet
 
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _today() -> str:
+        from datetime import datetime, timezone
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    @staticmethod
+    def _tomorrow() -> str:
+        from datetime import datetime, timezone, timedelta
+        return (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%d")
 
     @staticmethod
     def _limit_for_tier(tier: UserTier) -> int:
@@ -156,11 +220,14 @@ class ScanRateLimiter:
             return settings.scan_limit_anonymous
         if tier == UserTier.FREE:
             return settings.scan_limit_free
-        return 0  # PAID — never called, but satisfy type checker
+        return 0  # PRO/PREMIUM — never called
 
+
+# Backwards-compatible alias
+ScanRateLimiter = UsageRateLimiter
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Module-level singleton
 # ═══════════════════════════════════════════════════════════════════════════
 
-limiter = ScanRateLimiter()
+limiter = UsageRateLimiter()

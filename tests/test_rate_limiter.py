@@ -1,4 +1,4 @@
-"""Tests for the scan rate limiter and rate-limit dependency."""
+"""Tests for the usage rate limiter and rate-limit dependency."""
 
 from __future__ import annotations
 
@@ -8,20 +8,21 @@ from starlette.testclient import TestClient
 from fastapi import FastAPI, Depends, Request
 from fastapi.responses import JSONResponse
 
-from app.services.rate_limiter import ScanRateLimiter, UserTier, LimitExceeded, limiter
-from app.dependencies.rate_limit import enforce_scan_limit, record_scan
+from app.services.rate_limiter import ScanRateLimiter, UsageRateLimiter, UserTier, LimitExceeded, limiter
+from app.dependencies.rate_limit import enforce_scan_limit, enforce_usage_limit, record_scan, record_usage
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Unit tests — ScanRateLimiter
+# Unit tests — UsageRateLimiter (DB-backed)
 # ═══════════════════════════════════════════════════════════════════════════
 
 
 class TestScanRateLimiter:
-    """Tests for the in-memory rate limiter."""
+    """Tests for the DB-backed rate limiter."""
 
     def setup_method(self):
-        self.rl = ScanRateLimiter()
+        self.rl = UsageRateLimiter()
+        self.rl.reset()  # Clear usage_logs
 
     # --- Basic counter ---
 
@@ -52,8 +53,11 @@ class TestScanRateLimiter:
         mock_settings.scan_limit_anonymous = 3
         assert self.rl.get_remaining("ip:1.2.3.4", UserTier.ANONYMOUS) == 3
 
-    def test_remaining_paid_is_unlimited(self):
-        assert self.rl.get_remaining("user:99", UserTier.PAID) == -1
+    def test_remaining_pro_is_unlimited(self):
+        assert self.rl.get_remaining("user:99", UserTier.PRO) == -1
+
+    def test_remaining_premium_is_unlimited(self):
+        assert self.rl.get_remaining("user:99", UserTier.PREMIUM) == -1
 
     @patch("app.services.rate_limiter.settings")
     def test_remaining_never_negative(self, mock_settings):
@@ -80,11 +84,15 @@ class TestScanRateLimiter:
             self.rl.check("user:1", UserTier.FREE)
         assert exc_info.value.limit == 2
 
-    def test_check_paid_always_passes(self):
-        # Even with lots of scans, paid users are unlimited
-        for _ in range(100):
+    def test_check_pro_always_passes(self):
+        for _ in range(10):
             self.rl.increment("user:pro")
-        assert self.rl.check("user:pro", UserTier.PAID) == -1
+        assert self.rl.check("user:pro", UserTier.PRO) == -1
+
+    def test_check_premium_always_passes(self):
+        for _ in range(5):
+            self.rl.increment("user:premium")
+        assert self.rl.check("user:premium", UserTier.PREMIUM) == -1
 
     @patch("app.services.rate_limiter.settings")
     def test_check_anonymous_at_limit(self, mock_settings):
@@ -94,16 +102,12 @@ class TestScanRateLimiter:
         with pytest.raises(LimitExceeded):
             self.rl.check("ip:5.5.5.5", UserTier.ANONYMOUS)
 
-    # --- Cleanup ---
+    # --- Cleanup / reset ---
 
-    def test_cleanup_removes_old_entries(self):
-        # Manually insert an "old" key
-        self.rl._store["scan_count:user:1:2020-01-01"] = 5
-        self.rl.increment("user:2")  # today's entry
+    def test_cleanup_returns_zero(self):
+        # DB-backed limiter — cleanup is a no-op
         removed = self.rl.cleanup_old_entries()
-        assert removed == 1
-        assert "scan_count:user:1:2020-01-01" not in self.rl._store
-        assert self.rl.get_count("user:2") == 1
+        assert removed == 0
 
     def test_reset_clears_all(self):
         self.rl.increment("user:1")
@@ -111,6 +115,14 @@ class TestScanRateLimiter:
         self.rl.reset()
         assert self.rl.get_count("user:1") == 0
         assert self.rl.get_count("ip:1.1.1.1") == 0
+
+    # --- record_usage explicit ---
+
+    def test_record_usage_with_tool_type(self):
+        count = self.rl.record_usage("user:10", "rewrite", user_id=10)
+        assert count == 1
+        count = self.rl.record_usage("user:10", "grammar", user_id=10)
+        assert count == 2  # combined across tool types
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -122,9 +134,9 @@ def _make_test_app():
     """Create a tiny FastAPI app with rate-limited endpoint for testing."""
     app = FastAPI()
 
-    @app.post("/scan", dependencies=[Depends(enforce_scan_limit)])
+    @app.post("/scan", dependencies=[Depends(enforce_usage_limit)])
     async def scan(request: Request):
-        remaining = record_scan(request)
+        remaining = record_usage(request, tool_type="scan")
         return {"ok": True, "remaining": remaining}
 
     return app
@@ -166,7 +178,7 @@ class TestRateLimitDependency:
         assert detail["error"] == "limit_reached"
         assert detail["remaining"] == 0
 
-    @patch("app.dependencies.rate_limit.get_user_by_id", return_value={"id": 1, "is_paid": 0})
+    @patch("app.dependencies.rate_limit.get_user_by_id", return_value={"id": 1, "is_paid": 0, "plan_type": "free"})
     @patch("app.services.rate_limiter.settings")
     def test_free_user_blocked_at_limit(self, mock_settings, mock_get_user):
         mock_settings.scan_limit_free = 1
@@ -185,7 +197,7 @@ class TestRateLimitDependency:
         resp = client.post("/scan")
         assert resp.status_code == 429
 
-    @patch("app.dependencies.rate_limit.get_user_by_id", return_value={"id": 2, "is_paid": 1})
+    @patch("app.dependencies.rate_limit.get_user_by_id", return_value={"id": 2, "is_paid": 1, "plan_type": "pro"})
     @patch("app.services.rate_limiter.settings")
     def test_paid_user_unlimited(self, mock_settings, mock_get_user):
         mock_settings.scan_limit_free = 1
@@ -214,7 +226,8 @@ class TestUserTier:
     def test_values(self):
         assert UserTier.ANONYMOUS == "anonymous"
         assert UserTier.FREE == "free"
-        assert UserTier.PAID == "paid"
+        assert UserTier.PRO == "pro"
+        assert UserTier.PREMIUM == "premium"
 
     def test_is_string_enum(self):
         assert isinstance(UserTier.ANONYMOUS, str)

@@ -26,6 +26,7 @@ class FileType(str, Enum):
     PDF = "pdf"
     DOCX = "docx"
     TXT = "txt"
+    TEX = "tex"
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +116,9 @@ class PlagiarismReport(BaseModel):
     confidence_score: float = Field(..., ge=0.0, le=1.0, description="Overall confidence")
     risk_level: RiskLevel
     original_text: str = Field(default="", description="Original document text for the document viewer")
+    language: str = Field(default="en", description="Detected language ISO code")
+    language_name: str = Field(default="English", description="Detected language display name")
+    citation_metadata: dict[str, Any] = Field(default_factory=dict, description="Citation stripping metadata")
     match_groups: list[MatchGroup] = Field(default_factory=list, description="Categorised match groups")
     detected_sources: list[DetectedSource] = Field(default_factory=list)
     flagged_passages: list[FlaggedPassage] = Field(default_factory=list)

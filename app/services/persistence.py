@@ -117,17 +117,48 @@ def get_scan(document_id: str) -> dict[str, Any] | None:
     )
 
 
-def get_user_scans(user_id: int, limit: int = 50) -> list[dict[str, Any]]:
-    """List scans for a specific user, most recent first."""
+def get_user_scans(
+    user_id: int,
+    limit: int = 50,
+    risk_level: str | None = None,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
+    search: str | None = None,
+) -> list[dict[str, Any]]:
+    """List scans for a specific user with optional filtering and sorting."""
     db = get_db()
-    return db.fetch_all(
-        "SELECT s.id, s.document_id, s.plagiarism_score, s.confidence_score, "
-        "s.risk_level, s.sources_count, s.flagged_count, s.created_at, "
-        "d.filename, d.file_type "
-        "FROM scans s LEFT JOIN documents d ON s.document_id = d.document_id "
-        "WHERE s.user_id = ? ORDER BY s.created_at DESC",
-        (user_id,),
-    )[:limit]
+
+    # Validate sort parameters
+    allowed_sort_cols = {"created_at", "plagiarism_score", "risk_level", "sources_count"}
+    if sort_by not in allowed_sort_cols:
+        sort_by = "created_at"
+    if sort_order.lower() not in ("asc", "desc"):
+        sort_order = "desc"
+
+    # Build dynamic query
+    conditions = ["s.user_id = ?"]
+    params: list = [user_id]
+
+    if risk_level and risk_level.upper() in ("LOW", "MEDIUM", "HIGH"):
+        conditions.append("s.risk_level = ?")
+        params.append(risk_level.upper())
+
+    if search and search.strip():
+        conditions.append("(d.filename LIKE ? OR s.document_id LIKE ?)")
+        search_pat = f"%{search.strip()}%"
+        params.extend([search_pat, search_pat])
+
+    where_clause = " AND ".join(conditions)
+
+    query = (
+        f"SELECT s.id, s.document_id, s.plagiarism_score, s.confidence_score, "
+        f"s.risk_level, s.sources_count, s.flagged_count, s.created_at, "
+        f"d.filename, d.file_type "
+        f"FROM scans s LEFT JOIN documents d ON s.document_id = d.document_id "
+        f"WHERE {where_clause} ORDER BY s.{sort_by} {sort_order}"
+    )
+
+    return db.fetch_all(query, tuple(params))[:limit]
 
 
 def get_user_stats(user_id: int) -> dict[str, Any]:

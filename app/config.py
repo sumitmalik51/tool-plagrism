@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # File upload
     max_upload_size_mb: int = 50
-    allowed_extensions: list[str] = [".pdf", ".docx", ".txt"]
+    allowed_extensions: list[str] = [".pdf", ".docx", ".txt", ".tex"]
     upload_dir: Path = Path("uploads")
 
     # Agent weights (used by aggregation_agent)
@@ -72,26 +72,27 @@ class Settings(BaseSettings):
     scan_limit_anonymous: int = 3   # max scans/day for anonymous (by IP)
     scan_limit_free: int = 3        # max scans/day for free registered users
 
-    # Batch analysis
-    batch_max_files: int = 10       # max files per batch analysis request
-
-    # HTTP client timeouts (seconds)
-    http_timeout_web_search: float = 15.0
-    http_timeout_page_fetch: float = 10.0
-
-    # AI detection heuristic thresholds
-    ai_ttr_optimal: float = 0.52         # type-token ratio "sweet spot" for AI text
-    ai_burstiness_divisor: float = 12.0  # sentence length std-dev divisor
-    ai_uniformity_window: int = 5        # ±words from median for uniformity check
+    # Razorpay payment gateway
+    razorpay_key_id: str = ""       # Set PG_RAZORPAY_KEY_ID
+    razorpay_key_secret: str = ""   # Set PG_RAZORPAY_KEY_SECRET
 
     # Database — Azure SQL connection string.
     # When empty, falls back to SQLite for local dev.
     # Set PG_SQL_CONNECTION_STRING in production.
     sql_connection_string: str = ""
-    db_connection_timeout: int = 30      # Azure SQL connection timeout (seconds)
 
-    # Input length limits for text endpoints
-    max_text_length: int = 500_000  # max characters for text-based analysis/rewrite
+    # Azure Communication Services (ACS) — for transactional emails.
+    # Set PG_ACS_CONNECTION_STRING and PG_ACS_SENDER_EMAIL in production.
+    acs_connection_string: str = ""
+    acs_sender_email: str = "DoNotReply@05cf42e5-2365-4546-aa1d-1c54ce6cbbc8.azurecomm.net"
+
+    # Public base URL (used in email links).
+    # Set PG_APP_BASE_URL in production.
+    app_base_url: str = "https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net"
+
+    # Admin panel — comma-separated list of admin email addresses.
+    # Set PG_ADMIN_EMAILS in production.
+    admin_emails: str = "sumitmalik51@gmail.com"
 
     @model_validator(mode="after")
     def _parse_api_keys(self) -> "Settings":
