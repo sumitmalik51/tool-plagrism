@@ -1334,6 +1334,68 @@
     Copied to clipboard!
   </div>
 
+  <!-- Payment Success Modal -->
+  <div id="paymentModal" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300">
+    <div class="bg-surface border border-border rounded-2xl shadow-2xl max-w-md w-full mx-4 transform scale-95 transition-transform duration-300" id="paymentModalCard">
+      <!-- Success state -->
+      <div id="paymentSuccessContent" class="p-8 text-center">
+        <div class="mx-auto w-20 h-20 rounded-full bg-green-500/15 flex items-center justify-center mb-5">
+          <svg class="w-10 h-10 text-green-500" id="paymentCheckmark" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" class="payment-check-path"/>
+          </svg>
+        </div>
+        <h3 class="text-2xl font-bold text-txt mb-2">Payment Successful!</h3>
+        <p id="paymentModalPlan" class="text-muted mb-4">Your plan has been upgraded</p>
+        <div class="bg-green-500/10 border border-green-500/20 rounded-xl p-4 mb-6">
+          <div class="flex items-center justify-center gap-2 text-green-400 font-semibold text-lg">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            <span id="paymentModalPlanName">Research Plan</span>
+          </div>
+          <p class="text-green-400/70 text-sm mt-1">Unlimited scans &bull; All features unlocked</p>
+        </div>
+        <div id="paymentModalFeatures" class="text-left space-y-2 mb-6">
+          <div class="flex items-center gap-2 text-sm text-muted"><span class="text-green-400">✓</span> Unlimited plagiarism scans</div>
+          <div class="flex items-center gap-2 text-sm text-muted"><span class="text-green-400">✓</span> AI-powered rewriting</div>
+          <div class="flex items-center gap-2 text-sm text-muted"><span class="text-green-400">✓</span> Citation generation</div>
+          <div class="flex items-center gap-2 text-sm text-muted"><span class="text-green-400">✓</span> LaTeX & multi-language support</div>
+        </div>
+        <button onclick="closePaymentModal()" class="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg shadow-green-500/25">Start Using Your Plan</button>
+      </div>
+      <!-- Error state -->
+      <div id="paymentErrorContent" class="p-8 text-center hidden">
+        <div class="mx-auto w-20 h-20 rounded-full bg-red-500/15 flex items-center justify-center mb-5">
+          <svg class="w-10 h-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </div>
+        <h3 class="text-2xl font-bold text-txt mb-2">Payment Failed</h3>
+        <p id="paymentErrorMsg" class="text-muted mb-6">Something went wrong</p>
+        <div class="flex gap-3">
+          <button onclick="closePaymentModal()" class="flex-1 py-3 rounded-xl border border-border text-muted hover:bg-surface2 transition-all font-medium">Close</button>
+          <button onclick="closePaymentModal(); document.getElementById('pricingSection')?.scrollIntoView({behavior:'smooth'})" class="flex-1 py-3 rounded-xl bg-accent text-white font-semibold hover:bg-accent/90 transition-all">Try Again</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .payment-check-path {
+      stroke-dasharray: 24;
+      stroke-dashoffset: 24;
+      animation: paymentCheckDraw 0.5s ease-out 0.3s forwards;
+    }
+    @keyframes paymentCheckDraw {
+      to { stroke-dashoffset: 0; }
+    }
+    #paymentModal.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #paymentModal.show #paymentModalCard {
+      transform: scale(1);
+    }
+  </style>
+
 <script>
   /* ═══════════════════════════════════════════════════════════
      Constants & State
@@ -3776,13 +3838,13 @@
               }
               updatePlanUI(plan);
               await loadUsageFromAPI();
-              alert('Payment successful! Plan upgraded to ' + plan.charAt(0).toUpperCase() + plan.slice(1) + '! Enjoy unlimited access.');
+              showPaymentModal('success', plan);
             } else {
               const err = await verifyRes.json();
-              alert('Payment verification failed: ' + (err.detail || 'Unknown error'));
+              showPaymentModal('error', plan, 'Payment verification failed: ' + (err.detail || 'Unknown error'));
             }
           } catch (e) {
-            alert('Payment verification failed. Please contact support.');
+            showPaymentModal('error', plan, 'Payment verification failed. Please contact support.');
           }
         },
         modal: {
@@ -3794,17 +3856,77 @@
 
       const rzp = new Razorpay(options);
       rzp.on('payment.failed', function (response) {
-        alert('Payment failed: ' + (response.error.description || 'Unknown error') + '. Please try again.');
+        showPaymentModal('error', plan, 'Payment failed: ' + (response.error.description || 'Unknown error'));
       });
       rzp.open();
     } catch (e) {
-      alert('Upgrade failed. Please try again.');
+      showPaymentModal('error', plan, 'Could not initiate payment. Please try again.');
     } finally {
       // Reset button state
       if (spinner) spinner.classList.add('hidden');
       if (label) label.textContent = originalText;
       if (btn) btn.disabled = false;
     }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Payment Modal
+     ═══════════════════════════════════════════════════════════ */
+  const PLAN_LABELS = { pro: 'Research Plan', premium: 'Advanced Research Plan' };
+  const PLAN_FEATURES = {
+    pro: [
+      'Up to 50 scans per day',
+      'AI-powered rewriting',
+      'Citation generation',
+      'Detailed similarity reports',
+    ],
+    premium: [
+      'Unlimited plagiarism scans',
+      'AI-powered rewriting',
+      'Citation generation',
+      'LaTeX & multi-language support',
+      'Priority processing',
+    ],
+  };
+
+  function showPaymentModal(type, plan, errorMsg) {
+    const modal = $('paymentModal');
+    const successContent = $('paymentSuccessContent');
+    const errorContent = $('paymentErrorContent');
+
+    if (type === 'success') {
+      successContent.classList.remove('hidden');
+      errorContent.classList.add('hidden');
+      $('paymentModalPlanName').textContent = PLAN_LABELS[plan] || plan;
+      $('paymentModalPlan').textContent = 'Your plan has been upgraded to ' + (PLAN_LABELS[plan] || plan);
+      // Update features list
+      const featuresEl = $('paymentModalFeatures');
+      const features = PLAN_FEATURES[plan] || PLAN_FEATURES.premium;
+      featuresEl.innerHTML = features.map(f =>
+        '<div class="flex items-center gap-2 text-sm text-muted"><span class="text-green-400">\u2713</span> ' + f + '</div>'
+      ).join('');
+      // Re-trigger checkmark animation
+      const path = document.querySelector('.payment-check-path');
+      if (path) {
+        path.style.animation = 'none';
+        path.offsetHeight; // Force reflow
+        path.style.animation = '';
+      }
+    } else {
+      successContent.classList.add('hidden');
+      errorContent.classList.remove('hidden');
+      $('paymentErrorMsg').textContent = errorMsg || 'Something went wrong. Please try again.';
+    }
+
+    // Show modal with animation
+    requestAnimationFrame(() => {
+      modal.classList.add('show');
+    });
+  }
+
+  function closePaymentModal() {
+    const modal = $('paymentModal');
+    modal.classList.remove('show');
   }
 
   let _resetInterval = null;
