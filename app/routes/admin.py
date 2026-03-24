@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import structlog
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, Header, HTTPException, Query
 
 from app.config import settings
-from app.services.auth_service import get_user_by_id, verify_access_token
+from app.services.auth_service import get_user_by_id, update_user_plan, verify_access_token
 from app.services.database import get_db
 
 logger = structlog.get_logger(__name__)
@@ -164,4 +165,48 @@ async def admin_users(
         "page": page,
         "per_page": per_page,
         "total_pages": (total + per_page - 1) // per_page if per_page else 1,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Admin plan override
+# ---------------------------------------------------------------------------
+
+class UpdatePlanRequest(BaseModel):
+    user_id: int = Field(..., description="ID of the user to update")
+    plan_type: str = Field(..., description="New plan: free, pro, or premium")
+
+
+@router.post("/update-plan")
+async def admin_update_plan(
+    body: UpdatePlanRequest,
+    authorization: str = Header(default=""),
+):
+    """Update a user's plan without payment (admin override)."""
+    admin_id = _require_admin(authorization)
+
+    target = get_user_by_id(body.user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    old_plan = target.get("plan_type", "free")
+    try:
+        update_user_plan(body.user_id, body.plan_type)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    logger.info(
+        "admin_plan_override",
+        admin_id=admin_id,
+        target_user_id=body.user_id,
+        old_plan=old_plan,
+        new_plan=body.plan_type,
+    )
+
+    return {
+        "success": True,
+        "user_id": body.user_id,
+        "old_plan": old_plan,
+        "new_plan": body.plan_type,
+        "message": f"Plan updated from {old_plan} to {body.plan_type} for user {target['email']}.",
     }

@@ -169,6 +169,7 @@
                   <th class="px-5 py-3 text-xs text-muted font-semibold uppercase tracking-wider">Scans</th>
                   <th class="px-5 py-3 text-xs text-muted font-semibold uppercase tracking-wider">Uses</th>
                   <th class="px-5 py-3 text-xs text-muted font-semibold uppercase tracking-wider">Joined</th>
+                  <th class="px-5 py-3 text-xs text-muted font-semibold uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody id="userTableBody">
@@ -338,7 +339,7 @@
       if (data.users.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="7" class="px-5 py-10 text-center text-muted text-sm">No users found.</td>
+            <td colspan="8" class="px-5 py-10 text-center text-muted text-sm">No users found.</td>
           </tr>`;
       } else {
         tbody.innerHTML = data.users.map(u => {
@@ -346,14 +347,21 @@
           const planLabel = PLAN_LABELS[u.plan_type] || u.plan_type;
           const joined = u.created_at ? new Date(u.created_at).toLocaleDateString() : '—';
           return `
-            <tr class="table-row border-b border-border/50">
+            <tr class="table-row border-b border-border/50" id="user-row-${u.id}">
               <td class="px-5 py-3 text-muted">${u.id}</td>
               <td class="px-5 py-3 font-medium">${esc(u.name)}</td>
               <td class="px-5 py-3 text-muted">${esc(u.email)}</td>
-              <td class="px-5 py-3"><span class="plan-badge ${planCls}">${planLabel}</span></td>
+              <td class="px-5 py-3"><span class="plan-badge ${planCls}" id="plan-badge-${u.id}">${planLabel}</span></td>
               <td class="px-5 py-3 text-center">${u.scan_count ?? 0}</td>
               <td class="px-5 py-3 text-center">${u.usage_count ?? 0}</td>
               <td class="px-5 py-3 text-muted text-xs">${joined}</td>
+              <td class="px-5 py-3">
+                <select onchange="changePlan(${u.id}, this.value, this)" class="bg-surface2 border border-border rounded-lg px-2 py-1 text-xs text-txt focus:outline-none focus:border-accent cursor-pointer">
+                  <option value="free" ${u.plan_type === 'free' ? 'selected' : ''}>Basic</option>
+                  <option value="pro" ${u.plan_type === 'pro' ? 'selected' : ''}>Research</option>
+                  <option value="premium" ${u.plan_type === 'premium' ? 'selected' : ''}>Advanced</option>
+                </select>
+              </td>
             </tr>`;
         }).join('');
       }
@@ -389,6 +397,51 @@
       localStorage.removeItem('pg_token');
       localStorage.removeItem('pg_user');
       window.location.href = '/login';
+    }
+
+    // =========================================================================
+    // Change plan (admin override)
+    // =========================================================================
+    async function changePlan(userId, newPlan, selectEl) {
+      if (!confirm(`Change user #${userId} to "${PLAN_LABELS[newPlan] || newPlan}" plan?`)) {
+        // Revert select to previous value
+        loadUsers(currentPage);
+        return;
+      }
+
+      selectEl.disabled = true;
+      try {
+        const res = await apiFetch('/api/v1/admin/update-plan', {
+          method: 'POST',
+          body: JSON.stringify({ user_id: userId, plan_type: newPlan }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert('Failed: ' + (data.detail || 'Unknown error'));
+          loadUsers(currentPage);
+          return;
+        }
+
+        // Update badge inline
+        const badge = document.getElementById('plan-badge-' + userId);
+        if (badge) {
+          const planCls = newPlan === 'premium' ? 'plan-premium' : newPlan === 'pro' ? 'plan-pro' : 'plan-free';
+          badge.className = 'plan-badge ' + planCls;
+          badge.textContent = PLAN_LABELS[newPlan] || newPlan;
+        }
+
+        // Flash success on the row
+        const row = document.getElementById('user-row-' + userId);
+        if (row) {
+          row.style.background = 'rgba(0,184,148,.08)';
+          setTimeout(() => row.style.background = '', 1500);
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+        loadUsers(currentPage);
+      } finally {
+        selectEl.disabled = false;
+      }
     }
   </script>
 </body>
