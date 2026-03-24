@@ -320,7 +320,7 @@
               <a href="#pricing" id="dashUpgradeLink" class="inline-block mt-2 text-xs font-semibold text-accent-l hover:text-accent transition-colors">Upgrade →</a>
               <!-- Trial banner -->
               <div id="trialBanner" class="hidden mt-3 px-3 py-2 bg-amber-500/10 border border-amber-500/25 rounded-lg">
-                <span id="trialMsg" class="text-xs font-semibold text-amber-400">Pro trial: 3 days remaining</span>
+                <span id="trialMsg" class="text-xs font-semibold text-amber-400">Research trial: 3 days remaining</span>
               </div>
             </div>
           </div>
@@ -398,7 +398,7 @@
         <div class="fade-up">
           <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent-l text-sm font-medium mb-6">
             <span class="w-2 h-2 bg-ok rounded-full animate-pulse"></span>
-            🎉 Sign up &amp; get 3 days of Pro — free, no credit card needed
+            🎉 Sign up &amp; get 3 days of Research plan — free, no credit card needed
           </div>
         </div>
 
@@ -432,8 +432,8 @@
             class="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-500/10 to-accent/10 border border-emerald-500/20 hover:border-emerald-400/40 transition-all group">
             <span class="flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 text-lg">🚀</span>
             <span class="text-left">
-              <span class="block text-sm font-semibold text-txt">Start your free 3-day Pro trial</span>
-              <span class="block text-xs text-muted">Unlimited scans &bull; All Pro features &bull; No credit card required</span>
+              <span class="block text-sm font-semibold text-txt">Start your free 3-day Research trial</span>
+              <span class="block text-xs text-muted">Unlimited scans &bull; All Research features &bull; No credit card required</span>
             </span>
             <svg class="w-4 h-4 text-muted group-hover:text-accent-l transition-colors ml-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
           </a>
@@ -588,7 +588,7 @@
       <div class="max-w-2xl mx-auto text-center">
         <div class="bg-gradient-to-br from-accent/5 via-surface to-emerald-500/5 border border-accent/20 rounded-2xl p-8">
           <h3 class="text-xl font-bold mb-2">Ready to upgrade your research workflow?</h3>
-          <p class="text-sm text-muted mb-5">Sign up now and get <span class="text-emerald-400 font-semibold">3 days of Pro access</span> — completely free.</p>
+          <p class="text-sm text-muted mb-5">Sign up now and get <span class="text-emerald-400 font-semibold">3 days of Research access</span> — completely free.</p>
           <a href="/signup" class="inline-flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all">
             Create Free Account
             <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
@@ -619,7 +619,7 @@
         <div class="text-center mb-12">
           <span class="px-3 py-1 rounded-full bg-accent/10 text-accent-l text-xs font-semibold border border-accent/20 mb-4 inline-block">PRICING</span>
           <h2 class="text-3xl font-bold mb-3">Plans for every researcher</h2>
-          <p class="text-muted max-w-lg mx-auto">Start with a free 3-day Pro trial. Upgrade when your research demands more.</p>
+          <p class="text-muted max-w-lg mx-auto">Start with a free 3-day Research trial. Upgrade when your research demands more.</p>
         </div>
 
         <div class="grid md:grid-cols-3 gap-6" id="pricingCards">
@@ -3469,7 +3469,7 @@
         if (daysLeft > 0) {
           trialBanner.classList.remove('hidden');
           const trialMsg = $('trialMsg');
-          if (trialMsg) trialMsg.textContent = `Pro trial: ${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining`;
+          if (trialMsg) trialMsg.textContent = `Research trial: ${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining`;
         } else {
           trialBanner.classList.add('hidden');
         }
