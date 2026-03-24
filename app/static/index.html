@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PlagiarismGuard</title>
+  <title>PlagiarismGuard — Academic Plagiarism Detection &amp; Writing Refinement</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -40,7 +40,7 @@
     @keyframes float1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,-40px) scale(1.1); } }
     @keyframes float2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-20px,30px) scale(1.15); } }
     @keyframes float3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(15px,25px) scale(1.05); } }
-    .orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: .18; pointer-events: none; }
+    .orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: .10; pointer-events: none; }
     .orb-1 { width: 500px; height: 500px; background: #6c5ce7; top: -120px; left: -80px; animation: float1 8s ease-in-out infinite; }
     .orb-2 { width: 400px; height: 400px; background: #00b894; bottom: -100px; right: -60px; animation: float2 10s ease-in-out infinite; }
     .orb-3 { width: 300px; height: 300px; background: #e17055; top: 50%; left: 50%; transform: translate(-50%,-50%); animation: float3 12s ease-in-out infinite; }
@@ -179,10 +179,10 @@
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 bg-gradient-to-br from-accent to-[#00b894] rounded-xl grid place-items-center text-white font-bold text-lg shadow-lg shadow-accent/20">P</div>
           <span class="text-lg font-bold">PlagiarismGuard</span>
-          <span class="text-[10px] text-muted bg-surface2 px-2 py-0.5 rounded-full font-semibold tracking-wider uppercase">AI-Powered</span>
+          <span class="text-[10px] text-muted bg-surface2 px-2 py-0.5 rounded-full font-semibold tracking-wider uppercase">Academic</span>
         </div>
         <div class="flex items-center gap-4">
-          <a href="#rewriter" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">✨ Fix Text</a>
+          <a href="#rewriter" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Refine Writing</a>
           <a href="#analyze" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Analyze</a>
           <a href="#features" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block nav-guest-link">Features</a>
           <a href="#pricing" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Pricing</a>
@@ -274,7 +274,7 @@
                 <span class="text-lg">⭐</span>
               </div>
               <span class="text-xl font-bold" id="dashTierBadge">
-                <span class="px-3 py-1 rounded-full bg-accent/15 text-accent-l text-sm font-semibold border border-accent/25">Free</span>
+                <span class="px-3 py-1 rounded-full bg-accent/15 text-accent-l text-sm font-semibold border border-accent/25">Basic</span>
               </span>
               <p class="text-xs text-muted mt-3" id="dashTierMsg">3 uses/day included</p>
               <a href="#pricing" id="dashUpgradeLink" class="inline-block mt-2 text-xs font-semibold text-accent-l hover:text-accent transition-colors">Upgrade →</a>
@@ -298,9 +298,9 @@
             </a>
 
             <a href="#rewriter" class="action-card" style="--card-accent: #00b894;">
-              <div class="w-11 h-11 rounded-xl bg-[#00b894]/15 grid place-items-center text-xl mb-3">✨</div>
-              <h3 class="font-semibold text-sm mb-1">AI Rewriter</h3>
-              <p class="text-xs text-muted">Paraphrase, simplify, or rephrase your content</p>
+              <div class="w-11 h-11 rounded-xl bg-[#00b894]/15 grid place-items-center text-xl mb-3">✏️</div>
+              <h3 class="font-semibold text-sm mb-1">Writing Refinement</h3>
+              <p class="text-xs text-muted">Rephrase, refine, or improve academic tone of your content</p>
             </a>
 
             <a href="#readability" class="action-card" style="--card-accent: #45B7D1;">
@@ -354,29 +354,52 @@
         <div class="fade-up">
           <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent-l text-sm font-medium mb-6">
             <span class="w-2 h-2 bg-ok rounded-full animate-pulse"></span>
-            ⚡ No signup required &bull; Results in seconds
+            Trusted by researchers &bull; No signup required
           </div>
         </div>
 
         <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold leading-tight mb-6 fade-up fade-up-d1">
-          Fix Plagiarism &amp; Humanize<br>
-          <span class="gradient-text scan-line">AI Content Instantly</span>
+          Ensure Originality in<br>
+          <span class="gradient-text scan-line">Your Research</span>
         </h1>
+        <p class="text-lg text-muted max-w-2xl mx-auto mb-2 fade-up fade-up-d1">
+          with AI-Powered Plagiarism Detection
+        </p>
 
-        <p class="text-lg sm:text-xl text-muted max-w-2xl mx-auto mb-10 leading-relaxed fade-up fade-up-d2">
-          Turn copied or AI-generated text into original, natural writing in seconds.
+        <p class="text-base sm:text-lg text-muted max-w-2xl mx-auto mb-10 leading-relaxed fade-up fade-up-d2">
+          Detect, analyze, and safely rewrite content to maintain academic integrity and avoid plagiarism.
         </p>
 
         <div class="flex flex-col sm:flex-row items-center justify-center gap-4 fade-up fade-up-d3">
-          <a href="#rewriter"
+          <a href="#analyze"
             class="inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl text-[15px] font-semibold hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all">
-            🚀 Fix My Text Now
+            🔍 Check Your Document
             <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
           </a>
-          <a href="#analyze"
+          <a href="#rewriter"
             class="inline-flex items-center gap-2 px-8 py-3.5 bg-surface2 border border-border text-txt rounded-xl text-[15px] font-medium hover:border-accent hover:text-accent-l transition-all">
-            🔍 Check Plagiarism
+            Improve Writing
           </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════ ACADEMIC TRUST SIGNALS ══════════════ -->
+    <section class="py-8 px-6">
+      <div class="max-w-4xl mx-auto">
+        <div class="flex flex-wrap justify-center gap-6 text-sm text-muted">
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-1.5 bg-ok rounded-full"></span>
+            Designed for researchers and academic writing
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-1.5 bg-ok rounded-full"></span>
+            Supports theses, dissertations, and journal papers
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-1.5 bg-ok rounded-full"></span>
+            Maintain originality and proper attribution
+          </div>
         </div>
       </div>
     </section>
@@ -387,13 +410,13 @@
         <div class="grid grid-cols-2 gap-6">
           <div class="bg-danger/5 border border-danger/20 rounded-2xl p-6 text-center">
             <div class="text-4xl font-extrabold text-danger mb-2">42%</div>
-            <div class="text-sm text-danger font-semibold">Before — Plagiarism Detected ❌</div>
-            <p class="text-xs text-muted mt-2">Copied phrases, AI-generated patterns, matching sources found</p>
+            <div class="text-sm text-danger font-semibold">Before — Similarity Detected</div>
+            <p class="text-xs text-muted mt-2">Matching phrases and overlapping sources identified</p>
           </div>
           <div class="bg-ok/5 border border-ok/20 rounded-2xl p-6 text-center">
             <div class="text-4xl font-extrabold text-ok mb-2">5%</div>
-            <div class="text-sm text-ok font-semibold">After — Clean &amp; Original ✅</div>
-            <p class="text-xs text-muted mt-2">Rewritten, humanized, and plagiarism-free in seconds</p>
+            <div class="text-sm text-ok font-semibold">After — Original &amp; Verified</div>
+            <p class="text-xs text-muted mt-2">Refined for clarity and originality while preserving meaning</p>
           </div>
         </div>
       </div>
@@ -404,15 +427,15 @@
       <div class="max-w-5xl mx-auto px-6 py-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div class="stat-card fade-up">
           <div class="text-2xl font-bold gradient-text">10K+</div>
-          <div class="text-xs text-muted mt-1">Texts Fixed</div>
+          <div class="text-xs text-muted mt-1">Documents Analyzed</div>
         </div>
         <div class="stat-card fade-up fade-up-d1">
           <div class="text-2xl font-bold gradient-text">95%</div>
-          <div class="text-xs text-muted mt-1">Plagiarism Removed</div>
+          <div class="text-xs text-muted mt-1">Originality Achieved</div>
         </div>
         <div class="stat-card fade-up fade-up-d2">
-          <div class="text-2xl font-bold gradient-text">3</div>
-          <div class="text-xs text-muted mt-1">Rewrite Styles</div>
+          <div class="text-2xl font-bold gradient-text">250M+</div>
+          <div class="text-xs text-muted mt-1">Scholarly Sources</div>
         </div>
         <div class="stat-card fade-up fade-up-d3">
           <div class="text-2xl font-bold gradient-text">&lt; 30s</div>
@@ -425,15 +448,15 @@
     <section id="features" class="py-20 px-6">
       <div class="max-w-5xl mx-auto">
         <div class="text-center mb-14">
-          <h2 class="text-3xl font-bold mb-3">🔍 Smart AI Detection Engine</h2>
-          <p class="text-muted max-w-xl mx-auto">Powerful detection that catches what others miss.</p>
+          <h2 class="text-3xl font-bold mb-3">Intelligent Detection Engine</h2>
+          <p class="text-muted max-w-xl mx-auto">Scans web and academic sources to identify matching or similar content in your writing.</p>
         </div>
 
         <div class="grid sm:grid-cols-3 gap-5">
           <div class="feature-card text-center" style="--card-accent: #FF6B6B;">
             <div class="w-14 h-14 mx-auto rounded-2xl bg-[#FF6B6B]/15 grid place-items-center text-2xl mb-4">🌐</div>
-            <h3 class="font-semibold mb-2">Web + Academic Sources</h3>
-            <p class="text-sm text-muted leading-relaxed">Scans billions of web pages and 250M+ scholarly works to find matching content.</p>
+            <h3 class="font-semibold mb-2">Web &amp; Academic Sources</h3>
+            <p class="text-sm text-muted leading-relaxed">Cross-references web pages and scholarly databases to identify overlapping content.</p>
           </div>
 
           <div class="feature-card text-center" style="--card-accent: #6c5ce7;">
@@ -445,7 +468,7 @@
           <div class="feature-card text-center" style="--card-accent: #fdcb6e;">
             <div class="w-14 h-14 mx-auto rounded-2xl bg-[#fdcb6e]/15 grid place-items-center text-2xl mb-4">🤖</div>
             <h3 class="font-semibold mb-2">AI-Generated Text Detection</h3>
-            <p class="text-sm text-muted leading-relaxed">Identifies ChatGPT, Gemini, and other AI-written content with precision.</p>
+            <p class="text-sm text-muted leading-relaxed">Identifies AI-generated passages to help you maintain authentic academic voice.</p>
           </div>
         </div>
       </div>
@@ -459,17 +482,46 @@
           <div class="fade-up">
             <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-accent/10 border border-accent/20 grid place-items-center text-2xl">1</div>
             <h3 class="font-semibold mb-2">Paste Your Text</h3>
-            <p class="text-sm text-muted">Drop in any text — essays, articles, AI-generated content. That's it.</p>
+            <p class="text-sm text-muted">Submit your thesis, paper, or any academic writing for analysis.</p>
           </div>
           <div class="fade-up fade-up-d1">
             <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-accent/10 border border-accent/20 grid place-items-center text-2xl">2</div>
-            <h3 class="font-semibold mb-2">AI Fixes It</h3>
-            <p class="text-sm text-muted">Our engine rewrites, humanizes, and removes plagiarism automatically.</p>
+            <h3 class="font-semibold mb-2">AI Analyzes &amp; Refines</h3>
+            <p class="text-sm text-muted">Our engine detects similarities and helps you rephrase safely while preserving meaning.</p>
           </div>
           <div class="fade-up fade-up-d2">
             <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-accent/10 border border-accent/20 grid place-items-center text-2xl">3</div>
-            <h3 class="font-semibold mb-2">Copy &amp; Submit</h3>
-            <p class="text-sm text-muted">Get clean, original text you can confidently submit anywhere.</p>
+            <h3 class="font-semibold mb-2">Review &amp; Submit</h3>
+            <p class="text-sm text-muted">Get original, properly refined text ready for publication or submission.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════ ACADEMIC USE CASES ══════════════ -->
+    <section class="py-14 px-6 border-t border-border/50">
+      <div class="max-w-4xl mx-auto text-center">
+        <h2 class="text-2xl font-bold mb-6">Built for Academic Use</h2>
+        <div class="grid sm:grid-cols-4 gap-5">
+          <div class="bg-surface/80 border border-border rounded-xl p-5">
+            <div class="text-2xl mb-2">📚</div>
+            <h4 class="font-semibold text-sm mb-1">Thesis Writing</h4>
+            <p class="text-xs text-muted">Ensure originality across chapters and sections.</p>
+          </div>
+          <div class="bg-surface/80 border border-border rounded-xl p-5">
+            <div class="text-2xl mb-2">📄</div>
+            <h4 class="font-semibold text-sm mb-1">Research Papers</h4>
+            <p class="text-xs text-muted">Check for unintentional similarity before submission.</p>
+          </div>
+          <div class="bg-surface/80 border border-border rounded-xl p-5">
+            <div class="text-2xl mb-2">🗒️</div>
+            <h4 class="font-semibold text-sm mb-1">Journal Submissions</h4>
+            <p class="text-xs text-muted">Meet publisher originality requirements with confidence.</p>
+          </div>
+          <div class="bg-surface/80 border border-border rounded-xl p-5">
+            <div class="text-2xl mb-2">🔍</div>
+            <h4 class="font-semibold text-sm mb-1">Literature Reviews</h4>
+            <p class="text-xs text-muted">Properly paraphrase and attribute referenced works.</p>
           </div>
         </div>
       </div>
@@ -479,10 +531,10 @@
     <!-- ══════════════ UPGRADE BANNER (shown on limit reached) ══════════════ -->
     <div id="upgradeBanner" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-full mx-auto">
       <div class="bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-2xl p-5 shadow-2xl shadow-accent/30 flex items-center gap-4">
-        <div class="text-3xl">🚀</div>
+        <div class="text-3xl">�</div>
         <div class="flex-1">
-          <h4 class="font-bold text-sm">Daily limit reached!</h4>
-          <p class="text-xs opacity-90 mt-0.5">Upgrade to Pro for unlimited access to all tools.</p>
+          <h4 class="font-bold text-sm">Daily limit reached</h4>
+          <p class="text-xs opacity-90 mt-0.5">Upgrade to Research plan for unlimited access to all tools.</p>
         </div>
         <a href="#pricing" onclick="$('upgradeBanner').classList.add('hidden')" class="shrink-0 px-4 py-2 bg-white text-accent rounded-xl text-xs font-bold hover:bg-white/90 transition-colors">View Plans</a>
         <button onclick="$('upgradeBanner').classList.add('hidden')" class="text-white/60 hover:text-white text-lg leading-none">&times;</button>
@@ -494,17 +546,14 @@
       <div class="max-w-5xl mx-auto">
         <div class="text-center mb-12">
           <span class="px-3 py-1 rounded-full bg-accent/10 text-accent-l text-xs font-semibold border border-accent/20 mb-4 inline-block">PRICING</span>
-          <h2 class="text-3xl font-bold mb-3">Simple, transparent pricing</h2>
-          <p class="text-muted max-w-lg mx-auto">Start for free. Upgrade when you need more power.</p>
-          <div class="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-full bg-danger/10 border border-danger/20 text-danger text-sm font-semibold">
-            🔥 Limited-time launch pricing — prices go up soon!
-          </div>
+          <h2 class="text-3xl font-bold mb-3">Plans for every researcher</h2>
+          <p class="text-muted max-w-lg mx-auto">Start with the Basic plan. Upgrade when your research demands more.</p>
         </div>
 
         <div class="grid md:grid-cols-3 gap-6" id="pricingCards">
-          <!-- Free Plan -->
+          <!-- Basic Plan -->
           <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative">
-            <h3 class="text-lg font-bold mb-1">Free</h3>
+            <h3 class="text-lg font-bold mb-1">Basic</h3>
             <div class="flex items-end gap-1 mb-4">
               <span class="text-4xl font-bold">₹0</span>
               <span class="text-muted text-sm mb-1">forever</span>
@@ -516,13 +565,13 @@
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> Readability analyzer</li>
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> Grammar checker</li>
             </ul>
-            <button disabled class="w-full py-2.5 rounded-xl bg-surface2 text-muted text-sm font-semibold cursor-default border border-border">Get Started Free</button>
+            <button disabled class="w-full py-2.5 rounded-xl bg-surface2 text-muted text-sm font-semibold cursor-default border border-border">Get Started</button>
           </div>
 
-          <!-- Pro Plan (Most Popular) -->
+          <!-- Research Plan (Most Popular) -->
           <div class="bg-surface/80 backdrop-blur-sm border-2 border-accent rounded-2xl p-7 flex flex-col relative shadow-lg shadow-accent/10">
             <span class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-accent text-white text-xs font-bold">MOST POPULAR</span>
-            <h3 class="text-lg font-bold mb-1">Pro</h3>
+            <h3 class="text-lg font-bold mb-1">Research</h3>
             <div class="flex items-end gap-1 mb-4">
               <span class="text-4xl font-bold">₹299</span>
               <span class="text-muted text-sm mb-1">/month</span>
@@ -530,27 +579,27 @@
             </div>
             <ul class="space-y-3 text-sm flex-1 mb-6">
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> <strong>Unlimited</strong> tool uses</li>
-              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Everything in Free</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Everything in Basic</li>
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> Priority processing</li>
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> Detailed source reports</li>
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> Scan history & analytics</li>
             </ul>
             <button onclick="handleUpgrade('pro', this)" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-bold hover:shadow-lg hover:shadow-accent/25 transition-all pricing-btn flex items-center justify-center gap-2" data-plan="pro">
               <svg class="animate-spin h-4 w-4 hidden" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
-              <span>Upgrade to Pro</span>
+              <span>Upgrade to Research</span>
             </button>
           </div>
 
-          <!-- Premium Plan -->
+          <!-- Advanced Research Plan -->
           <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative">
-            <h3 class="text-lg font-bold mb-1">Premium</h3>
+            <h3 class="text-lg font-bold mb-1">Advanced Research</h3>
             <div class="flex items-end gap-1 mb-4">
               <span class="text-4xl font-bold">₹699</span>
               <span class="text-muted text-sm mb-1">/month</span>
               <span class="text-xs text-danger line-through ml-2 mb-1">₹999</span>
             </div>
             <ul class="space-y-3 text-sm flex-1 mb-6">
-              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Everything in Pro</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Everything in Research</li>
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> API access</li>
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> Batch file analysis</li>
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> Custom integrations</li>
@@ -558,7 +607,7 @@
             </ul>
             <button onclick="handleUpgrade('premium', this)" class="w-full py-2.5 rounded-xl bg-surface2 text-txt text-sm font-bold border border-border hover:border-accent/50 hover:bg-accent/5 transition-all pricing-btn flex items-center justify-center gap-2" data-plan="premium">
               <svg class="animate-spin h-4 w-4 hidden" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
-              <span>Upgrade to Premium</span>
+              <span>Upgrade to Advanced</span>
             </button>
           </div>
         </div>
@@ -571,21 +620,20 @@
         <div class="text-center mb-10">
           <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#00b894]/10 border border-[#00b894]/20 text-[#00b894] text-sm font-medium mb-4">
             <span class="w-2 h-2 bg-[#00b894] rounded-full animate-pulse"></span>
-            ✨ Fix &amp; Improve Your Text
+            Writing Refinement Tool
           </div>
-          <h2 class="text-3xl font-bold mb-3">Rewrite, Humanize &amp; Fix Instantly</h2>
-          <p class="text-muted max-w-xl mx-auto">Paste your text, pick a style, get 3 unique variations. Powered by GPT-4o.</p>
+          <h2 class="text-3xl font-bold mb-3">Refine &amp; Rephrase for Academic Integrity</h2>
+          <p class="text-muted max-w-xl mx-auto">Improve clarity and originality while preserving meaning and citations.</p>
         </div>
 
         <!-- Mode selector -->
         <div class="flex flex-wrap justify-center gap-2 mb-6" id="rw-modes">
-          <button onclick="setRwMode('paraphrase')" data-mode="paraphrase" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-accent text-white">🔄 Paraphrase</button>
-          <button onclick="setRwMode('simplify')" data-mode="simplify" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">📖 Simplify</button>
-          <button onclick="setRwMode('expand')" data-mode="expand" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">📝 Expand</button>
-          <button onclick="setRwMode('formal')" data-mode="formal" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">🎩 Formal</button>
-          <button onclick="setRwMode('casual')" data-mode="casual" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">💬 Casual</button>
-          <button onclick="setRwMode('academic')" data-mode="academic" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">🎓 Academic</button>
-          <button onclick="setRwMode('humanize')" data-mode="humanize" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">🔥 Humanize</button>
+          <button onclick="setRwMode('paraphrase')" data-mode="paraphrase" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-accent text-white">Rephrase Safely</button>
+          <button onclick="setRwMode('simplify')" data-mode="simplify" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">Simplify</button>
+          <button onclick="setRwMode('expand')" data-mode="expand" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">Expand</button>
+          <button onclick="setRwMode('formal')" data-mode="formal" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">Improve Academic Tone</button>
+          <button onclick="setRwMode('academic')" data-mode="academic" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">Scholarly</button>
+          <button onclick="setRwMode('humanize')" data-mode="humanize" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">Refine Writing</button>
         </div>
 
         <!-- Controls row: Tone + Strength -->
@@ -616,7 +664,7 @@
         <!-- Text input -->
         <div class="relative mb-4">
           <div class="text-xs text-muted mb-2 flex items-center gap-1">
-            <span>💡</span> Try: <button onclick="$('rwInput').value='AI is changing the world rapidly. Technology continues to evolve at an unprecedented pace.'; $('rwInput').dispatchEvent(new Event('input'));" class="text-accent-l hover:text-accent underline cursor-pointer bg-transparent border-none p-0 text-xs">"AI is changing the world rapidly..."</button>
+            <span>💡</span> Try: <button onclick="$('rwInput').value='The results of this study demonstrate a significant correlation between the variables, consistent with prior findings in the literature.'; $('rwInput').dispatchEvent(new Event('input'));" class="text-accent-l hover:text-accent underline cursor-pointer bg-transparent border-none p-0 text-xs">"The results of this study demonstrate..."</button>
           </div>
           <textarea id="rwInput" rows="6" placeholder="Paste or type your text here…"
             class="glow-input w-full bg-surface border border-border rounded-xl p-5 text-sm leading-relaxed text-txt placeholder-muted resize-y focus:outline-none transition-all"
@@ -628,7 +676,7 @@
         <div class="text-center mb-6">
           <button id="rwBtn" onclick="doGeneralRewrite()" disabled
             class="pulse-btn inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-[#00b894] to-[#00cec9] text-white rounded-xl text-[15px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-[#00b894]/25 hover:-translate-y-0.5 transition-all">
-            ✨ <span id="rwBtnText">Rewrite</span>
+            <span id="rwBtnText">Refine Text</span>
           </button>
         </div>
 
@@ -643,6 +691,11 @@
 
         <!-- Results: 3 variation cards -->
         <div id="rwResults" class="hidden space-y-4 mt-6"></div>
+
+        <!-- Academic Disclaimer -->
+        <div class="mt-8 text-center">
+          <p class="text-xs text-muted italic">This tool assists with rephrasing but does not replace proper citation and referencing practices.</p>
+        </div>
       </div>
     </section>
 
@@ -650,8 +703,8 @@
     <section id="analyze" class="py-20 px-6 border-t border-border/50">
       <div class="max-w-4xl mx-auto">
         <div class="text-center mb-10">
-          <h2 class="text-3xl font-bold mb-3">🔍 Deep Plagiarism Scan</h2>
-          <p class="text-muted">Paste your text or upload a document to check for plagiarism across web &amp; academic sources.</p>
+          <h2 class="text-3xl font-bold mb-3">Plagiarism Detection</h2>
+          <p class="text-muted">Paste your text or upload a document to check for similarity across web and academic sources.</p>
         </div>
 
         <!-- Input mode tabs -->
@@ -1059,6 +1112,15 @@
             <span>Agents: <strong class="text-txt" id="sidebarAgents">—</strong></span>
             <span>Flagged: <strong class="text-txt" id="sidebarFlagged">—</strong></span>
           </div>
+
+          <!-- Rephrase prompt (shown when flagged passages exist) -->
+          <div id="rephrasePrompt" class="hidden mt-4 bg-warn/5 border border-warn/20 rounded-xl p-4">
+            <p class="text-sm text-warn font-semibold mb-1">Similar content detected</p>
+            <p class="text-xs text-muted mb-3">Review and safely rephrase flagged sections to improve originality.</p>
+            <a href="#rewriter" onclick="document.getElementById('reportView').style.display='none'; document.getElementById('reportView').classList.add('hidden'); document.getElementById('inputView').classList.remove('hidden');" class="inline-flex items-center gap-1.5 px-4 py-2 bg-accent/10 border border-accent/20 text-accent-l rounded-lg text-xs font-semibold hover:bg-accent/20 transition-colors">
+              Rephrase Flagged Sections
+            </a>
+          </div>
         </div>
 
         <!-- Sidebar Tabs: Match Groups / Sources -->
@@ -1353,6 +1415,16 @@
     $('sidebarConfidence').textContent = (data.confidence_score * 100).toFixed(0) + '%';
     $('sidebarAgents').textContent = agents.length;
     $('sidebarFlagged').textContent = passages.length;
+
+    // Show plagiarism-to-rewrite prompt if flagged passages found
+    const rephrasePrompt = document.getElementById('rephrasePrompt');
+    if (rephrasePrompt) {
+      if (passages.length > 0) {
+        rephrasePrompt.classList.remove('hidden');
+      } else {
+        rephrasePrompt.classList.add('hidden');
+      }
+    }
 
     const riskColors = { LOW: 'bg-ok/20 text-ok', MEDIUM: 'bg-warn/20 text-warn', HIGH: 'bg-danger/20 text-danger' };
     $('sidebarRisk').textContent = data.risk_level;
@@ -2172,7 +2244,7 @@
 
     // Variation cards
     const varColors = ['#00b894', '#6c5ce7', '#e17055'];
-    const varLabels = ['✍️ Standard', '🧠 Rewritten', '🔥 Humanized'];
+    const varLabels = ['Original Rephrase', 'Refined Version', 'Scholarly Revision'];
 
     data.variations.forEach((v, i) => {
       const color = varColors[i % varColors.length];
@@ -2194,7 +2266,7 @@
     againBtn.className = 'text-center mt-4';
     againBtn.innerHTML = `
       <button onclick="doGeneralRewrite()" class="inline-flex items-center gap-2 px-6 py-2.5 bg-surface2 border border-border text-txt rounded-xl text-sm font-semibold hover:border-accent hover:text-accent-l transition-all">
-        🔁 Rewrite Again
+        Rephrase Again
       </button>`;
     container.appendChild(againBtn);
 
@@ -3036,15 +3108,15 @@
     const upgradeLink = $('dashUpgradeLink');
 
     if (plan === 'pro') {
-      badge.innerHTML = '<span class="px-3 py-1 rounded-full bg-accent/15 text-accent-l text-sm font-semibold border border-accent/25">Pro</span>';
+      badge.innerHTML = '<span class="px-3 py-1 rounded-full bg-accent/15 text-accent-l text-sm font-semibold border border-accent/25">Research</span>';
       msg.textContent = 'Unlimited uses';
-      if (upgradeLink) upgradeLink.textContent = 'Upgrade to Premium →';
+      if (upgradeLink) upgradeLink.textContent = 'Upgrade to Advanced →';
     } else if (plan === 'premium') {
-      badge.innerHTML = '<span class="px-3 py-1 rounded-full bg-[#00b894]/15 text-[#00b894] text-sm font-semibold border border-[#00b894]/25">Premium</span>';
+      badge.innerHTML = '<span class="px-3 py-1 rounded-full bg-[#00b894]/15 text-[#00b894] text-sm font-semibold border border-[#00b894]/25">Advanced Research</span>';
       msg.textContent = 'Unlimited uses + API';
       if (upgradeLink) upgradeLink.style.display = 'none';
     } else {
-      badge.innerHTML = '<span class="px-3 py-1 rounded-full bg-accent/15 text-accent-l text-sm font-semibold border border-accent/25">Free</span>';
+      badge.innerHTML = '<span class="px-3 py-1 rounded-full bg-accent/15 text-accent-l text-sm font-semibold border border-accent/25">Basic</span>';
       msg.textContent = '3 uses/day included';
       if (upgradeLink) upgradeLink.textContent = 'Upgrade →';
     }
