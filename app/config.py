@@ -84,7 +84,7 @@ class Settings(BaseSettings):
     # Azure Communication Services (ACS) — for transactional emails.
     # Set PG_ACS_CONNECTION_STRING and PG_ACS_SENDER_EMAIL in production.
     acs_connection_string: str = ""
-    acs_sender_email: str = "DoNotReply@plagiarismguard.com"
+    acs_sender_email: str = "DoNotReply@05cf42e5-2365-4546-aa1d-1c54ce6cbbc8.azurecomm.net"
 
     # Public base URL (used in email links).
     # Set PG_APP_BASE_URL in production.
