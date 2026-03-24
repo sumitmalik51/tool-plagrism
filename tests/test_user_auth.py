@@ -106,8 +106,9 @@ class TestJWT:
 
     def test_tampered_token_returns_none(self):
         token = create_access_token(1, "alice@example.com")
-        # Flip a character in the signature
-        tampered = token[:-1] + ("A" if token[-1] != "A" else "B")
+        # Replace multiple characters in the signature to ensure it's invalid
+        parts = token.rsplit(".", 1)
+        tampered = parts[0] + ".AAAA_invalid_signature_AAAA"
         assert verify_access_token(tampered) is None
 
 

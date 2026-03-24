@@ -54,12 +54,24 @@ _JWT_ALGORITHM = "HS256"
 
 
 def _get_jwt_secret() -> str:
-    """Return the JWT signing secret (create one automatically if missing)."""
+    """Return the JWT signing secret.
+
+    In production (``debug=False``), ``PG_JWT_SECRET`` must be explicitly
+    configured.  In development mode a temporary secret is generated
+    automatically (tokens will not survive application restarts).
+    """
     secret = settings.jwt_secret
-    if not secret:
-        # Fall back to a runtime-generated secret (tokens won't survive restart)
-        secret = os.environ.setdefault("PG_JWT_SECRET", secrets.token_hex(32))
-    return secret
+    if secret:
+        return secret
+
+    if not settings.debug:
+        logger.error(
+            "jwt_secret_missing_in_production",
+            message="PG_JWT_SECRET must be set when debug mode is off",
+        )
+
+    # Fall back to a runtime-generated secret (tokens won't survive restart)
+    return os.environ.setdefault("PG_JWT_SECRET", secrets.token_hex(32))
 
 
 def create_access_token(user_id: int, email: str) -> str:
@@ -253,6 +265,8 @@ def create_password_reset_token(email: str) -> str | None:
 
     # Store token in a simple table (create if needed)
     try:
+        # Remove any existing tokens for this user first
+        db.execute("DELETE FROM password_resets WHERE user_id = ?", (user["id"],))
         db.execute(
             "INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)",
             (user["id"], token, expires_at),
@@ -260,6 +274,7 @@ def create_password_reset_token(email: str) -> str | None:
     except Exception:
         # Table might not exist yet in older DBs — create it
         _ensure_password_resets_table(db)
+        db.execute("DELETE FROM password_resets WHERE user_id = ?", (user["id"],))
         db.execute(
             "INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)",
             (user["id"], token, expires_at),
@@ -309,7 +324,7 @@ def _ensure_password_resets_table(db) -> None:
             """CREATE TABLE IF NOT EXISTS password_resets (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id     INTEGER NOT NULL,
-                token       TEXT NOT NULL,
+                token       TEXT NOT NULL UNIQUE,
                 expires_at  INTEGER NOT NULL,
                 created_at  TEXT NOT NULL DEFAULT (datetime('now'))
             )"""
@@ -322,13 +337,13 @@ def _ensure_password_resets_table(db) -> None:
                 CREATE TABLE password_resets (
                     id          INT IDENTITY(1,1) PRIMARY KEY,
                     user_id     INT NOT NULL,
-                    token       NVARCHAR(255) NOT NULL,
+                    token       NVARCHAR(255) NOT NULL UNIQUE,
                     expires_at  INT NOT NULL,
                     created_at  DATETIME2 NOT NULL DEFAULT GETUTCDATE()
                 )"""
             )
-        except Exception:
-            pass  # Table likely already exists
+        except Exception as exc:
+            logger.debug("password_resets_table_exists", error=str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -396,7 +411,7 @@ def _ensure_email_verifications_table(db) -> None:
             """CREATE TABLE IF NOT EXISTS email_verifications (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id     INTEGER NOT NULL,
-                token       TEXT NOT NULL,
+                token       TEXT NOT NULL UNIQUE,
                 created_at  TEXT NOT NULL DEFAULT (datetime('now'))
             )"""
         )
@@ -407,12 +422,12 @@ def _ensure_email_verifications_table(db) -> None:
                 CREATE TABLE email_verifications (
                     id          INT IDENTITY(1,1) PRIMARY KEY,
                     user_id     INT NOT NULL,
-                    token       NVARCHAR(255) NOT NULL,
+                    token       NVARCHAR(255) NOT NULL UNIQUE,
                     created_at  DATETIME2 NOT NULL DEFAULT GETUTCDATE()
                 )"""
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("email_verifications_table_exists", error=str(exc))
 
 
 def _ensure_email_verified_column(db) -> None:
@@ -426,7 +441,7 @@ def _ensure_email_verified_column(db) -> None:
                 "ALTER TABLE users ADD email_verified BIT NOT NULL DEFAULT 0"
             )
         except Exception:
-            pass  # Column already exists
+            pass  # Column already exists — expected
 
 
 def _ensure_trial_ends_at_column(db) -> None:
@@ -440,7 +455,7 @@ def _ensure_trial_ends_at_column(db) -> None:
                 "ALTER TABLE users ADD trial_ends_at DATETIME2 NULL"
             )
         except Exception:
-            pass  # Column already exists
+            pass  # Column already exists — expected
 
 
 def _check_trial_expiry(db, user_id: int, plan_type: str, trial_ends_at) -> tuple[str, str | None]:
@@ -464,7 +479,6 @@ def _check_trial_expiry(db, user_id: int, plan_type: str, trial_ends_at) -> tupl
     now = datetime.now(timezone.utc)
     if now >= trial_dt and plan_type == "pro":
         # Trial expired — check if user has any successful payment
-        from app.services.database import get_db as _get_db
         payment = db.fetch_one(
             "SELECT id FROM payments WHERE user_id = ? AND status = 'paid'",
             (user_id,),

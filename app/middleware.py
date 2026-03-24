@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import hmac
 import time
+import uuid
 from typing import Callable
 
+import structlog
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -136,4 +138,29 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             response.headers["Strict-Transport-Security"] = (
                 "max-age=31536000; includeSubDomains"
             )
+        return response
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Attach a unique request ID to every request/response for tracing.
+
+    The ID is read from the ``X-Request-ID`` header if provided by an
+    upstream proxy; otherwise a new UUID is generated.  The ID is:
+
+    * stored on ``request.state.request_id``
+    * bound to structlog context vars (appears in every log line)
+    * echoed back in the ``X-Request-ID`` response header
+    """
+
+    async def dispatch(
+        self, request: Request, call_next: Callable
+    ) -> Response:
+        request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
+        request.state.request_id = request_id
+
+        structlog.contextvars.clear_contextvars()
+        structlog.contextvars.bind_contextvars(request_id=request_id)
+
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
         return response

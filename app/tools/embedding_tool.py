@@ -48,6 +48,14 @@ def preload_model() -> None:
         logger.error("model_preload_failed", error=str(exc))
 
 
+def get_model() -> SentenceTransformer | None:
+    """Return the cached model instance, or *None* if not yet loaded."""
+    try:
+        return _load_model()
+    except Exception:
+        return None
+
+
 def _embed_sync(texts: list[str]) -> NDArray[np.float32]:
     """Generate embeddings synchronously (CPU-bound).
 

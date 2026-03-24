@@ -88,7 +88,8 @@ async def admin_stats(authorization: str = Header(default="")):
             "FROM users GROUP BY CAST(created_at AS DATE) "
             "ORDER BY day DESC"
         )
-    except Exception:
+    except Exception as exc:
+        logger.warning("admin_stats_signups_query_failed", error=str(exc))
         recent_rows = []
 
     return {
@@ -114,7 +115,8 @@ async def admin_analytics(authorization: str = Header(default="")):
             "FROM scans GROUP BY CAST(created_at AS DATE) "
             "ORDER BY day DESC"
         )
-    except Exception:
+    except Exception as exc:
+        logger.warning("admin_analytics_scans_query_failed", error=str(exc))
         scans_by_day = []
 
     # Tool usage breakdown (from usage_logs)
@@ -124,7 +126,8 @@ async def admin_analytics(authorization: str = Header(default="")):
             "FROM usage_logs GROUP BY tool_type "
             "ORDER BY cnt DESC"
         )
-    except Exception:
+    except Exception as exc:
+        logger.warning("admin_analytics_tool_usage_query_failed", error=str(exc))
         tool_usage = []
 
     # Average plagiarism score
@@ -133,7 +136,8 @@ async def admin_analytics(authorization: str = Header(default="")):
             "SELECT AVG(plagiarism_score) AS avg_score FROM scans"
         )
         avg_score = round(avg_row["avg_score"] or 0, 1)
-    except Exception:
+    except Exception as exc:
+        logger.warning("admin_analytics_avg_score_query_failed", error=str(exc))
         avg_score = 0
 
     # Risk level distribution
@@ -142,7 +146,8 @@ async def admin_analytics(authorization: str = Header(default="")):
             "SELECT risk_level, COUNT(*) AS cnt FROM scans GROUP BY risk_level"
         )
         risk_dist = {r["risk_level"]: r["cnt"] for r in risk_rows}
-    except Exception:
+    except Exception as exc:
+        logger.warning("admin_analytics_risk_dist_query_failed", error=str(exc))
         risk_dist = {}
 
     # Top active users (by scan count)
@@ -153,7 +158,8 @@ async def admin_analytics(authorization: str = Header(default="")):
             "GROUP BY u.id, u.name, u.email "
             "ORDER BY scan_count DESC"
         )[:10]
-    except Exception:
+    except Exception as exc:
+        logger.warning("admin_analytics_top_users_query_failed", error=str(exc))
         top_users = []
 
     return {
@@ -170,8 +176,8 @@ async def admin_users(
     authorization: str = Header(default=""),
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=50, ge=1, le=200),
-    plan_filter: str = Query(default="all"),
-    search: str = Query(default=""),
+    plan_filter: str = Query(default="all", max_length=20),
+    search: str = Query(default="", max_length=100),
 ):
     """Return paginated list of all users with their plan and activity."""
     _require_admin(authorization)
@@ -209,8 +215,9 @@ async def admin_users(
 
     try:
         users = db.fetch_all(query, tuple(params))
-    except Exception:
+    except Exception as exc:
         # SQLite doesn't support OFFSET...FETCH — fall back to LIMIT/OFFSET
+        logger.debug("admin_users_mssql_syntax_fallback", error=str(exc))
         query_lite = (
             f"SELECT u.id, u.name, u.email, u.plan_type, u.is_paid, u.created_at, "
             f"(SELECT COUNT(*) FROM scans s WHERE s.user_id = u.id) AS scan_count, "

@@ -5,7 +5,8 @@ Covers:
 - Enhanced health check (dependency checks, response structure)
 - Input validation limits (max_length on text fields)
 - Config-driven constants (batch_max_files, timeouts, AI thresholds)
-- Debug mode warnings
+- Security headers
+- Admin input validation
 """
 
 from __future__ import annotations
@@ -144,6 +145,11 @@ class TestConfigConstants:
         from app.config import settings
         assert hasattr(settings, "max_text_length")
         assert settings.max_text_length == 500_000
+
+    def test_admin_emails_default_is_empty(self) -> None:
+        """Admin emails should default to empty (no hardcoded emails)."""
+        from app.config import settings
+        assert settings.admin_emails == ""
 
 
 # ═══════════════════════════════════════════════════════════════════════════

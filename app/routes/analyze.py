@@ -29,7 +29,10 @@ router = APIRouter(prefix="/api/v1", tags=["analysis"])
 
 class AnalyzeTextRequest(BaseModel):
     """JSON body for the /analyze-agent endpoint."""
-    text: str = Field(..., min_length=1, description="Plain text to analyse for plagiarism")
+    text: str = Field(
+        ..., min_length=1, max_length=500_000,
+        description="Plain text to analyse for plagiarism",
+    )
     excluded_domains: list[str] = Field(
         default_factory=list,
         description="List of domains to exclude from plagiarism detection (e.g. your own website)",
