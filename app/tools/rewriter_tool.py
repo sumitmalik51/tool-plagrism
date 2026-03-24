@@ -56,7 +56,9 @@ QUALITY CHECK:
 - Did meaning change? Fix it.
 
 OUTPUT:
-Return ONLY JSON list of 3 rewrites.
+Return ONLY a JSON array of 3 rewritten strings. Example:
+["First rewrite here.", "Second rewrite here.", "Third rewrite here."]
+Do NOT wrap in objects or add keys — just plain text strings in a JSON array.
 """
 
 _DOCUMENT_SYSTEM = """You are an expert rewriting engine.
@@ -124,12 +126,35 @@ def _safe_parse_rewrites(output: str) -> list[str]:
     try:
         parsed = json.loads(output)
         if isinstance(parsed, list):
-            return parsed[:3]
+            # Ensure each element is a plain string
+            result = []
+            for item in parsed[:3]:
+                if isinstance(item, str):
+                    result.append(item)
+                elif isinstance(item, dict):
+                    # AI sometimes returns {"text": "...", ...}
+                    result.append(
+                        item.get("text")
+                        or item.get("rewrite")
+                        or item.get("rewritten")
+                        or item.get("content")
+                        or str(item)
+                    )
+                else:
+                    result.append(str(item))
+            return result if result else [output]
+        elif isinstance(parsed, str):
+            return [parsed]
     except Exception:
         pass
 
-    # fallback
-    return [output]
+    # fallback: strip markdown code fences if present
+    cleaned = output.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        return _safe_parse_rewrites(cleaned)
+
+    return [cleaned]
 
 # ---------------------------------------------------------------------------
 # Paragraph Rewrite

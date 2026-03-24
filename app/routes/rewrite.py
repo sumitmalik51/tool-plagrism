@@ -106,9 +106,13 @@ async def rewrite_paragraph_endpoint(
 
     # Bridge tool output (rewrites list) to response model (rewritten string)
     rewrites = result.get("rewrites", [])
+    best = rewrites[0] if rewrites else result["original"]
+    # Guard: if AI returned a dict instead of a string, extract text
+    if isinstance(best, dict):
+        best = best.get("text") or best.get("rewrite") or best.get("rewritten") or str(best)
     return RewriteParagraphResponse(
         original=result["original"],
-        rewritten=rewrites[0] if rewrites else result["original"],
+        rewritten=str(best),
         tone=result.get("tone", request.tone),
         elapsed_s=result.get("elapsed_s", 0.0),
         skipped=result.get("skipped", False),
