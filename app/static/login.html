@@ -143,8 +143,10 @@
         localStorage.setItem('pg_token', data.token);
         localStorage.setItem('pg_user', JSON.stringify(data.user));
 
-        // Redirect to main app
-        window.location.href = '/';
+        // Redirect to intended destination (or main app)
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get('redirect');
+        window.location.href = redirect || '/';
       } catch (err) {
         showError('Network error — please try again.');
       } finally {
@@ -156,7 +158,9 @@
 
     // If already logged in, redirect
     if (localStorage.getItem('pg_token')) {
-      window.location.href = '/';
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get('redirect');
+      window.location.href = redirect || '/';
     }
   </script>
 </body>
