@@ -24,6 +24,7 @@ from app.services.auth_service import (
     is_email_verified,
     resend_verification_token,
 )
+from app.services.email_service import send_password_reset_email, send_verification_email
 from app.services.persistence import get_scan, get_user_scans, get_user_stats
 from app.services.rate_limiter import PLAN_TO_TIER, UserTier, limiter
 
@@ -75,9 +76,13 @@ class AuthResponse(BaseModel):
 
 @router.post("/signup", response_model=AuthResponse, status_code=201)
 async def route_signup(body: SignupRequest):
-    """Register a new account — no email verification required."""
+    """Register a new account and send a verification email."""
     try:
         result = signup(name=body.name, email=body.email, password=body.password)
+        # Send verification email via ACS
+        v_token = result.pop("verification_token", None)
+        if v_token:
+            send_verification_email(body.email, v_token)
         return result
     except AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -98,19 +103,19 @@ async def route_forgot_password(body: ForgotPasswordRequest):
     """Request a password reset token.
 
     Always returns 200 to avoid email enumeration.
-    In production, this would send an email with the reset link.
+    Sends a reset link via Azure Communication Services Email.
     """
     token = create_password_reset_token(body.email)
+    email_sent = False
     if token:
-        # In production, send email with reset link:
-        # https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net/forgot-password?token=...
-        logger.info("password_reset_requested", email=body.email, has_user=True)
+        email_sent = send_password_reset_email(body.email, token)
+        logger.info("password_reset_requested", email=body.email, has_user=True, email_sent=email_sent)
     else:
         logger.info("password_reset_requested", email=body.email, has_user=False)
 
     return {
-        "message": "If an account with this email exists, a password reset link has been generated.",
-        "token": token,  # returned directly since no email service; remove in prod
+        "message": "If an account with this email exists, a password reset link has been sent.",
+        "email_sent": email_sent,
     }
 
 
@@ -152,14 +157,19 @@ async def route_email_status(authorization: str = Header(default="")):
 
 @router.post("/resend-verification")
 async def route_resend_verification(authorization: str = Header(default="")):
-    """Resend the email verification token."""
+    """Resend the email verification token via ACS email."""
     user_id = _get_user_id(authorization)
     if is_email_verified(user_id):
-        return {"message": "Email is already verified.", "token": None}
+        return {"message": "Email is already verified.", "email_sent": False}
     token = resend_verification_token(user_id)
+    # Look up user email
+    user = get_user_by_id(user_id)
+    email_sent = False
+    if user and token:
+        email_sent = send_verification_email(user["email"], token)
     return {
-        "message": "Verification link has been generated.",
-        "token": token,  # returned directly since no email service; remove in prod
+        "message": "Verification email has been sent." if email_sent else "Verification link generated (email delivery unavailable).",
+        "email_sent": email_sent,
     }
 
 

@@ -32,6 +32,9 @@ setuptools>=75.0.0,<81
 # Database (Azure SQL)
 pyodbc==5.2.0
 
+# Azure Communication Services (Email)
+azure-communication-email>=1.0.0
+
 # Logging
 structlog==24.4.0
 

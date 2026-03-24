@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Email — PlagiarismGuard</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', system-ui, sans-serif; background: #0f172a; }
+        .card { background: #1e293b; border: 1px solid #334155; }
+        .btn-primary { background: #6366f1; }
+        .btn-primary:hover { background: #4f46e5; }
+        .spinner { border: 3px solid #334155; border-top-color: #818cf8; border-radius: 50%; width: 40px; height: 40px; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="card rounded-xl shadow-2xl p-8 w-full max-w-md text-center">
+
+        <!-- Loading state -->
+        <div id="loading">
+            <div class="spinner mx-auto mb-4"></div>
+            <p class="text-slate-300 text-lg">Verifying your email…</p>
+        </div>
+
+        <!-- Success state -->
+        <div id="success" class="hidden">
+            <div class="text-5xl mb-4">✅</div>
+            <h1 class="text-2xl font-bold text-white mb-2">Email Verified!</h1>
+            <p class="text-slate-400 mb-6">Your email has been successfully verified. You now have full access to PlagiarismGuard.</p>
+            <a href="/login" class="btn-primary inline-block px-8 py-3 text-white font-semibold rounded-lg transition">Sign In</a>
+        </div>
+
+        <!-- Error state -->
+        <div id="error" class="hidden">
+            <div class="text-5xl mb-4">❌</div>
+            <h1 class="text-2xl font-bold text-white mb-2">Verification Failed</h1>
+            <p id="error-message" class="text-slate-400 mb-6">The verification link is invalid or has already been used.</p>
+            <a href="/login" class="btn-primary inline-block px-8 py-3 text-white font-semibold rounded-lg transition">Go to Login</a>
+        </div>
+    </div>
+
+    <script>
+        (async () => {
+            const params = new URLSearchParams(window.location.search);
+            const token = params.get('token');
+
+            if (!token) {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('error').classList.remove('hidden');
+                document.getElementById('error-message').textContent = 'No verification token provided.';
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/v1/auth/verify-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token })
+                });
+
+                document.getElementById('loading').classList.add('hidden');
+
+                if (res.ok) {
+                    document.getElementById('success').classList.remove('hidden');
+                } else {
+                    const data = await res.json().catch(() => ({}));
+                    document.getElementById('error').classList.remove('hidden');
+                    if (data.detail) {
+                        document.getElementById('error-message').textContent = data.detail;
+                    }
+                }
+            } catch (e) {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('error').classList.remove('hidden');
+                document.getElementById('error-message').textContent = 'Network error. Please try again.';
+            }
+        })();
+    </script>
+</body>
+</html>

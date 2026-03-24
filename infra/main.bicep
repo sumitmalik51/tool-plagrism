@@ -40,6 +40,13 @@ param razorpayKeyId string = ''
 @secure()
 param razorpayKeySecret string = ''
 
+@description('Azure Communication Services connection string for sending emails')
+@secure()
+param acsConnectionString string = ''
+
+@description('Sender email address from the ACS Email domain')
+param acsSenderEmail string = 'DoNotReply@plagiarismguard.com'
+
 // ---------------------------------------------------------------------------
 // Naming
 // ---------------------------------------------------------------------------
@@ -114,6 +121,14 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
         {
           name: 'PG_RAZORPAY_KEY_SECRET'
           value: razorpayKeySecret
+        }
+        {
+          name: 'PG_ACS_CONNECTION_STRING'
+          value: acsConnectionString
+        }
+        {
+          name: 'PG_ACS_SENDER_EMAIL'
+          value: acsSenderEmail
         }
       ]
     }

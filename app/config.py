@@ -81,6 +81,15 @@ class Settings(BaseSettings):
     # Set PG_SQL_CONNECTION_STRING in production.
     sql_connection_string: str = ""
 
+    # Azure Communication Services (ACS) — for transactional emails.
+    # Set PG_ACS_CONNECTION_STRING and PG_ACS_SENDER_EMAIL in production.
+    acs_connection_string: str = ""
+    acs_sender_email: str = "DoNotReply@plagiarismguard.com"
+
+    # Public base URL (used in email links).
+    # Set PG_APP_BASE_URL in production.
+    app_base_url: str = "https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net"
+
     # Admin panel — comma-separated list of admin email addresses.
     # Set PG_ADMIN_EMAILS in production.
     admin_emails: str = "sumitmalik51@gmail.com"

@@ -165,6 +165,12 @@ async def serve_forgot_password() -> FileResponse:
     return FileResponse(STATIC_DIR / "forgot-password.html")
 
 
+@app.get("/verify-email", include_in_schema=False)
+async def serve_verify_email() -> FileResponse:
+    """Serve the email verification landing page."""
+    return FileResponse(STATIC_DIR / "verify-email.html")
+
+
 @app.get("/robots.txt", include_in_schema=False)
 async def serve_robots() -> FileResponse:
     """Serve robots.txt for search engine crawlers."""
