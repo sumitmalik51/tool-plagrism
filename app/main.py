@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -185,6 +186,93 @@ async def serve_sitemap() -> FileResponse:
 
 # --- Health check -------------------------------------------------------------
 @app.get("/health", tags=["system"])
-async def health_check() -> dict[str, str]:
-    """Return application health status."""
-    return {"status": "healthy", "version": settings.app_version}
+async def health_check() -> dict[str, Any]:
+    """Comprehensive health check — reports status of all services and endpoints."""
+    start = time.time()
+    checks: dict[str, Any] = {}
+    overall = "healthy"
+
+    # 1. Database
+    try:
+        from app.services.database import get_db
+        db = get_db()
+        cur = db.execute("SELECT 1")
+        cur.fetchone()
+        checks["database"] = {"status": "connected", "type": "Azure SQL" if settings.sql_connection_string else "SQLite"}
+    except Exception as e:
+        checks["database"] = {"status": "error", "error": str(e)[:120]}
+        overall = "degraded"
+
+    # 2. Embedding model
+    try:
+        from app.tools.embedding_tool import _model
+        if _model is not None:
+            checks["embedding_model"] = {"status": "loaded", "model": settings.embedding_model}
+        else:
+            checks["embedding_model"] = {"status": "not_loaded", "model": settings.embedding_model}
+            overall = "degraded"
+    except Exception as e:
+        checks["embedding_model"] = {"status": "error", "error": str(e)[:120]}
+        overall = "degraded"
+
+    # 3. Azure OpenAI
+    if settings.azure_openai_endpoint and settings.azure_openai_api_key:
+        checks["azure_openai"] = {
+            "status": "configured",
+            "endpoint": settings.azure_openai_endpoint[:40] + "…" if len(settings.azure_openai_endpoint) > 40 else settings.azure_openai_endpoint,
+            "deployment": settings.azure_openai_deployment,
+        }
+    else:
+        checks["azure_openai"] = {"status": "not_configured"}
+        overall = "degraded"
+
+    # 4. Bing Search API
+    if settings.bing_api_key:
+        checks["bing_search"] = {"status": "configured"}
+    else:
+        checks["bing_search"] = {"status": "not_configured"}
+        overall = "degraded"
+
+    # 5. Razorpay
+    if settings.razorpay_key_id and settings.razorpay_key_secret:
+        checks["razorpay"] = {"status": "configured", "key_prefix": settings.razorpay_key_id[:12] + "…"}
+    else:
+        checks["razorpay"] = {"status": "not_configured"}
+        overall = "degraded"
+
+    # 6. Azure Communication Services (Email)
+    if settings.acs_connection_string:
+        checks["email_acs"] = {"status": "configured", "sender": settings.acs_sender_email}
+    else:
+        checks["email_acs"] = {"status": "not_configured"}
+
+    # 7. JWT Auth
+    if settings.jwt_secret:
+        checks["jwt_auth"] = {"status": "configured"}
+    else:
+        checks["jwt_auth"] = {"status": "using_default", "warning": "Set PG_JWT_SECRET in production"}
+
+    # 8. Collect all API endpoints
+    endpoints: list[dict[str, str]] = []
+    for route in app.routes:
+        if hasattr(route, "methods") and hasattr(route, "path"):
+            # Skip static/docs routes
+            if route.path.startswith("/static") or route.path in ("/openapi.json", "/docs", "/redoc"):
+                continue
+            methods = ",".join(sorted(route.methods - {"HEAD", "OPTIONS"})) if route.methods else ""
+            if methods:
+                endpoints.append({"method": methods, "path": route.path})
+
+    # Sort endpoints by path
+    endpoints.sort(key=lambda e: e["path"])
+
+    elapsed_ms = round((time.time() - start) * 1000, 1)
+
+    return {
+        "status": overall,
+        "version": settings.app_version,
+        "response_time_ms": elapsed_ms,
+        "services": checks,
+        "endpoints": endpoints,
+        "endpoint_count": len(endpoints),
+    }

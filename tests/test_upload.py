@@ -11,11 +11,21 @@ client = TestClient(app)
 
 
 def test_health_check() -> None:
-    """GET /health should return 200 with status healthy."""
+    """GET /health should return 200 with comprehensive status."""
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "healthy"
+    assert data["status"] in ("healthy", "degraded")
+    assert "version" in data
+    assert "services" in data
+    assert "endpoints" in data
+    assert "endpoint_count" in data
+    assert isinstance(data["services"], dict)
+    assert isinstance(data["endpoints"], list)
+    assert data["endpoint_count"] > 0
+    # Verify core service checks are present
+    for svc in ("database", "embedding_model", "razorpay", "bing_search", "azure_openai"):
+        assert svc in data["services"], f"Missing service check: {svc}"
 
 
 def test_upload_txt_file() -> None:
