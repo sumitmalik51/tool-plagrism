@@ -330,7 +330,7 @@ PLANS = [
     {
         "id": "premium",
         "name": "Premium",
-        "price": 699,
+        "price": 10,
         "currency": "INR",
         "period": "month",
         "features": [
@@ -347,7 +347,7 @@ PLANS = [
 # Map plan → amount in paise (Razorpay uses smallest currency unit)
 PLAN_AMOUNTS = {
     "pro": 299_00,       # ₹299
-    "premium": 699_00,   # ₹699
+    "premium": 10_00,    # ₹10 (testing)
 }
 
 
