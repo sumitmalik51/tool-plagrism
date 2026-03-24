@@ -19,7 +19,7 @@ from app.services.auth_service import (
     update_user_plan,
     verify_access_token,
 )
-from app.services.persistence import get_user_scans, get_user_stats
+from app.services.persistence import get_scan, get_user_scans, get_user_stats
 from app.services.rate_limiter import PLAN_TO_TIER, UserTier, limiter
 
 logger = structlog.get_logger(__name__)
@@ -133,6 +133,19 @@ async def route_user_scans(
     for s in scans:
         s.pop("report_json", None)
     return {"scans": scans}
+
+
+@router.get("/scans/{document_id}")
+async def route_scan_detail(
+    document_id: str,
+    authorization: str = Header(default=""),
+):
+    """Return the full report for a single scan (owned by the user)."""
+    user_id = _get_user_id(authorization)
+    scan = get_scan(document_id)
+    if not scan or scan.get("user_id") != user_id:
+        raise HTTPException(status_code=404, detail="Scan not found.")
+    return scan
 
 
 @router.get("/stats")

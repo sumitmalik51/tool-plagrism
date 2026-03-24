@@ -188,10 +188,6 @@
           <a href="#features" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block nav-guest-link">Features</a>
           <a href="#pricing" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Pricing</a>
           <a href="#readability" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">More Tools</a>
-          <a href="https://github.com/sumitmalik51/tool-plagrism" target="_blank" class="text-sm text-muted hover:text-txt transition-colors flex items-center gap-1">
-            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-            GitHub
-          </a>
           <!-- Auth: logged-out buttons -->
           <div id="authLoggedOut" class="hidden flex items-center gap-2">
             <a href="/login" class="text-sm text-muted hover:text-txt transition-colors font-medium">Sign In</a>
@@ -866,47 +862,63 @@
       </div>
     </section>
 
-    <!-- ═══════════ Scan History Section ═══════════ -->
+    <!-- ═══════════ Scan History Section (DB-backed, logged-in only) ═══════════ -->
     <section id="history" class="py-20 px-6 border-t border-border/50">
       <div class="max-w-4xl mx-auto">
-        <div class="text-center mb-10">
-          <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent-l text-sm font-medium mb-4">
-            <span class="w-2 h-2 bg-accent rounded-full animate-pulse"></span>
-            Local Storage
-          </div>
-          <h2 class="text-3xl font-bold mb-3">Scan History &amp; Dashboard</h2>
-          <p class="text-muted max-w-xl mx-auto">Track your past scans. All data stored locally in your browser.</p>
+        <!-- Not logged in message -->
+        <div id="historyLoginPrompt" class="hidden text-center py-16">
+          <div class="text-5xl mb-4">🔒</div>
+          <h2 class="text-2xl font-bold mb-3">Sign in to view your scan history</h2>
+          <p class="text-muted mb-6">All your past scans, files, and results are stored securely and accessible from any device.</p>
+          <a href="/login" class="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:shadow-accent/25 transition-all">Sign In</a>
         </div>
 
-        <!-- Dashboard stats -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-          <div class="stat-card">
-            <div class="text-2xl font-bold gradient-text" id="dashTotalScans">0</div>
-            <div class="text-xs text-muted mt-1">Total Scans</div>
+        <!-- Logged in content -->
+        <div id="historyLoggedIn" class="hidden">
+          <div class="text-center mb-10">
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent-l text-sm font-medium mb-4">
+              <span class="w-2 h-2 bg-accent rounded-full animate-pulse"></span>
+              Scan History
+            </div>
+            <h2 class="text-3xl font-bold mb-3">Your Scan History</h2>
+            <p class="text-muted max-w-xl mx-auto">All your past scans, stored securely in the cloud.</p>
           </div>
-          <div class="stat-card">
-            <div class="text-2xl font-bold text-ok" id="dashAvgScore">0%</div>
-            <div class="text-xs text-muted mt-1">Avg Score</div>
-          </div>
-          <div class="stat-card">
-            <div class="text-2xl font-bold text-danger" id="dashHighRisk">0</div>
-            <div class="text-xs text-muted mt-1">High Risk</div>
-          </div>
-          <div class="stat-card">
-            <div class="text-2xl font-bold text-accent-l" id="dashRewrites">0</div>
-            <div class="text-xs text-muted mt-1">Rewrites</div>
-          </div>
-        </div>
 
-        <!-- History list -->
-        <div id="historyList" class="space-y-2"></div>
-        <div id="historyEmpty" class="hidden text-center py-12 text-muted">
-          <div class="text-5xl mb-3">📋</div>
-          <p>No scans yet. Run your first analysis above!</p>
-        </div>
-        <div class="flex items-center justify-between mt-4" id="historyActions">
-          <span class="text-xs text-muted" id="historyCount">0 scans</span>
-          <button onclick="clearHistory()" class="text-xs text-danger hover:text-danger/80 transition-colors">Clear All</button>
+          <!-- Stats from DB -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+            <div class="stat-card">
+              <div class="text-2xl font-bold gradient-text" id="histTotalScans">0</div>
+              <div class="text-xs text-muted mt-1">Total Scans</div>
+            </div>
+            <div class="stat-card">
+              <div class="text-2xl font-bold text-ok" id="histAvgScore">0%</div>
+              <div class="text-xs text-muted mt-1">Avg Score</div>
+            </div>
+            <div class="stat-card">
+              <div class="text-2xl font-bold text-danger" id="histHighRisk">0</div>
+              <div class="text-xs text-muted mt-1">High Risk</div>
+            </div>
+            <div class="stat-card">
+              <div class="text-2xl font-bold text-accent-l" id="histDocuments">0</div>
+              <div class="text-xs text-muted mt-1">Documents</div>
+            </div>
+          </div>
+
+          <!-- Full history list from DB -->
+          <div id="historyList" class="space-y-2"></div>
+          <div id="historyEmpty" class="hidden text-center py-12 text-muted">
+            <div class="text-5xl mb-3">📋</div>
+            <p>No scans yet. Run your first analysis above!</p>
+          </div>
+          <div class="flex items-center justify-between mt-4" id="historyActions">
+            <span class="text-xs text-muted" id="historyCount">0 scans</span>
+          </div>
+
+          <!-- Loading state -->
+          <div id="historyLoading" class="hidden text-center py-12">
+            <div class="inline-block w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full animate-spin"></div>
+            <p class="text-muted text-sm mt-3">Loading scan history...</p>
+          </div>
         </div>
       </div>
     </section>
@@ -2381,17 +2393,8 @@
     modal.innerHTML = html;
     modal.classList.remove('hidden');
 
-    // Save each to history
-    data.results.forEach(r => {
-      saveToHistory({
-        document_id: r.document_id,
-        plagiarism_score: r.plagiarism_score,
-        risk_level: r.risk_level,
-        flagged_passages: Array(r.flagged_count).fill({}),
-        detected_sources: Array(r.source_count).fill({}),
-        _filename: r.filename,
-      });
-    });
+    // Refresh scan history from DB (backend already persisted each scan)
+    if (isLoggedIn()) { loadDashboardData(); loadScanHistory(); }
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -2766,105 +2769,115 @@
   }
 
   /* ═══════════════════════════════════════════════════════════
-     Scan History (localStorage)
+     Scan History (DB-backed)
      ═══════════════════════════════════════════════════════════ */
-  const HISTORY_KEY = 'pg_scan_history';
-  const STATS_KEY = 'pg_usage_stats';
 
-  function getHistory() {
-    try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
-    catch { return []; }
+  function _authHeaders() {
+    const token = localStorage.getItem('pg_token');
+    return token ? { 'Authorization': 'Bearer ' + token } : {};
   }
 
-  function getStats() {
-    try { return JSON.parse(localStorage.getItem(STATS_KEY) || '{}'); }
-    catch { return {}; }
+  function isLoggedIn() {
+    return !!localStorage.getItem('pg_token');
   }
 
-  function saveToHistory(report) {
-    const history = getHistory();
-    const entry = {
-      id: report.document_id,
-      timestamp: new Date().toISOString(),
-      score: Math.round(report.plagiarism_score),
-      risk: report.risk_level,
-      flagged: (report.flagged_passages || []).length,
-      sources: (report.detected_sources || []).length,
-      filename: report._filename || null,
-      textPreview: (report.original_text || '').substring(0, 100),
-    };
-    history.unshift(entry);
-    if (history.length > 50) history.length = 50;
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-
-    // Update stats
-    const stats = getStats();
-    stats.totalScans = (stats.totalScans || 0) + 1;
-    stats.totalRewrites = stats.totalRewrites || 0;
-    if (report.risk_level === 'HIGH') stats.highRisk = (stats.highRisk || 0) + 1;
-    localStorage.setItem(STATS_KEY, JSON.stringify(stats));
-
-    renderHistory();
+  /** Called after a scan completes — just refreshes dashboard & history from DB */
+  function saveToHistory(_report) {
+    // Backend already persists scans via _persist_scan().
+    // We just refresh the UI from the DB.
+    if (isLoggedIn()) {
+      loadDashboardData();
+      loadScanHistory();
+    }
   }
 
   function incrementRewriteCount() {
-    const stats = getStats();
-    stats.totalRewrites = (stats.totalRewrites || 0) + 1;
-    localStorage.setItem(STATS_KEY, JSON.stringify(stats));
-    renderHistory();
+    // No-op: rewrites are not tracked in DB currently
   }
 
-  function renderHistory() {
-    const history = getHistory();
-    const stats = getStats();
-
-    // Dashboard cards
-    $('dashTotalScans').textContent = stats.totalScans || 0;
-    $('dashHighRisk').textContent = stats.highRisk || 0;
-    $('dashRewrites').textContent = stats.totalRewrites || 0;
-
-    if (history.length > 0) {
-      const avgScore = Math.round(history.reduce((s, h) => s + h.score, 0) / history.length);
-      $('dashAvgScore').textContent = avgScore + '%';
-      $('dashAvgScore').style.color = scoreColor(avgScore);
-    }
-
-    $('historyCount').textContent = `${history.length} scan${history.length !== 1 ? 's' : ''}`;
-
-    if (history.length === 0) {
-      $('historyEmpty').classList.remove('hidden');
-      $('historyList').classList.add('hidden');
+  async function loadScanHistory() {
+    if (!isLoggedIn()) {
+      $('historyLoginPrompt').classList.remove('hidden');
+      $('historyLoggedIn').classList.add('hidden');
       return;
     }
+    $('historyLoginPrompt').classList.add('hidden');
+    $('historyLoggedIn').classList.remove('hidden');
+    $('historyLoading').classList.remove('hidden');
+    $('historyList').classList.add('hidden');
     $('historyEmpty').classList.add('hidden');
-    $('historyList').classList.remove('hidden');
 
-    $('historyList').innerHTML = history.map((h, i) => {
-      const riskColors = { LOW: 'bg-ok/20 text-ok', MEDIUM: 'bg-warn/20 text-warn', HIGH: 'bg-danger/20 text-danger' };
-      const ago = timeAgo(h.timestamp);
-      return `
-        <div class="bg-surface border border-border rounded-lg p-4 flex items-center gap-4 hover:border-accent/50 transition-colors cursor-pointer" onclick="viewHistoryItem(${i})">
-          <div class="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold" style="background:${scoreColor(h.score)}20;color:${scoreColor(h.score)}">${h.score}%</div>
-          <div class="flex-1 min-w-0">
-            <div class="text-sm font-medium truncate">${h.filename ? esc(h.filename) : h.id.substring(0, 12) + '…'}</div>
-            <div class="text-xs text-muted mt-0.5">${ago} · ${h.flagged} flagged · ${h.sources} sources</div>
-          </div>
-          <span class="px-2 py-0.5 rounded text-[10px] font-bold ${riskColors[h.risk] || ''}">${h.risk}</span>
-        </div>`;
-    }).join('');
+    try {
+      const [statsRes, scansRes] = await Promise.all([
+        fetch('/api/v1/auth/stats', { headers: _authHeaders() }),
+        fetch('/api/v1/auth/scans?limit=50', { headers: _authHeaders() }),
+      ]);
+
+      // Stats
+      if (statsRes.ok) {
+        const stats = await statsRes.json();
+        $('histTotalScans').textContent = stats.total_scans || 0;
+        $('histAvgScore').textContent = (stats.average_score || 0) + '%';
+        if (stats.average_score) $('histAvgScore').style.color = scoreColor(stats.average_score);
+        $('histHighRisk').textContent = (stats.risk_breakdown || {}).HIGH || 0;
+        $('histDocuments').textContent = stats.total_documents || 0;
+      }
+
+      // Scan list
+      if (scansRes.ok) {
+        const data = await scansRes.json();
+        const scans = data.scans || [];
+        $('historyCount').textContent = `${scans.length} scan${scans.length !== 1 ? 's' : ''}`;
+
+        if (scans.length === 0) {
+          $('historyEmpty').classList.remove('hidden');
+          $('historyList').classList.add('hidden');
+        } else {
+          $('historyEmpty').classList.add('hidden');
+          $('historyList').classList.remove('hidden');
+          $('historyList').innerHTML = scans.map(s => {
+            const score = Math.round(s.plagiarism_score || 0);
+            const risk = (s.risk_level || 'LOW').toUpperCase();
+            const riskColors = { LOW: 'bg-ok/20 text-ok', MEDIUM: 'bg-warn/20 text-warn', HIGH: 'bg-danger/20 text-danger' };
+            const date = s.created_at ? timeAgo(s.created_at) : '';
+            const filename = s.filename || (s.document_id || '').substring(0, 12) + '…';
+            const sources = s.sources_count || 0;
+            const flagged = s.flagged_count || 0;
+            return `
+              <div class="bg-surface border border-border rounded-lg p-4 flex items-center gap-4 hover:border-accent/50 transition-colors cursor-pointer"
+                   onclick="viewScanDetail('${esc(s.document_id)}')">
+                <div class="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold" style="background:${scoreColor(score)}20;color:${scoreColor(score)}">${score}%</div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-medium truncate">${esc(filename)}</div>
+                  <div class="text-xs text-muted mt-0.5">${date} · ${flagged} flagged · ${sources} sources</div>
+                </div>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${riskColors[risk] || ''}">${risk}</span>
+              </div>`;
+          }).join('');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load scan history:', err);
+    } finally {
+      $('historyLoading').classList.add('hidden');
+    }
   }
 
-  function viewHistoryItem(idx) {
-    const history = getHistory();
-    if (history[idx]) showToast(`Scan ${history[idx].id.substring(0, 8)}… — Score: ${history[idx].score}%`);
-  }
-
-  function clearHistory() {
-    if (!confirm('Clear all scan history?')) return;
-    localStorage.removeItem(HISTORY_KEY);
-    localStorage.removeItem(STATS_KEY);
-    renderHistory();
-    showToast('History cleared');
+  async function viewScanDetail(documentId) {
+    try {
+      const res = await fetch('/api/v1/auth/scans/' + encodeURIComponent(documentId), { headers: _authHeaders() });
+      if (!res.ok) { showToast('Could not load scan details'); return; }
+      const scan = await res.json();
+      if (scan.report_json) {
+        const report = JSON.parse(scan.report_json);
+        lastReport = report;
+        showReportView(report);
+      } else {
+        showToast(`Score: ${Math.round(scan.plagiarism_score)}% · Risk: ${scan.risk_level}`);
+      }
+    } catch (err) {
+      showToast('Error loading scan: ' + err.message);
+    }
   }
 
   function timeAgo(ts) {
@@ -2953,9 +2966,9 @@
   };
 
   /* ═══════════════════════════════════════════════════════════
-     Init — render history on page load
+     Init — load scan history on page load
      ═══════════════════════════════════════════════════════════ */
-  renderHistory();
+  loadScanHistory();
 
   /* ═══════════════════════════════════════════════════════════
      Auth — manage login state in the navbar
@@ -3009,13 +3022,14 @@
   }
 
   async function loadDashboardData() {
+    const hdrs = _authHeaders();
     // --- Load server-side stats ---
     try {
-      const statsRes = await fetch('/api/v1/auth/stats');
+      const statsRes = await fetch('/api/v1/auth/stats', { headers: hdrs });
       if (statsRes.ok) {
         const stats = await statsRes.json();
         $('dashTotalAll').textContent = stats.total_scans || 0;
-        const avg = stats.avg_plagiarism_score;
+        const avg = stats.average_score;
         $('dashAvgAll').textContent = avg != null ? Math.round(avg) + '%' : '0%';
         if (avg != null) {
           $('dashAvgAll').className = avg > 60 ? 'text-3xl font-bold text-danger'
@@ -3027,7 +3041,7 @@
 
     // --- Load recent scans ---
     try {
-      const scansRes = await fetch('/api/v1/auth/scans?limit=5');
+      const scansRes = await fetch('/api/v1/auth/scans?limit=5', { headers: hdrs });
       if (scansRes.ok) {
         const data = await scansRes.json();
         renderDashboardScans(data.scans || []);
@@ -3039,6 +3053,9 @@
 
     // --- Load user plan info ---
     await loadUserPlan();
+
+    // --- Refresh scan history section ---
+    loadScanHistory();
   }
 
   async function loadUsageFromAPI() {
@@ -3270,17 +3287,18 @@
       const risk = (s.risk_level || 'LOW').toUpperCase();
       const riskColor = risk === 'HIGH' ? 'text-danger' : risk === 'MEDIUM' ? 'text-warn' : 'text-ok';
       const riskBg = risk === 'HIGH' ? 'bg-danger/10 border-danger/20' : risk === 'MEDIUM' ? 'bg-warn/10 border-warn/20' : 'bg-ok/10 border-ok/20';
-      const docId = s.document_id || '—';
+      const filename = s.filename || (s.document_id || '').slice(0, 16) + '…';
       const date = s.created_at ? new Date(s.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
       const sources = s.sources_count || 0;
 
       return `
-        <div class="flex items-center gap-4 px-5 py-4 bg-surface/80 border border-border/60 rounded-xl hover:border-accent/40 transition-colors">
+        <div class="flex items-center gap-4 px-5 py-4 bg-surface/80 border border-border/60 rounded-xl hover:border-accent/40 transition-colors cursor-pointer"
+             onclick="viewScanDetail('${esc(s.document_id)}')">
           <div class="w-10 h-10 rounded-xl ${riskBg} border grid place-items-center shrink-0">
             <span class="text-lg font-bold ${riskColor}">${score}</span>
           </div>
           <div class="flex-1 min-w-0">
-            <div class="text-sm font-medium truncate">${docId.slice(0, 16)}…</div>
+            <div class="text-sm font-medium truncate">${esc(filename)}</div>
             <div class="text-xs text-muted">${date} &bull; ${sources} source${sources !== 1 ? 's' : ''}</div>
           </div>
           <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${riskBg} border ${riskColor}">${risk}</span>
