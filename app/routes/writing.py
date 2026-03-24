@@ -22,6 +22,7 @@ from app.tools.readability_tool import analyze_readability
 from app.tools.grammar_tool import check_grammar
 from app.services.ingestion import ingest_file
 from app.services.orchestrator import run_pipeline
+from app.tools.web_search_tool import search_web
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -218,3 +219,121 @@ async def analyze_batch_endpoint(files: list[UploadFile]) -> dict:
         "results": results,
         "errors": errors,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Quick Check — lightweight real-time plagiarism warning for live editor
+# ═══════════════════════════════════════════════════════════════════════════
+
+class QuickCheckRequest(BaseModel):
+    """Lightweight text check for real-time writing mode."""
+    text: str = Field(..., min_length=20, max_length=5000, description="Text to quick-check")
+
+
+@router.post(
+    "/quick-check",
+    status_code=status.HTTP_200_OK,
+    summary="Quick plagiarism check for real-time writing assistance",
+)
+async def quick_check_endpoint(body: QuickCheckRequest) -> dict:
+    """Perform a lightweight plagiarism check suitable for real-time feedback.
+
+    Takes the last ~paragraph of text, searches the web for matches,
+    and returns any suspicious overlaps with confidence indicators.
+    Does NOT run the full multi-agent pipeline — designed for <2s response.
+    """
+    import time as _time
+    import re as _re
+
+    start = _time.perf_counter()
+    text = body.text.strip()
+
+    # Extract meaningful sentences for search queries
+    sentences = [s.strip() for s in _re.split(r'[.!?]+', text) if len(s.strip()) > 30]
+    if not sentences:
+        return {"warnings": [], "sentence_count": 0, "elapsed_s": 0.0}
+
+    # Take up to 3 most recent substantial sentences as search queries
+    queries = sentences[-3:]
+
+    warnings: list[dict] = []
+    try:
+        search_results = await search_web(" ".join(queries[:2]), count=5)
+        results = search_results.get("results", [])
+
+        for result in results:
+            snippet = (result.get("snippet") or "").lower()
+            # Check if any sentence has significant overlap with snippets
+            for sent in queries:
+                sent_words = set(sent.lower().split())
+                snippet_words = set(snippet.split())
+                if len(sent_words) < 5:
+                    continue
+                overlap = sent_words & snippet_words
+                overlap_ratio = len(overlap) / len(sent_words)
+                if overlap_ratio >= 0.5:
+                    warnings.append({
+                        "sentence": sent[:200],
+                        "matched_url": result.get("url", ""),
+                        "matched_title": result.get("title", ""),
+                        "overlap_ratio": round(overlap_ratio, 2),
+                        "matched_snippet": result.get("snippet", "")[:300],
+                    })
+                    break  # one warning per search result
+
+    except Exception as exc:
+        logger.warning("quick_check_search_failed", error=str(exc))
+
+    # Deduplicate by URL
+    seen_urls: set[str] = set()
+    unique_warnings: list[dict] = []
+    for w in warnings:
+        if w["matched_url"] not in seen_urls:
+            seen_urls.add(w["matched_url"])
+            unique_warnings.append(w)
+
+    elapsed = round(_time.perf_counter() - start, 3)
+
+    return {
+        "warnings": unique_warnings[:5],
+        "warning_count": len(unique_warnings),
+        "sentence_count": len(sentences),
+        "elapsed_s": elapsed,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Citation for Source — generate citations for a single source in all styles
+# ═══════════════════════════════════════════════════════════════════════════
+
+class SourceCitationRequest(BaseModel):
+    """Generate citations for a single source."""
+    url: str | None = None
+    title: str | None = None
+    authors: list[str] | None = None
+    year: int | str | None = None
+    publisher: str | None = None
+
+
+@router.post(
+    "/citations/for-source",
+    status_code=status.HTTP_200_OK,
+    summary="Generate citations in all styles for a single source",
+)
+async def citation_for_source_endpoint(body: SourceCitationRequest) -> dict:
+    """Generate APA, MLA, Chicago, and IEEE citations for a single source.
+
+    Useful for the auto-citation insertion feature in the report view.
+    """
+    source_dict = body.model_dump()
+    source_dict["similarity"] = 0.0
+    source_dict["source_type"] = "Internet"
+
+    result: dict[str, str] = {}
+    for style in ALL_STYLES:
+        cit_data = generate_citations_from_sources([source_dict], style=style)
+        citations = cit_data.get("citations", [])
+        if citations:
+            result[style] = citations[0]["citation"]
+
+    return {"citations": result, "source": {"url": body.url, "title": body.title}}
