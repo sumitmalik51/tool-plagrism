@@ -120,10 +120,21 @@ def signup(name: str, email: str, password: str) -> dict[str, Any]:
         raise AuthError("An account with this email already exists.")
 
     hashed = _hash_password(password)
+    verification_token = secrets.token_urlsafe(32)
     user_id = db.execute(
         "INSERT INTO users (name, email, password, plan_type) VALUES (?, ?, ?, ?)",
         (name, email, hashed, "free"),
     )
+
+    # Store verification token
+    _ensure_email_verifications_table(db)
+    try:
+        db.execute(
+            "INSERT INTO email_verifications (user_id, token) VALUES (?, ?)",
+            (user_id, verification_token),
+        )
+    except Exception as exc:
+        logger.warning("email_verification_insert_failed", error=str(exc))
 
     token = create_access_token(user_id, email)
     logger.info("user_created", user_id=user_id, email=email)
@@ -131,6 +142,7 @@ def signup(name: str, email: str, password: str) -> dict[str, Any]:
     return {
         "user": {"id": user_id, "name": name, "email": email, "plan_type": "free"},
         "token": token,
+        "verification_token": verification_token,
     }
 
 
@@ -197,3 +209,200 @@ def update_user_plan(user_id: int, plan_type: str) -> bool:
     if affected:
         logger.info("user_plan_updated", user_id=user_id, plan_type=plan_type)
     return bool(affected)
+
+
+# ---------------------------------------------------------------------------
+# Password reset helpers
+# ---------------------------------------------------------------------------
+
+def create_password_reset_token(email: str) -> str | None:
+    """Generate a password-reset token for the user with the given email.
+
+    Returns the token string, or ``None`` if no user was found.
+    The token expires in 1 hour.
+    """
+    email = email.strip().lower()
+    db = get_db()
+    user = db.fetch_one("SELECT id FROM users WHERE email = ?", (email,))
+    if not user:
+        return None
+
+    token = secrets.token_urlsafe(32)
+    expires_at = int(time.time()) + 3600  # 1 hour
+
+    # Store token in a simple table (create if needed)
+    try:
+        db.execute(
+            "INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)",
+            (user["id"], token, expires_at),
+        )
+    except Exception:
+        # Table might not exist yet in older DBs — create it
+        _ensure_password_resets_table(db)
+        db.execute(
+            "INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)",
+            (user["id"], token, expires_at),
+        )
+
+    logger.info("password_reset_token_created", user_id=user["id"], email=email)
+    return token
+
+
+def reset_password(token: str, new_password: str) -> bool:
+    """Reset a user's password using a valid token.  Returns True on success."""
+    if len(new_password) < 6:
+        raise AuthError("Password must be at least 6 characters.")
+
+    db = get_db()
+
+    _ensure_password_resets_table(db)
+
+    row = db.fetch_one(
+        "SELECT user_id, expires_at FROM password_resets WHERE token = ?",
+        (token,),
+    )
+    if not row:
+        raise AuthError("Invalid or expired reset link.")
+
+    if int(row["expires_at"]) < int(time.time()):
+        # Clean up expired token
+        db.execute("DELETE FROM password_resets WHERE token = ?", (token,))
+        raise AuthError("Reset link has expired. Please request a new one.")
+
+    hashed = _hash_password(new_password)
+    db.execute(
+        "UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (hashed, row["user_id"]),
+    )
+    # Remove the used token
+    db.execute("DELETE FROM password_resets WHERE token = ?", (token,))
+
+    logger.info("password_reset_completed", user_id=row["user_id"])
+    return True
+
+
+def _ensure_password_resets_table(db) -> None:
+    """Create the password_resets table if it doesn't exist."""
+    try:
+        db.execute(
+            """CREATE TABLE IF NOT EXISTS password_resets (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL,
+                token       TEXT NOT NULL,
+                expires_at  INTEGER NOT NULL,
+                created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            )"""
+        )
+    except Exception:
+        # MSSQL syntax
+        try:
+            db.execute(
+                """IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'password_resets')
+                CREATE TABLE password_resets (
+                    id          INT IDENTITY(1,1) PRIMARY KEY,
+                    user_id     INT NOT NULL,
+                    token       NVARCHAR(255) NOT NULL,
+                    expires_at  INT NOT NULL,
+                    created_at  DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+                )"""
+            )
+        except Exception:
+            pass  # Table likely already exists
+
+
+# ---------------------------------------------------------------------------
+# Email verification
+# ---------------------------------------------------------------------------
+
+def verify_email(token: str) -> bool:
+    """Verify a user's email using a verification token. Returns True on success."""
+    db = get_db()
+    _ensure_email_verifications_table(db)
+
+    row = db.fetch_one(
+        "SELECT user_id FROM email_verifications WHERE token = ?",
+        (token,),
+    )
+    if not row:
+        raise AuthError("Invalid or already used verification link.")
+
+    # Mark user as verified — add email_verified column if needed
+    _ensure_email_verified_column(db)
+    db.execute(
+        "UPDATE users SET email_verified = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (row["user_id"],),
+    )
+    # Remove the used token
+    db.execute("DELETE FROM email_verifications WHERE token = ?", (token,))
+
+    logger.info("email_verified", user_id=row["user_id"])
+    return True
+
+
+def is_email_verified(user_id: int) -> bool:
+    """Check if a user's email is verified."""
+    db = get_db()
+    _ensure_email_verified_column(db)
+    row = db.fetch_one(
+        "SELECT email_verified FROM users WHERE id = ?", (user_id,)
+    )
+    if not row:
+        return False
+    return bool(row.get("email_verified", 0))
+
+
+def resend_verification_token(user_id: int) -> str:
+    """Generate a new verification token for the user."""
+    db = get_db()
+    _ensure_email_verifications_table(db)
+
+    # Remove old tokens
+    db.execute("DELETE FROM email_verifications WHERE user_id = ?", (user_id,))
+
+    token = secrets.token_urlsafe(32)
+    db.execute(
+        "INSERT INTO email_verifications (user_id, token) VALUES (?, ?)",
+        (user_id, token),
+    )
+    logger.info("verification_token_resent", user_id=user_id)
+    return token
+
+
+def _ensure_email_verifications_table(db) -> None:
+    """Create the email_verifications table if it doesn't exist."""
+    try:
+        db.execute(
+            """CREATE TABLE IF NOT EXISTS email_verifications (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL,
+                token       TEXT NOT NULL,
+                created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            )"""
+        )
+    except Exception:
+        try:
+            db.execute(
+                """IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'email_verifications')
+                CREATE TABLE email_verifications (
+                    id          INT IDENTITY(1,1) PRIMARY KEY,
+                    user_id     INT NOT NULL,
+                    token       NVARCHAR(255) NOT NULL,
+                    created_at  DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+                )"""
+            )
+        except Exception:
+            pass
+
+
+def _ensure_email_verified_column(db) -> None:
+    """Add email_verified column to users table if not present."""
+    try:
+        db.execute("ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0")
+    except Exception:
+        try:
+            db.execute(
+                "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('users') AND name = 'email_verified') "
+                "ALTER TABLE users ADD email_verified BIT NOT NULL DEFAULT 0"
+            )
+        except Exception:
+            pass  # Column already exists

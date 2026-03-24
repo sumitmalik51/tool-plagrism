@@ -3,6 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="AI-powered plagiarism detection and writing refinement for academics, researchers, and students. Detect similarity, check grammar, analyze readability, and rewrite with AI." />
+  <meta name="keywords" content="plagiarism detection, academic writing, AI rewriter, grammar checker, readability analyzer, similarity checker" />
+  <meta name="author" content="PlagiarismGuard" />
+  <meta name="robots" content="index, follow" />
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="PlagiarismGuard — AI-Powered Academic Plagiarism Detection" />
+  <meta property="og:description" content="Detect plagiarism, check grammar, analyze readability, and refine your writing with AI-powered tools built for academics." />
+  <meta property="og:url" content="https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net/" />
+  <meta property="og:site_name" content="PlagiarismGuard" />
+  <meta property="og:image" content="https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net/static/favicon.svg" />
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="PlagiarismGuard — AI-Powered Academic Plagiarism Detection" />
+  <meta name="twitter:description" content="Detect plagiarism, check grammar, analyze readability, and refine your writing with AI-powered tools." />
+  <link rel="canonical" href="https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net/" />
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
   <title>PlagiarismGuard — Academic Plagiarism Detection &amp; Writing Refinement</title>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -52,6 +68,25 @@
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
       background-clip: text;
     }
+
+    /* Mobile responsive helpers */
+    @media (max-width: 640px) {
+      .hero-title { font-size: 2rem !important; }
+      .hero-subtitle { font-size: 0.875rem !important; }
+    }
+
+    /* Light theme overrides */
+    html.light body { background: #f8f9fc !important; color: #1a1d27 !important; }
+    html.light .bg-bg { background: #f8f9fc !important; }
+    html.light .bg-surface, html.light .bg-surface\/80 { background: rgba(255,255,255,.9) !important; }
+    html.light .bg-surface2 { background: #eef0f5 !important; }
+    html.light .border-border, html.light .border-border\/50 { border-color: #d8dce6 !important; }
+    html.light .text-txt { color: #1a1d27 !important; }
+    html.light .text-muted { color: #6b7280 !important; }
+    html.light .bg-bg\/80 { background: rgba(248,249,252,.85) !important; }
+    html.light ::-webkit-scrollbar-track { background: #f0f0f0; }
+    html.light ::-webkit-scrollbar-thumb { background: #c0c0c0; }
+    html.light .stat-card { background: rgba(255,255,255,.9) !important; border-color: #d8dce6 !important; }
 
     /* Animated underline */
     @keyframes scan { 0% { left: 0; width: 0; } 50% { width: 40%; } 100% { left: 100%; width: 0; } }
@@ -190,6 +225,10 @@
           <a href="#readability" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">More Tools</a>
           <!-- Auth: logged-out buttons -->
           <div id="authLoggedOut" class="hidden flex items-center gap-2">
+            <button onclick="toggleTheme()" class="text-muted hover:text-txt transition-colors" title="Toggle theme">
+              <svg class="themeIconMoon2" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+              <svg class="themeIconSun2 hidden" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            </button>
             <a href="/login" class="text-sm text-muted hover:text-txt transition-colors font-medium">Sign In</a>
             <a href="/signup" class="text-sm px-4 py-1.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-lg font-medium hover:shadow-lg hover:shadow-accent/25 transition-all">Sign Up</a>
           </div>
@@ -199,6 +238,10 @@
               <div class="w-7 h-7 rounded-full bg-accent/20 border border-accent/40 grid place-items-center text-accent text-xs font-bold" id="userAvatar"></div>
               <span class="text-sm font-medium hidden sm:block" id="userName"></span>
             </div>
+            <button onclick="toggleTheme()" class="text-muted hover:text-txt transition-colors" title="Toggle theme" id="themeToggle">
+              <svg id="themeIconMoon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+              <svg id="themeIconSun" class="hidden" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            </button>
             <button onclick="handleLogout()" class="text-sm text-muted hover:text-danger transition-colors" title="Sign out">
               <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             </button>
@@ -528,10 +571,11 @@
     <!-- ══════════════ UPGRADE BANNER (shown on limit reached) ══════════════ -->
     <div id="upgradeBanner" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-full mx-auto">
       <div class="bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-2xl p-5 shadow-2xl shadow-accent/30 flex items-center gap-4">
-        <div class="text-3xl">�</div>
+        <div class="text-3xl">&#128640;</div>
         <div class="flex-1">
           <h4 class="font-bold text-sm">Daily limit reached</h4>
           <p class="text-xs opacity-90 mt-0.5">Upgrade to Research plan for unlimited access to all tools.</p>
+          <p id="resetCountdown" class="text-xs opacity-75 mt-1 hidden">Resets in <span id="resetTimer" class="font-semibold">&mdash;</span></p>
         </div>
         <a href="#pricing" onclick="$('upgradeBanner').classList.add('hidden')" class="shrink-0 px-4 py-2 bg-white text-accent rounded-xl text-xs font-bold hover:bg-white/90 transition-colors">View Plans</a>
         <button onclick="$('upgradeBanner').classList.add('hidden')" class="text-white/60 hover:text-white text-lg leading-none">&times;</button>
@@ -931,7 +975,10 @@
           <span>PlagiarismGuard &copy; 2026</span>
         </div>
         <div class="flex items-center gap-4">
-          <span>Powered by Azure OpenAI &bull; FastAPI &bull; Sentence-Transformers</span>
+          <a href="/terms" class="hover:text-txt transition-colors">Terms</a>
+          <a href="/privacy" class="hover:text-txt transition-colors">Privacy</a>
+          <span class="hidden sm:inline">&bull;</span>
+          <span class="hidden sm:inline">Powered by Azure OpenAI &bull; FastAPI &bull; Sentence-Transformers</span>
         </div>
       </div>
     </footer>
@@ -941,56 +988,61 @@
   <div id="reportView" class="hidden h-screen flex-col">
 
     <!-- Report Header -->
-    <header class="bg-surface border-b border-border px-4 py-2 flex items-center gap-3 shrink-0">
+    <header class="bg-surface border-b border-border px-4 py-2 flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
       <button onclick="backToInput()" class="text-muted hover:text-txt transition-colors text-sm flex items-center gap-1" title="Back to analysis">
         ← Back
       </button>
-      <div class="w-7 h-7 bg-accent rounded-md grid place-items-center text-white font-bold text-sm">P</div>
-      <span class="font-semibold text-sm">PlagiarismGuard</span>
+      <div class="w-7 h-7 bg-accent rounded-md grid place-items-center text-white font-bold text-sm hidden sm:grid">P</div>
+      <span class="font-semibold text-sm hidden sm:inline">PlagiarismGuard</span>
       <div class="flex-1"></div>
 
       <!-- Report tabs -->
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1 sm:gap-2 overflow-x-auto">
         <button id="tabSimilarity" onclick="switchReportTab('similarity')"
-          class="text-sm font-medium px-3 py-1.5 rounded transition-colors bg-accent text-white">
-          Similarity <span id="headerScore" class="bg-white/20 px-1.5 py-0.5 rounded text-xs ml-1">0%</span>
+          class="text-xs sm:text-sm font-medium px-2 sm:px-3 py-1 sm:py-1.5 rounded transition-colors bg-accent text-white whitespace-nowrap">
+          Similarity <span id="headerScore" class="bg-white/20 px-1 sm:px-1.5 py-0.5 rounded text-[10px] sm:text-xs ml-1">0%</span>
         </button>
         <button id="tabDetails" onclick="switchReportTab('details')"
-          class="text-sm font-medium px-3 py-1.5 rounded transition-colors bg-surface2 text-muted hover:text-txt">
+          class="text-xs sm:text-sm font-medium px-2 sm:px-3 py-1 sm:py-1.5 rounded transition-colors bg-surface2 text-muted hover:text-txt whitespace-nowrap">
           Details
         </button>
         <button id="tabCitations" onclick="switchReportTab('citations')"
-          class="text-sm font-medium px-3 py-1.5 rounded transition-colors bg-surface2 text-muted hover:text-txt">
+          class="text-xs sm:text-sm font-medium px-2 sm:px-3 py-1 sm:py-1.5 rounded transition-colors bg-surface2 text-muted hover:text-txt whitespace-nowrap">
           📝 Citations
         </button>
         <button id="tabRewrite" onclick="switchReportTab('rewrite')"
-          class="text-sm font-medium px-3 py-1.5 rounded transition-colors bg-surface2 text-muted hover:text-txt">
+          class="text-xs sm:text-sm font-medium px-2 sm:px-3 py-1 sm:py-1.5 rounded transition-colors bg-surface2 text-muted hover:text-txt whitespace-nowrap">
           ✨ AI Rewriter
         </button>
       </div>
 
+      <!-- Mobile sidebar toggle -->
+      <button onclick="toggleReportSidebar()" class="lg:hidden text-xs px-2 py-1 bg-surface2 border border-border rounded text-muted hover:text-txt" title="Toggle sidebar">
+        📊
+      </button>
+
       <!-- Actions -->
-      <div class="flex items-center gap-2 ml-4">
-        <button onclick="copyResults()" class="text-xs px-3 py-1.5 bg-surface2 border border-border rounded hover:border-accent text-muted hover:text-txt transition-colors">
-          📋 Copy
+      <div class="flex items-center gap-1 sm:gap-2 ml-0 sm:ml-4">
+        <button onclick="copyResults()" class="text-xs px-2 sm:px-3 py-1 sm:py-1.5 bg-surface2 border border-border rounded hover:border-accent text-muted hover:text-txt transition-colors">
+          📋 <span class="hidden sm:inline">Copy</span>
         </button>
-        <button onclick="downloadReport()" class="text-xs px-3 py-1.5 bg-surface2 border border-border rounded hover:border-accent text-muted hover:text-txt transition-colors">
-          📥 JSON
+        <button onclick="downloadReport()" class="text-xs px-2 sm:px-3 py-1 sm:py-1.5 bg-surface2 border border-border rounded hover:border-accent text-muted hover:text-txt transition-colors">
+          📥 <span class="hidden sm:inline">JSON</span>
         </button>
-        <button onclick="exportPDF()" class="text-xs px-3 py-1.5 bg-accent text-white rounded hover:opacity-85 transition-colors">
-          📄 PDF
+        <button onclick="exportPDF()" class="text-xs px-2 sm:px-3 py-1 sm:py-1.5 bg-accent text-white rounded hover:opacity-85 transition-colors">
+          📄 <span class="hidden sm:inline">PDF</span>
         </button>
       </div>
     </header>
 
     <!-- Main content: Doc viewer + Sidebar -->
-    <div class="flex flex-1 overflow-hidden">
+    <div class="flex flex-1 overflow-hidden relative">
 
       <!-- LEFT: Document Viewer -->
       <div class="flex-1 overflow-y-auto bg-bg" id="docViewerContainer">
         <!-- Similarity panel (default) -->
-        <div id="panelSimilarity" class="p-8 max-w-3xl mx-auto">
-          <div id="docViewer" class="bg-white text-gray-900 rounded-lg shadow-lg p-8 text-[15px] leading-[1.8] font-serif whitespace-pre-wrap">
+        <div id="panelSimilarity" class="p-4 sm:p-8 max-w-3xl mx-auto">
+          <div id="docViewer" class="bg-white text-gray-900 rounded-lg shadow-lg p-4 sm:p-8 text-sm sm:text-[15px] leading-[1.8] font-serif whitespace-pre-wrap">
           </div>
         </div>
 
@@ -1109,7 +1161,7 @@
       </div>
 
       <!-- RIGHT: Results Sidebar -->
-      <div class="w-[380px] border-l border-border bg-surface flex flex-col shrink-0 overflow-hidden" id="reportSidebar">
+      <div class="hidden lg:flex w-[380px] border-l border-border bg-surface flex-col shrink-0 overflow-hidden fixed lg:static right-0 top-0 bottom-0 z-40 shadow-2xl lg:shadow-none" id="reportSidebar">
 
         <!-- Overall Similarity -->
         <div class="p-4 border-b border-border">
@@ -1170,7 +1222,7 @@
   </div>
 
   <!-- Toast -->
-  <div id="toast" class="fixed bottom-6 right-6 bg-accent text-white px-5 py-3 rounded-lg text-sm font-medium shadow-lg transition-all duration-300 translate-y-20 opacity-0 pointer-events-none z-50">
+  <div id="toast" class="fixed bottom-6 right-6 px-5 py-3 rounded-lg text-sm font-medium shadow-lg transition-all duration-300 translate-y-20 opacity-0 pointer-events-none z-50 bg-accent text-white max-w-sm">
     Copied to clipboard!
   </div>
 
@@ -1340,7 +1392,7 @@
         const err = await res.json().catch(() => ({ detail: res.statusText }));
         if (res.status === 429) {
           const d = err.detail || {};
-          if (typeof showUpgradeBanner === 'function') showUpgradeBanner();
+          if (typeof showUpgradeBanner === 'function') showUpgradeBanner(d.resets_at);
           throw new Error(d.message || 'Daily usage limit reached. Upgrade your plan for unlimited access.');
         }
         throw new Error(err.detail || 'Analysis failed');
@@ -1377,6 +1429,17 @@
     $('reportView').style.display = 'none';
     $('reportView').classList.add('hidden');
     $('inputView').classList.remove('hidden');
+  }
+
+  function toggleReportSidebar() {
+    const sidebar = $('reportSidebar');
+    if (sidebar.classList.contains('hidden')) {
+      sidebar.classList.remove('hidden');
+      sidebar.classList.add('flex');
+    } else if (window.innerWidth < 1024) {
+      sidebar.classList.add('hidden');
+      sidebar.classList.remove('flex');
+    }
   }
 
   function rephraseFlaggedSections() {
@@ -1996,7 +2059,7 @@
     if (!lastReport) return;
     try {
       await navigator.clipboard.writeText(JSON.stringify(lastReport, null, 2));
-      showToast('Copied to clipboard!');
+      showToast('Copied to clipboard!', 'success');
     } catch {}
   }
 
@@ -2011,11 +2074,23 @@
     URL.revokeObjectURL(url);
   }
 
-  function showToast(msg) {
+  function showToast(msg, type) {
     const t = $('toast');
     t.textContent = msg || 'Done!';
+    // Reset classes
+    t.className = 'fixed bottom-6 right-6 px-5 py-3 rounded-lg text-sm font-medium shadow-lg transition-all duration-300 z-50 max-w-sm';
+    if (type === 'error') {
+      t.classList.add('bg-danger', 'text-white');
+    } else if (type === 'warning') {
+      t.classList.add('bg-warn', 'text-gray-900');
+    } else if (type === 'success') {
+      t.classList.add('bg-ok', 'text-white');
+    } else {
+      t.classList.add('bg-accent', 'text-white');
+    }
     t.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
-    setTimeout(() => t.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none'), 2000);
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none'), 3000);
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -2056,7 +2131,7 @@
       const err = await res.json().catch(() => ({ detail: res.statusText }));
       if (res.status === 429) {
         const d = err.detail || {};
-        if (typeof showUpgradeBanner === 'function') showUpgradeBanner();
+        if (typeof showUpgradeBanner === 'function') showUpgradeBanner(d.resets_at);
         throw new Error(d.message || 'Daily usage limit reached. Upgrade your plan for unlimited access.');
       }
       throw new Error(err.detail || 'Rewrite failed');
@@ -2227,7 +2302,7 @@
         const err = await res.json().catch(() => ({ detail: res.statusText }));
         if (res.status === 429) {
           const d = err.detail || {};
-          if (typeof showUpgradeBanner === 'function') showUpgradeBanner();
+          if (typeof showUpgradeBanner === 'function') showUpgradeBanner(d.resets_at);
           throw new Error(d.message || 'Daily usage limit reached. Upgrade your plan for unlimited access.');
         }
         throw new Error(err.detail || 'Rewrite failed');
@@ -2462,7 +2537,7 @@
         </div>`).join('');
       $('citeResults').classList.remove('hidden');
     } catch (err) {
-      showToast('Citation generation failed: ' + err.message);
+      showToast('Citation generation failed: ' + err.message, 'error');
     } finally {
       $('citeBtn').disabled = false;
       $('citeBtnText').textContent = 'Generate Citations';
@@ -2568,7 +2643,43 @@
     }
 
     doc.save(`plagiarism-report-${d.document_id}.pdf`);
-    showToast('PDF exported!');
+    showToast('PDF exported!', 'success');
+
+    // Add agent breakdown if available
+    if (d.agent_results?.length) {
+      // This goes to a new page if needed
+      const agentY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : y + 10;
+      if (agentY > 260) doc.addPage();
+      const startAgentY = agentY > 260 ? 20 : agentY;
+      doc.setFontSize(12);
+      doc.setTextColor(33, 33, 33);
+      doc.text('Agent Breakdown', 14, startAgentY);
+      doc.autoTable({
+        startY: startAgentY + 4,
+        head: [['Agent', 'Score', 'Weight', 'Confidence']],
+        body: d.agent_results.map(a => [
+          a.agent_name || 'Unknown',
+          Math.round(a.plagiarism_score || 0) + '%',
+          ((a.weight || 0) * 100).toFixed(0) + '%',
+          ((a.confidence_score || 0) * 100).toFixed(0) + '%',
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [108, 92, 231] },
+        margin: { left: 14, right: 14 },
+      });
+    }
+
+    // Footer on all pages
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(139, 143, 163);
+      doc.text('Generated by PlagiarismGuard — plagiarismguard-jl6yu5wij5mu4.azurewebsites.net', 14, doc.internal.pageSize.getHeight() - 10);
+      doc.text(`Page ${i} of ${pageCount}`, w - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+    }
+
+    doc.save(`plagiarism-report-${d.document_id}.pdf`);
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -2592,7 +2703,8 @@
       });
       if (!res.ok) {
         if (res.status === 429) {
-          if (typeof showUpgradeBanner === 'function') showUpgradeBanner();
+          const d = (await res.json().catch(() => ({}))).detail || {};
+          if (typeof showUpgradeBanner === 'function') showUpgradeBanner(d.resets_at);
           throw new Error('Daily usage limit reached. Upgrade your plan for unlimited access.');
         }
         throw new Error('Readability analysis failed');
@@ -2601,7 +2713,7 @@
       const data = await res.json();
       renderReadability(data);
     } catch (err) {
-      showToast('Error: ' + err.message);
+      showToast('Error: ' + err.message, 'error');
     } finally {
       $('readBtn').disabled = false;
       $('readBtnText').textContent = 'Analyze Readability';
@@ -2698,7 +2810,8 @@
       });
       if (!res.ok) {
         if (res.status === 429) {
-          if (typeof showUpgradeBanner === 'function') showUpgradeBanner();
+          const d = (await res.json().catch(() => ({}))).detail || {};
+          if (typeof showUpgradeBanner === 'function') showUpgradeBanner(d.resets_at);
           throw new Error('Daily usage limit reached. Upgrade your plan for unlimited access.');
         }
         throw new Error('Grammar check failed');
@@ -2878,7 +2991,7 @@
         }
       }
     } catch (err) {
-      console.error('Failed to load scan history:', err);
+      showToast('Failed to load scan history: ' + err.message, 'error');
     } finally {
       $('historyLoading').classList.add('hidden');
     }
@@ -2887,7 +3000,7 @@
   async function viewScanDetail(documentId) {
     try {
       const res = await fetch('/api/v1/auth/scans/' + encodeURIComponent(documentId), { headers: _authHeaders() });
-      if (!res.ok) { showToast('Could not load scan details'); return; }
+      if (!res.ok) { showToast('Could not load scan details', 'error'); return; }
       const scan = await res.json();
       if (scan.report_json) {
         const report = JSON.parse(scan.report_json);
@@ -2897,7 +3010,7 @@
         showToast(`Score: ${Math.round(scan.plagiarism_score)}% · Risk: ${scan.risk_level}`);
       }
     } catch (err) {
-      showToast('Error loading scan: ' + err.message);
+      showToast('Error loading scan: ' + err.message, 'error');
     }
   }
 
@@ -2994,6 +3107,38 @@
   /* ═══════════════════════════════════════════════════════════
      Auth — manage login state in the navbar
      ═══════════════════════════════════════════════════════════ */
+  /* ═══════════════════════════════════════════════════════════
+     Theme Toggle (dark/light)
+     ═══════════════════════════════════════════════════════════ */
+  function initTheme() {
+    const saved = localStorage.getItem('pg_theme');
+    if (saved === 'light') {
+      document.documentElement.classList.add('light');
+      updateThemeIcons(true);
+    }
+  }
+
+  function toggleTheme() {
+    const isLight = document.documentElement.classList.toggle('light');
+    localStorage.setItem('pg_theme', isLight ? 'light' : 'dark');
+    updateThemeIcons(isLight);
+  }
+
+  function updateThemeIcons(isLight) {
+    // Main nav toggle icons
+    const moon = $('themeIconMoon');
+    const sun = $('themeIconSun');
+    if (moon && sun) {
+      moon.classList.toggle('hidden', isLight);
+      sun.classList.toggle('hidden', !isLight);
+    }
+    // Logged-out toggle icons
+    document.querySelectorAll('.themeIconMoon2').forEach(el => el.classList.toggle('hidden', isLight));
+    document.querySelectorAll('.themeIconSun2').forEach(el => el.classList.toggle('hidden', !isLight));
+  }
+
+  initTheme();
+
   function initAuth() {
     const token = localStorage.getItem('pg_token');
     const userStr = localStorage.getItem('pg_user');
@@ -3286,9 +3431,32 @@
     }
   }
 
-  function showUpgradeBanner() {
+  let _resetInterval = null;
+  function showUpgradeBanner(resetsAt) {
     const banner = $('upgradeBanner');
     if (banner) banner.classList.remove('hidden');
+
+    // Show countdown if resets_at is provided
+    const countdownEl = $('resetCountdown');
+    const timerEl = $('resetTimer');
+    if (resetsAt && countdownEl && timerEl) {
+      countdownEl.classList.remove('hidden');
+      clearInterval(_resetInterval);
+      _resetInterval = setInterval(() => {
+        const now = new Date();
+        const reset = new Date(resetsAt);
+        const diff = reset - now;
+        if (diff <= 0) {
+          timerEl.textContent = 'now! Refresh to continue.';
+          clearInterval(_resetInterval);
+          return;
+        }
+        const hours = Math.floor(diff / 3600000);
+        const minutes = Math.floor((diff % 3600000) / 60000);
+        const seconds = Math.floor((diff % 60000) / 1000);
+        timerEl.textContent = `${hours}h ${minutes}m ${seconds}s`;
+      }, 1000);
+    }
   }
 
   function renderDashboardScans(scans) {

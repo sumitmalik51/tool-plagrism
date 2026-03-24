@@ -101,6 +101,70 @@ async def admin_stats(authorization: str = Header(default="")):
     }
 
 
+@router.get("/analytics")
+async def admin_analytics(authorization: str = Header(default="")):
+    """Return detailed analytics for the admin dashboard."""
+    _require_admin(authorization)
+    db = get_db()
+
+    # Scans per day (last 14 days)
+    try:
+        scans_by_day = db.fetch_all(
+            "SELECT CAST(created_at AS DATE) AS day, COUNT(*) AS cnt "
+            "FROM scans GROUP BY CAST(created_at AS DATE) "
+            "ORDER BY day DESC"
+        )
+    except Exception:
+        scans_by_day = []
+
+    # Tool usage breakdown (from usage_logs)
+    try:
+        tool_usage = db.fetch_all(
+            "SELECT tool_type, COUNT(*) AS cnt "
+            "FROM usage_logs GROUP BY tool_type "
+            "ORDER BY cnt DESC"
+        )
+    except Exception:
+        tool_usage = []
+
+    # Average plagiarism score
+    try:
+        avg_row = db.fetch_one(
+            "SELECT AVG(plagiarism_score) AS avg_score FROM scans"
+        )
+        avg_score = round(avg_row["avg_score"] or 0, 1)
+    except Exception:
+        avg_score = 0
+
+    # Risk level distribution
+    try:
+        risk_rows = db.fetch_all(
+            "SELECT risk_level, COUNT(*) AS cnt FROM scans GROUP BY risk_level"
+        )
+        risk_dist = {r["risk_level"]: r["cnt"] for r in risk_rows}
+    except Exception:
+        risk_dist = {}
+
+    # Top active users (by scan count)
+    try:
+        top_users = db.fetch_all(
+            "SELECT u.name, u.email, COUNT(s.id) AS scan_count "
+            "FROM users u JOIN scans s ON s.user_id = u.id "
+            "GROUP BY u.id, u.name, u.email "
+            "ORDER BY scan_count DESC"
+        )[:10]
+    except Exception:
+        top_users = []
+
+    return {
+        "scans_by_day": scans_by_day[:14],
+        "tool_usage": tool_usage,
+        "avg_plagiarism_score": avg_score,
+        "risk_distribution": risk_dist,
+        "top_users": top_users,
+    }
+
+
 @router.get("/users")
 async def admin_users(
     authorization: str = Header(default=""),

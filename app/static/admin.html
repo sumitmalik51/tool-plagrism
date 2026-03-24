@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
   <title>PlagiarismGuard — Admin Panel</title>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -136,6 +137,46 @@
       </div>
     </section>
 
+    <!-- Analytics: Scan Volume + Tool Usage -->
+    <section class="px-6 pb-8">
+      <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Scan Volume -->
+        <div>
+          <h2 class="text-lg font-semibold mb-4">Scan Volume (Last 14 Days)</h2>
+          <div class="bg-surface/80 border border-border rounded-2xl p-6 overflow-x-auto">
+            <div class="flex items-end gap-2 h-32 min-w-[300px]" id="scanChart">
+              <p class="text-muted text-xs">Loading…</p>
+            </div>
+          </div>
+        </div>
+        <!-- Tool Usage -->
+        <div>
+          <h2 class="text-lg font-semibold mb-4">Tool Usage Breakdown</h2>
+          <div class="bg-surface/80 border border-border rounded-2xl p-6" id="toolUsageContainer">
+            <p class="text-muted text-xs">Loading…</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Analytics: Risk Distribution + Avg Score + Top Users -->
+    <section class="px-6 pb-8">
+      <div class="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="stat-card">
+          <div class="text-xs text-muted font-medium uppercase tracking-wider mb-2">Avg Plagiarism Score</div>
+          <div class="text-3xl font-bold text-accent-l" id="statAvgScore">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="text-xs text-muted font-medium uppercase tracking-wider mb-2">Risk Distribution</div>
+          <div id="riskDistribution" class="space-y-2 mt-2">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="text-xs text-muted font-medium uppercase tracking-wider mb-2">Top Active Users</div>
+          <div id="topUsersList" class="space-y-1 mt-2 max-h-32 overflow-y-auto text-xs">—</div>
+        </div>
+      </div>
+    </section>
+
     <!-- User Table -->
     <section class="px-6 pb-12">
       <div class="max-w-7xl mx-auto">
@@ -242,6 +283,7 @@
         document.getElementById('adminDashboard').classList.remove('hidden');
         renderStats(stats);
         loadUsers(1);
+        loadAnalytics();
       } catch (err) {
         console.error('Admin init failed:', err);
         document.getElementById('authGate').classList.remove('hidden');
@@ -312,6 +354,93 @@
           </div>
         `;
       }).join('');
+    }
+
+    // =========================================================================
+    // Load analytics
+    // =========================================================================
+    async function loadAnalytics() {
+      try {
+        const res = await apiFetch('/api/v1/admin/analytics');
+        if (!res.ok) return;
+        const data = await res.json();
+        renderAnalytics(data);
+      } catch (err) {
+        console.error('Failed to load analytics:', err);
+      }
+    }
+
+    function renderAnalytics(data) {
+      // Scan volume chart
+      const scanChart = document.getElementById('scanChart');
+      const scanDays = (data.scans_by_day || []).slice(0, 14).reverse();
+      if (scanDays.length === 0) {
+        scanChart.innerHTML = '<p class="text-muted text-xs">No scan data available.</p>';
+      } else {
+        const maxCnt = Math.max(...scanDays.map(d => d.cnt), 1);
+        scanChart.innerHTML = scanDays.map(d => {
+          const height = Math.max((d.cnt / maxCnt) * 100, 4);
+          const dayLabel = typeof d.day === 'string' ? d.day.slice(5) : d.day;
+          return `
+            <div class="flex flex-col items-center gap-1 flex-1">
+              <span class="text-[10px] text-txt font-semibold">${d.cnt}</span>
+              <div class="w-full rounded-t-md bg-ok/70" style="height: ${height}%;"></div>
+              <span class="text-[9px] text-muted">${dayLabel}</span>
+            </div>`;
+        }).join('');
+      }
+
+      // Tool usage breakdown
+      const toolContainer = document.getElementById('toolUsageContainer');
+      const tools = data.tool_usage || [];
+      if (tools.length === 0) {
+        toolContainer.innerHTML = '<p class="text-muted text-xs">No usage data available.</p>';
+      } else {
+        const maxTool = Math.max(...tools.map(t => t.cnt), 1);
+        const toolColors = { scan: '#6c5ce7', rewrite: '#00b894', grammar: '#fdcb6e', readability: '#e17055', citation: '#a29bfe' };
+        toolContainer.innerHTML = tools.map(t => {
+          const pct = Math.round((t.cnt / maxTool) * 100);
+          const color = toolColors[t.tool_type] || '#6c5ce7';
+          return `
+            <div class="flex items-center gap-3 mb-3">
+              <span class="text-xs text-muted w-20 shrink-0 capitalize">${t.tool_type}</span>
+              <div class="flex-1 h-5 bg-surface2 rounded-full overflow-hidden">
+                <div class="h-full rounded-full" style="width: ${pct}%; background: ${color};"></div>
+              </div>
+              <span class="text-xs text-txt font-semibold w-10 text-right">${t.cnt}</span>
+            </div>`;
+        }).join('');
+      }
+
+      // Average plagiarism score
+      document.getElementById('statAvgScore').textContent = data.avg_plagiarism_score + '%';
+
+      // Risk distribution
+      const riskDiv = document.getElementById('riskDistribution');
+      const riskColors = { HIGH: '#e17055', MEDIUM: '#fdcb6e', LOW: '#00b894' };
+      const risk = data.risk_distribution || {};
+      if (Object.keys(risk).length === 0) {
+        riskDiv.innerHTML = '<p class="text-muted text-xs">No data</p>';
+      } else {
+        riskDiv.innerHTML = Object.entries(risk).map(([level, cnt]) => `
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium" style="color: ${riskColors[level] || '#8b8fa3'}">${level}</span>
+            <span class="text-xs text-txt font-semibold">${cnt}</span>
+          </div>`).join('');
+      }
+
+      // Top users
+      const topDiv = document.getElementById('topUsersList');
+      const topUsers = data.top_users || [];
+      if (topUsers.length === 0) {
+        topDiv.innerHTML = '<p class="text-muted text-xs">No data</p>';
+      } else {
+        topDiv.innerHTML = topUsers.map((u, i) => `
+          <div class="flex items-center justify-between">
+            <span class="text-muted">${i + 1}. ${u.name || u.email}</span>
+            <span class="text-txt font-semibold">${u.scan_count} scans</span>
+          </div>`).join('');
+      }
     }
 
     // =========================================================================

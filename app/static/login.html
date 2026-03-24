@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Sign in to your PlagiarismGuard account to access AI-powered plagiarism detection and writing tools." />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta property="og:title" content="Sign In — PlagiarismGuard" />
+  <meta property="og:description" content="Sign in to your PlagiarismGuard account." />
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
   <title>Sign In — PlagiarismGuard</title>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -81,7 +85,10 @@
 
         <!-- Password -->
         <div>
-          <label for="password" class="block text-sm font-medium text-muted mb-1.5">Password</label>
+          <div class="flex items-center justify-between mb-1.5">
+            <label for="password" class="block text-sm font-medium text-muted">Password</label>
+            <a href="/forgot-password" class="text-xs text-accent-l hover:text-accent transition-colors">Forgot password?</a>
+          </div>
           <input id="password" type="password" required autocomplete="current-password"
             class="w-full px-4 py-2.5 bg-surface2 border border-border rounded-xl text-txt placeholder-muted/60 outline-none glow-input transition-all"
             placeholder="Enter your password" />

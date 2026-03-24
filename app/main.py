@@ -147,6 +147,36 @@ async def serve_admin() -> FileResponse:
     return FileResponse(STATIC_DIR / "admin.html")
 
 
+@app.get("/terms", include_in_schema=False)
+async def serve_terms() -> FileResponse:
+    """Serve the Terms of Service page."""
+    return FileResponse(STATIC_DIR / "terms.html")
+
+
+@app.get("/privacy", include_in_schema=False)
+async def serve_privacy() -> FileResponse:
+    """Serve the Privacy Policy page."""
+    return FileResponse(STATIC_DIR / "privacy.html")
+
+
+@app.get("/forgot-password", include_in_schema=False)
+async def serve_forgot_password() -> FileResponse:
+    """Serve the forgot-password page."""
+    return FileResponse(STATIC_DIR / "forgot-password.html")
+
+
+@app.get("/robots.txt", include_in_schema=False)
+async def serve_robots() -> FileResponse:
+    """Serve robots.txt for search engine crawlers."""
+    return FileResponse(STATIC_DIR / "robots.txt", media_type="text/plain")
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+async def serve_sitemap() -> FileResponse:
+    """Serve sitemap.xml for search engine indexing."""
+    return FileResponse(STATIC_DIR / "sitemap.xml", media_type="application/xml")
+
+
 # --- Health check -------------------------------------------------------------
 @app.get("/health", tags=["system"])
 async def health_check() -> dict[str, str]:

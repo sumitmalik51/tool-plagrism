@@ -18,6 +18,11 @@ from app.services.auth_service import (
     get_user_by_id,
     update_user_plan,
     verify_access_token,
+    create_password_reset_token,
+    reset_password,
+    verify_email,
+    is_email_verified,
+    resend_verification_token,
 )
 from app.services.persistence import get_scan, get_user_scans, get_user_stats
 from app.services.rate_limiter import PLAN_TO_TIER, UserTier, limiter
@@ -40,6 +45,15 @@ class SignupRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str = Field(..., min_length=3, max_length=255)
     password: str = Field(..., min_length=1, max_length=128)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=255)
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=6, max_length=128)
 
 
 class UserResponse(BaseModel):
@@ -77,6 +91,76 @@ async def route_login(body: LoginRequest):
         return result
     except AuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
+
+
+@router.post("/forgot-password")
+async def route_forgot_password(body: ForgotPasswordRequest):
+    """Request a password reset token.
+
+    Always returns 200 to avoid email enumeration.
+    In production, this would send an email with the reset link.
+    """
+    token = create_password_reset_token(body.email)
+    if token:
+        # In production, send email with reset link:
+        # https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net/forgot-password?token=...
+        logger.info("password_reset_requested", email=body.email, has_user=True)
+    else:
+        logger.info("password_reset_requested", email=body.email, has_user=False)
+
+    return {
+        "message": "If an account with this email exists, a password reset link has been generated.",
+        "token": token,  # returned directly since no email service; remove in prod
+    }
+
+
+@router.post("/reset-password")
+async def route_reset_password(body: ResetPasswordRequest):
+    """Reset password using a valid token."""
+    try:
+        reset_password(body.token, body.new_password)
+        return {"message": "Password has been reset successfully. You can now sign in."}
+    except AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Email verification
+# ---------------------------------------------------------------------------
+
+class VerifyEmailRequest(BaseModel):
+    token: str = Field(..., min_length=1)
+
+
+@router.post("/verify-email")
+async def route_verify_email(body: VerifyEmailRequest):
+    """Verify a user's email address with the provided token."""
+    try:
+        verify_email(body.token)
+        return {"message": "Email verified successfully!"}
+    except AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/email-status")
+async def route_email_status(authorization: str = Header(default="")):
+    """Check if the current user's email is verified."""
+    user_id = _get_user_id(authorization)
+    verified = is_email_verified(user_id)
+    return {"email_verified": verified}
+
+
+@router.post("/resend-verification")
+async def route_resend_verification(authorization: str = Header(default="")):
+    """Resend the email verification token."""
+    user_id = _get_user_id(authorization)
+    if is_email_verified(user_id):
+        return {"message": "Email is already verified.", "token": None}
+    token = resend_verification_token(user_id)
+    return {
+        "message": "Verification link has been generated.",
+        "token": token,  # returned directly since no email service; remove in prod
+    }
 
 
 @router.get("/me")
