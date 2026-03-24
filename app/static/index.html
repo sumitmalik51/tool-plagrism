@@ -1130,9 +1130,9 @@
           <div id="rephrasePrompt" class="hidden mt-4 bg-warn/5 border border-warn/20 rounded-xl p-4">
             <p class="text-sm text-warn font-semibold mb-1">Similar content detected</p>
             <p class="text-xs text-muted mb-3">Review and safely rephrase flagged sections to improve originality.</p>
-            <a href="#rewriter" onclick="document.getElementById('reportView').style.display='none'; document.getElementById('reportView').classList.add('hidden'); document.getElementById('inputView').classList.remove('hidden');" class="inline-flex items-center gap-1.5 px-4 py-2 bg-accent/10 border border-accent/20 text-accent-l rounded-lg text-xs font-semibold hover:bg-accent/20 transition-colors">
+            <button onclick="rephraseFlaggedSections()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-accent/10 border border-accent/20 text-accent-l rounded-lg text-xs font-semibold hover:bg-accent/20 transition-colors">
               Rephrase Flagged Sections
-            </a>
+            </button>
           </div>
         </div>
 
@@ -1377,6 +1377,27 @@
     $('reportView').style.display = 'none';
     $('reportView').classList.add('hidden');
     $('inputView').classList.remove('hidden');
+  }
+
+  function rephraseFlaggedSections() {
+    if (!lastReport?.flagged_passages?.length) return;
+    // Collect flagged text
+    const flaggedText = lastReport.flagged_passages
+      .map(p => (p.matched_text || p.text || '').trim())
+      .filter(t => t.length > 0)
+      .join('\n\n');
+    if (!flaggedText) { showToast('No flagged text found'); return; }
+    // Close report view, show input view
+    backToInput();
+    // Pre-fill the rewriter with flagged text
+    const input = $('rwInput');
+    input.value = flaggedText;
+    input.dispatchEvent(new Event('input'));
+    // Set mode to "paraphrase" (Rephrase Safely)
+    if (typeof setRwMode === 'function') setRwMode('paraphrase');
+    // Scroll to the rewriter section
+    document.getElementById('rewriter').scrollIntoView({ behavior: 'smooth' });
+    showToast(`${lastReport.flagged_passages.length} flagged section${lastReport.flagged_passages.length > 1 ? 's' : ''} loaded into rewriter`);
   }
 
   /* ═══════════════════════════════════════════════════════════
