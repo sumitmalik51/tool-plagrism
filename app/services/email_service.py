@@ -7,23 +7,31 @@ Falls back to a no-op logger when ACS credentials are not configured (local dev)
 from __future__ import annotations
 
 import structlog
-from azure.communication.email import EmailClient
 
 from app.config import settings
 
 logger = structlog.get_logger(__name__)
 
+# Lazy import — azure-communication-email is only in requirements-prod.txt
+try:
+    from azure.communication.email import EmailClient
+except ImportError:  # pragma: no cover
+    EmailClient = None  # type: ignore[misc,assignment]
+
 # ---------------------------------------------------------------------------
 # Lazy singleton — initialised on first call
 # ---------------------------------------------------------------------------
-_client: EmailClient | None = None
+_client: EmailClient | None = None  # type: ignore[type-arg]
 
 
-def _get_client() -> EmailClient | None:
+def _get_client():
     """Return a cached :class:`EmailClient`, or ``None`` when not configured."""
     global _client
     if _client is not None:
         return _client
+    if EmailClient is None:
+        logger.warning("acs_sdk_not_installed", hint="pip install azure-communication-email")
+        return None
     conn = settings.acs_connection_string
     if not conn:
         logger.warning("acs_not_configured", hint="Set PG_ACS_CONNECTION_STRING to enable email")
