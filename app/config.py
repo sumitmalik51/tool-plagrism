@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     # Set PG_SQL_CONNECTION_STRING in production.
     sql_connection_string: str = ""
 
+    # Admin panel — comma-separated list of admin email addresses.
+    # Set PG_ADMIN_EMAILS in production.
+    admin_emails: str = "sumitmalik51@gmail.com"
+
     @model_validator(mode="after")
     def _parse_api_keys(self) -> "Settings":
         """Split ``api_keys_raw`` into a list."""
