@@ -32,14 +32,6 @@ param entraIdTenantId string = ''
 @description('Entra ID client (application) ID for Easy Auth')
 param entraIdClientId string = ''
 
-@description('Razorpay live key ID for payment gateway')
-@secure()
-param razorpayKeyId string = ''
-
-@description('Razorpay live key secret for payment gateway')
-@secure()
-param razorpayKeySecret string = ''
-
 @description('Azure Communication Services connection string for sending emails')
 @secure()
 param acsConnectionString string = ''
@@ -114,14 +106,7 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
           name: 'WEBSITES_CONTAINER_START_TIME_LIMIT'
           value: '1800'
         }
-        {
-          name: 'PG_RAZORPAY_KEY_ID'
-          value: razorpayKeyId
-        }
-        {
-          name: 'PG_RAZORPAY_KEY_SECRET'
-          value: razorpayKeySecret
-        }
+        
         {
           name: 'PG_ACS_CONNECTION_STRING'
           value: acsConnectionString
