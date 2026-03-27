@@ -22,183 +22,12 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
   <title>PlagiarismGuard — Academic Plagiarism Detection &amp; Writing Refinement</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="/static/js/common.js"></script>
+  <script src="/static/js/auth.js"></script>
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            bg:       '#0f1117',
-            surface:  '#1a1d27',
-            surface2: '#242836',
-            border:   '#2e3348',
-            txt:      '#e1e4ed',
-            muted:    '#8b8fa3',
-            accent:   '#6c5ce7',
-            'accent-l':'#a29bfe',
-            ok:       '#00b894',
-            warn:     '#fdcb6e',
-            danger:   '#e17055',
-          }
-        }
-      }
-    }
-  </script>
+  <link rel="stylesheet" href="/static/css/theme.css" />
   <style>
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner { animation: spin .8s linear infinite; }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #1a1d27; }
-    ::-webkit-scrollbar-thumb { background: #2e3348; border-radius: 3px; }
-
-    /* Animated gradient orbs */
-    @keyframes float1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,-40px) scale(1.1); } }
-    @keyframes float2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-20px,30px) scale(1.15); } }
-    @keyframes float3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(15px,25px) scale(1.05); } }
-    .orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: .10; pointer-events: none; }
-    .orb-1 { width: 500px; height: 500px; background: #6c5ce7; top: -120px; left: -80px; animation: float1 8s ease-in-out infinite; }
-    .orb-2 { width: 400px; height: 400px; background: #00b894; bottom: -100px; right: -60px; animation: float2 10s ease-in-out infinite; }
-    .orb-3 { width: 300px; height: 300px; background: #e17055; top: 50%; left: 50%; transform: translate(-50%,-50%); animation: float3 12s ease-in-out infinite; }
-
-    /* Hero gradient text */
-    .gradient-text {
-      background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 30%, #00b894 70%, #4ECDC4 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    /* Mobile responsive helpers */
-    @media (max-width: 640px) {
-      .hero-title { font-size: 2rem !important; }
-      .hero-subtitle { font-size: 0.875rem !important; }
-    }
-
-    /* Light theme overrides */
-    html.light body { background: #f8f9fc !important; color: #1a1d27 !important; }
-    html.light .bg-bg { background: #f8f9fc !important; }
-    html.light .bg-surface, html.light .bg-surface\/80 { background: rgba(255,255,255,.9) !important; }
-    html.light .bg-surface2 { background: #eef0f5 !important; }
-    html.light .border-border, html.light .border-border\/50 { border-color: #d8dce6 !important; }
-    html.light .text-txt { color: #1a1d27 !important; }
-    html.light .text-muted { color: #6b7280 !important; }
-    html.light .bg-bg\/80 { background: rgba(248,249,252,.85) !important; }
-    html.light ::-webkit-scrollbar-track { background: #f0f0f0; }
-    html.light ::-webkit-scrollbar-thumb { background: #c0c0c0; }
-    html.light .stat-card { background: rgba(255,255,255,.9) !important; border-color: #d8dce6 !important; }
-
-    /* Animated underline */
-    @keyframes scan { 0% { left: 0; width: 0; } 50% { width: 40%; } 100% { left: 100%; width: 0; } }
-    .scan-line { position: relative; }
-    .scan-line::after {
-      content: ''; position: absolute; bottom: -4px; left: 0; height: 3px; width: 0;
-      background: linear-gradient(90deg, transparent, #6c5ce7, #00b894, transparent);
-      animation: scan 3s ease-in-out infinite;
-      border-radius: 2px;
-    }
-
-    /* Feature card */
-    .feature-card {
-      background: rgba(26,29,39,.8); border: 1px solid #2e3348; border-radius: 16px;
-      padding: 24px; transition: all .3s ease; position: relative; overflow: hidden;
-    }
-    .feature-card:hover {
-      border-color: #6c5ce7; transform: translateY(-4px);
-      box-shadow: 0 20px 60px rgba(108,92,231,.15);
-    }
-    .feature-card::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-      background: linear-gradient(90deg, transparent, var(--card-accent, #6c5ce7), transparent);
-      opacity: 0; transition: opacity .3s;
-    }
-    .feature-card:hover::before { opacity: 1; }
-
-    /* Stat counter */
-    .stat-card {
-      background: rgba(26,29,39,.6); border: 1px solid #2e3348; border-radius: 12px;
-      padding: 20px 24px; text-align: center; transition: border-color .3s;
-    }
-    .stat-card:hover { border-color: #6c5ce7; }
-
-    /* Pulse ring around analyze button */
-    @keyframes pulse-ring { 0% { transform: scale(1); opacity: .4; } 100% { transform: scale(1.5); opacity: 0; } }
-    .pulse-btn { position: relative; }
-    .pulse-btn::before {
-      content: ''; position: absolute; inset: -4px; border-radius: 12px;
-      border: 2px solid #6c5ce7; opacity: 0;
-    }
-    .pulse-btn:not(:disabled):hover::before {
-      animation: pulse-ring 1.5s ease-out infinite;
-    }
-
-    /* Glowing input */
-    .glow-input:focus { border-color: #6c5ce7; box-shadow: 0 0 0 3px rgba(108,92,231,.15); }
-
-    /* Fade-in for sections */
-    @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-    .fade-up { animation: fadeUp .6s ease-out both; }
-    .fade-up-d1 { animation-delay: .1s; }
-    .fade-up-d2 { animation-delay: .2s; }
-    .fade-up-d3 { animation-delay: .3s; }
-    .fade-up-d4 { animation-delay: .4s; }
-
-    /* Dashboard action card */
-    .action-card {
-      background: rgba(26,29,39,.8); border: 1px solid #2e3348; border-radius: 16px;
-      padding: 20px; transition: all .3s ease; position: relative; overflow: hidden;
-      cursor: pointer; text-decoration: none; display: block;
-    }
-    .action-card:hover {
-      border-color: var(--card-accent, #6c5ce7); transform: translateY(-3px);
-      box-shadow: 0 12px 40px rgba(108,92,231,.12);
-    }
-    .action-card::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-      background: linear-gradient(90deg, transparent, var(--card-accent, #6c5ce7), transparent);
-      opacity: 0; transition: opacity .3s;
-    }
-    .action-card:hover::before { opacity: 1; }
-
-    /* Usage progress bar */
-    .usage-bar { height: 6px; border-radius: 3px; background: #2e3348; overflow: hidden; }
-    .usage-fill { height: 100%; border-radius: 3px; transition: width .5s ease; }
-
-    /* Dashboard welcome shimmer */
-    @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
-    .shimmer-text {
-      background: linear-gradient(90deg, #a29bfe 0%, #6c5ce7 25%, #00b894 50%, #6c5ce7 75%, #a29bfe 100%);
-      background-size: 200% auto;
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-      animation: shimmer 4s linear infinite;
-    }
-
-    /* Source highlight colors */
-    .hl-1  { background: rgba(255,107,107,.25); border-bottom: 2px solid #FF6B6B; }
-    .hl-2  { background: rgba(78,205,196,.25);  border-bottom: 2px solid #4ECDC4; }
-    .hl-3  { background: rgba(69,183,209,.25);  border-bottom: 2px solid #45B7D1; }
-    .hl-4  { background: rgba(150,206,180,.25); border-bottom: 2px solid #96CEB4; }
-    .hl-5  { background: rgba(255,234,167,.25); border-bottom: 2px solid #FFEAA7; }
-    .hl-6  { background: rgba(221,160,221,.25); border-bottom: 2px solid #DDA0DD; }
-    .hl-7  { background: rgba(152,216,200,.25); border-bottom: 2px solid #98D8C8; }
-    .hl-8  { background: rgba(247,220,111,.25); border-bottom: 2px solid #F7DC6F; }
-    .hl-9  { background: rgba(187,143,206,.25); border-bottom: 2px solid #BB8FCE; }
-    .hl-10 { background: rgba(133,193,233,.25); border-bottom: 2px solid #85C1E9; }
-    .hl-internal { background: rgba(253,203,110,.2); border-bottom: 2px solid #fdcb6e; }
-    .hl-ai { background: rgba(108,92,231,.2); border-bottom: 2px solid #6c5ce7; }
-
-    /* Active highlight pulse */
-    .hl-active { outline: 2px solid #fff; outline-offset: 1px; border-radius: 2px; }
-
-    /* Source number badge in document */
-    .src-badge {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 18px; height: 18px; border-radius: 3px; font-size: 10px;
-      font-weight: 700; color: #fff; vertical-align: text-bottom;
-      margin-left: 2px; cursor: pointer; user-select: none;
-    }
-
-    /* Sidebar source card hover */
+    /* App-specific styles not in shared theme.css */
     .source-card { transition: background .15s; cursor: pointer; }
     .source-card:hover { background: rgba(108,92,231,.1); }
     .source-card.active { background: rgba(108,92,231,.15); border-left: 3px solid #6c5ce7; }
@@ -226,8 +55,8 @@
           <!-- Auth: logged-out buttons -->
           <div id="authLoggedOut" class="hidden flex items-center gap-2">
             <button onclick="toggleTheme()" class="text-muted hover:text-txt transition-colors" title="Toggle theme">
-              <svg class="themeIconMoon2" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-              <svg class="themeIconSun2 hidden" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+              <svg class="theme-icon-moon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+              <svg class="theme-icon-sun hidden" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
             </button>
             <a href="/login" class="text-sm text-muted hover:text-txt transition-colors font-medium">Sign In</a>
             <a href="/signup" class="text-sm px-4 py-1.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-lg font-medium hover:shadow-lg hover:shadow-accent/25 transition-all">Sign Up</a>
@@ -239,8 +68,8 @@
               <span class="text-sm font-medium hidden sm:block" id="userName"></span>
             </div>
             <button onclick="toggleTheme()" class="text-muted hover:text-txt transition-colors" title="Toggle theme" id="themeToggle">
-              <svg id="themeIconMoon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-              <svg id="themeIconSun" class="hidden" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+              <svg class="theme-icon-moon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+              <svg class="theme-icon-sun hidden" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
             </button>
             <button onclick="handleLogout()" class="text-sm text-muted hover:text-danger transition-colors" title="Sign out">
               <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -252,6 +81,8 @@
 
     <!-- ══════════════ DASHBOARD (logged-in users) ══════════════ -->
     <div id="dashboardView" class="hidden pt-20">
+      <!-- Dashboard error banner -->
+      <div id="dashError" class="hidden mx-6 mt-4 px-5 py-3 bg-danger/10 border border-danger rounded-xl text-danger text-sm max-w-5xl lg:mx-auto"></div>
 
       <!-- Welcome banner -->
       <section class="relative overflow-hidden pt-8 pb-10 px-6">
@@ -333,7 +164,7 @@
           <h2 class="text-lg font-semibold mb-5 flex items-center gap-2">
             <span class="text-base">⚡</span> Quick Actions
           </h2>
-          <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
             <a href="#analyze" class="action-card" style="--card-accent: #6c5ce7;">
               <div class="w-11 h-11 rounded-xl bg-accent/15 grid place-items-center text-xl mb-3">🔍</div>
@@ -365,6 +196,24 @@
               <p class="text-xs text-muted">Type freely with real-time plagiarism warnings</p>
             </a>
 
+            <a href="#sectionAnalysis" class="action-card" style="--card-accent: #6c5ce7;">
+              <div class="w-11 h-11 rounded-xl bg-accent/15 grid place-items-center text-xl mb-3">📑</div>
+              <h3 class="font-semibold text-sm mb-1">Section Analysis</h3>
+              <p class="text-xs text-muted">Per-section plagiarism scores for research papers</p>
+            </a>
+
+            <a href="#refValidation" class="action-card" style="--card-accent: #00b894;">
+              <div class="w-11 h-11 rounded-xl bg-[#00b894]/15 grid place-items-center text-xl mb-3">🔗</div>
+              <h3 class="font-semibold text-sm mb-1">Reference Validator</h3>
+              <p class="text-xs text-muted">Verify citations & DOIs against OpenAlex</p>
+            </a>
+
+            <a href="#crossCompare" class="action-card" style="--card-accent: #fdcb6e;">
+              <div class="w-11 h-11 rounded-xl bg-[#fdcb6e]/15 grid place-items-center text-xl mb-3">🔄</div>
+              <h3 class="font-semibold text-sm mb-1">Cross-Doc Compare</h3>
+              <p class="text-xs text-muted">Compare two documents for overlap or self-plagiarism</p>
+            </a>
+
           </div>
         </div>
       </section>
@@ -392,218 +241,6 @@
         </div>
       </section>
     </div>
-
-    <!-- ══════════════ LANDING CONTENT (guests only) ══════════════ -->
-    <div id="landingContent">
-    <section class="relative overflow-hidden pt-28 pb-16 px-6">
-      <div class="orb orb-1"></div>
-      <div class="orb orb-2"></div>
-      <div class="orb orb-3"></div>
-
-      <div class="max-w-4xl mx-auto text-center relative z-10">
-        <div class="fade-up">
-          <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent-l text-sm font-medium mb-6">
-            <span class="w-2 h-2 bg-ok rounded-full animate-pulse"></span>
-            🎉 Sign up &amp; get 3 days of Research plan — free, no credit card needed
-          </div>
-        </div>
-
-        <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold leading-tight mb-6 fade-up fade-up-d1">
-          Ensure Originality in<br>
-          <span class="gradient-text scan-line">Your Research</span>
-        </h1>
-        <p class="text-lg text-muted max-w-2xl mx-auto mb-2 fade-up fade-up-d1">
-          with AI-Powered Plagiarism Detection
-        </p>
-
-        <p class="text-base sm:text-lg text-muted max-w-2xl mx-auto mb-10 leading-relaxed fade-up fade-up-d2">
-          Detect, analyze, and safely rewrite content to maintain academic integrity and avoid plagiarism.
-        </p>
-
-        <div class="flex flex-col sm:flex-row items-center justify-center gap-4 fade-up fade-up-d3">
-          <a href="#analyze"
-            class="inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl text-[15px] font-semibold hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all">
-            🔍 Check Your Document
-            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </a>
-          <a href="#rewriter"
-            class="inline-flex items-center gap-2 px-8 py-3.5 bg-surface2 border border-border text-txt rounded-xl text-[15px] font-medium hover:border-accent hover:text-accent-l transition-all">
-            Improve Writing
-          </a>
-        </div>
-
-        <!-- Trial CTA -->
-        <div class="mt-8 fade-up fade-up-d3">
-          <a href="/signup"
-            class="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-500/10 to-accent/10 border border-emerald-500/20 hover:border-emerald-400/40 transition-all group">
-            <span class="flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 text-lg">🚀</span>
-            <span class="text-left">
-              <span class="block text-sm font-semibold text-txt">Start your free 3-day Research trial</span>
-              <span class="block text-xs text-muted">Unlimited scans &bull; All Research features &bull; No credit card required</span>
-            </span>
-            <svg class="w-4 h-4 text-muted group-hover:text-accent-l transition-colors ml-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </a>
-        </div>
-      </div>
-    </section>
-
-    <!-- ══════════════ ACADEMIC TRUST SIGNALS ══════════════ -->
-    <section class="py-8 px-6">
-      <div class="max-w-4xl mx-auto">
-        <div class="flex flex-wrap justify-center gap-6 text-sm text-muted">
-          <div class="flex items-center gap-2">
-            <span class="w-1.5 h-1.5 bg-ok rounded-full"></span>
-            Designed for researchers and academic writing
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="w-1.5 h-1.5 bg-ok rounded-full"></span>
-            Supports theses, dissertations, and journal papers
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="w-1.5 h-1.5 bg-ok rounded-full"></span>
-            Maintain originality and proper attribution
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ══════════════ BEFORE → AFTER HOOK ══════════════ -->
-    <section class="py-12 px-6">
-      <div class="max-w-3xl mx-auto">
-        <div class="grid grid-cols-2 gap-6">
-          <div class="bg-danger/5 border border-danger/20 rounded-2xl p-6 text-center">
-            <div class="text-4xl font-extrabold text-danger mb-2">42%</div>
-            <div class="text-sm text-danger font-semibold">Before — Similarity Detected</div>
-            <p class="text-xs text-muted mt-2">Matching phrases and overlapping sources identified</p>
-          </div>
-          <div class="bg-ok/5 border border-ok/20 rounded-2xl p-6 text-center">
-            <div class="text-4xl font-extrabold text-ok mb-2">5%</div>
-            <div class="text-sm text-ok font-semibold">After — Original &amp; Verified</div>
-            <p class="text-xs text-muted mt-2">Refined for clarity and originality while preserving meaning</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Stats Bar -->
-    <section class="border-y border-border/50 bg-surface/50 backdrop-blur-sm">
-      <div class="max-w-5xl mx-auto px-6 py-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div class="stat-card fade-up">
-          <div class="text-2xl font-bold gradient-text">10K+</div>
-          <div class="text-xs text-muted mt-1">Documents Analyzed</div>
-        </div>
-        <div class="stat-card fade-up fade-up-d1">
-          <div class="text-2xl font-bold gradient-text">95%</div>
-          <div class="text-xs text-muted mt-1">Originality Achieved</div>
-        </div>
-        <div class="stat-card fade-up fade-up-d2">
-          <div class="text-2xl font-bold gradient-text">250M+</div>
-          <div class="text-xs text-muted mt-1">Scholarly Sources</div>
-        </div>
-        <div class="stat-card fade-up fade-up-d3">
-          <div class="text-2xl font-bold gradient-text">&lt; 30s</div>
-          <div class="text-xs text-muted mt-1">Analysis Time</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Smart AI Detection Engine -->
-    <section id="features" class="py-20 px-6">
-      <div class="max-w-5xl mx-auto">
-        <div class="text-center mb-14">
-          <h2 class="text-3xl font-bold mb-3">Intelligent Detection Engine</h2>
-          <p class="text-muted max-w-xl mx-auto">Scans web and academic sources to identify matching or similar content in your writing.</p>
-        </div>
-
-        <div class="grid sm:grid-cols-3 gap-5">
-          <div class="feature-card text-center" style="--card-accent: #FF6B6B;">
-            <div class="w-14 h-14 mx-auto rounded-2xl bg-[#FF6B6B]/15 grid place-items-center text-2xl mb-4">🌐</div>
-            <h3 class="font-semibold mb-2">Web &amp; Academic Sources</h3>
-            <p class="text-sm text-muted leading-relaxed">Cross-references web pages and scholarly databases to identify overlapping content.</p>
-          </div>
-
-          <div class="feature-card text-center" style="--card-accent: #6c5ce7;">
-            <div class="w-14 h-14 mx-auto rounded-2xl bg-accent/15 grid place-items-center text-2xl mb-4">🧠</div>
-            <h3 class="font-semibold mb-2">Deep Semantic Analysis</h3>
-            <p class="text-sm text-muted leading-relaxed">Detects paraphrasing and reworded content using AI sentence embeddings.</p>
-          </div>
-
-          <div class="feature-card text-center" style="--card-accent: #fdcb6e;">
-            <div class="w-14 h-14 mx-auto rounded-2xl bg-[#fdcb6e]/15 grid place-items-center text-2xl mb-4">🤖</div>
-            <h3 class="font-semibold mb-2">AI-Generated Text Detection</h3>
-            <p class="text-sm text-muted leading-relaxed">Identifies AI-generated passages to help you maintain authentic academic voice.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- How It Works -->
-    <section class="py-16 px-6 border-t border-border/50 bg-surface/30">
-      <div class="max-w-4xl mx-auto">
-        <h2 class="text-2xl font-bold text-center mb-12">How It Works</h2>
-        <div class="grid sm:grid-cols-3 gap-8 text-center">
-          <div class="fade-up">
-            <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-accent/10 border border-accent/20 grid place-items-center text-2xl">1</div>
-            <h3 class="font-semibold mb-2">Paste Your Text</h3>
-            <p class="text-sm text-muted">Submit your thesis, paper, or any academic writing for analysis.</p>
-          </div>
-          <div class="fade-up fade-up-d1">
-            <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-accent/10 border border-accent/20 grid place-items-center text-2xl">2</div>
-            <h3 class="font-semibold mb-2">AI Analyzes &amp; Refines</h3>
-            <p class="text-sm text-muted">Our engine detects similarities and helps you rephrase safely while preserving meaning.</p>
-          </div>
-          <div class="fade-up fade-up-d2">
-            <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-accent/10 border border-accent/20 grid place-items-center text-2xl">3</div>
-            <h3 class="font-semibold mb-2">Review &amp; Submit</h3>
-            <p class="text-sm text-muted">Get original, properly refined text ready for publication or submission.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ══════════════ ACADEMIC USE CASES ══════════════ -->
-    <section class="py-14 px-6 border-t border-border/50">
-      <div class="max-w-4xl mx-auto text-center">
-        <h2 class="text-2xl font-bold mb-6">Built for Academic Use</h2>
-        <div class="grid sm:grid-cols-4 gap-5">
-          <div class="bg-surface/80 border border-border rounded-xl p-5">
-            <div class="text-2xl mb-2">📚</div>
-            <h4 class="font-semibold text-sm mb-1">Thesis Writing</h4>
-            <p class="text-xs text-muted">Ensure originality across chapters and sections.</p>
-          </div>
-          <div class="bg-surface/80 border border-border rounded-xl p-5">
-            <div class="text-2xl mb-2">📄</div>
-            <h4 class="font-semibold text-sm mb-1">Research Papers</h4>
-            <p class="text-xs text-muted">Check for unintentional similarity before submission.</p>
-          </div>
-          <div class="bg-surface/80 border border-border rounded-xl p-5">
-            <div class="text-2xl mb-2">🗒️</div>
-            <h4 class="font-semibold text-sm mb-1">Journal Submissions</h4>
-            <p class="text-xs text-muted">Meet publisher originality requirements with confidence.</p>
-          </div>
-          <div class="bg-surface/80 border border-border rounded-xl p-5">
-            <div class="text-2xl mb-2">🔍</div>
-            <h4 class="font-semibold text-sm mb-1">Literature Reviews</h4>
-            <p class="text-xs text-muted">Properly paraphrase and attribute referenced works.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-    <!-- Trial signup CTA -->
-    <section class="py-10 px-6">
-      <div class="max-w-2xl mx-auto text-center">
-        <div class="bg-gradient-to-br from-accent/5 via-surface to-emerald-500/5 border border-accent/20 rounded-2xl p-8">
-          <h3 class="text-xl font-bold mb-2">Ready to upgrade your research workflow?</h3>
-          <p class="text-sm text-muted mb-5">Sign up now and get <span class="text-emerald-400 font-semibold">3 days of Research access</span> — completely free.</p>
-          <a href="/signup" class="inline-flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all">
-            Create Free Account
-            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </a>
-          <p class="text-xs text-muted mt-3">No credit card required &bull; Downgrades to Free after trial</p>
-        </div>
-      </div>
-    </section>
-    </div><!-- /landingContent -->
 
     <!-- ══════════════ UPGRADE BANNER (shown on limit reached) ══════════════ -->
     <div id="upgradeBanner" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-full mx-auto">
@@ -851,10 +488,16 @@
           </button>
         </div>
 
-        <!-- Loader -->
+        <!-- Loader with SSE progress -->
         <div id="loader" class="hidden flex-col items-center gap-4 mt-10">
           <div class="w-10 h-10 border-4 border-border border-t-accent rounded-full spinner"></div>
-          <p class="text-muted text-sm">Running multi-agent analysis&hellip;</p>
+          <p id="loaderMsg" class="text-muted text-sm">Running multi-agent analysis&hellip;</p>
+          <div id="progressWrap" class="hidden w-full max-w-md">
+            <div class="w-full h-2 bg-surface2 rounded-full overflow-hidden">
+              <div id="progressBar" class="h-full bg-gradient-to-r from-accent to-[#00b894] rounded-full transition-all duration-300" style="width:0%"></div>
+            </div>
+            <p id="progressLabel" class="text-xs text-muted mt-1 text-center">0%</p>
+          </div>
         </div>
 
         <!-- Error -->
@@ -977,6 +620,119 @@
           <div id="wcClean" class="hidden mt-4 px-4 py-3 bg-ok/10 border border-ok/20 rounded-xl text-ok text-sm flex items-center gap-2">
             <span>✅</span> No plagiarism concerns detected in your text.
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ Section-by-Section Analysis ═══════════ -->
+    <section id="sectionAnalysis" class="py-12 px-6 border-t border-border/50">
+      <div class="max-w-4xl mx-auto">
+        <button onclick="toggleAdvanced('sectionAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
+          <div class="flex items-center gap-3">
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#6c5ce7]/10 border border-[#6c5ce7]/20 text-[#6c5ce7] text-sm font-medium">
+              <span class="w-2 h-2 bg-[#6c5ce7] rounded-full animate-pulse"></span>
+              Research Tool
+            </div>
+            <h2 class="text-xl font-bold">Section-by-Section Analysis</h2>
+          </div>
+          <span class="text-muted text-lg transition-transform" id="sectionArrow">▶</span>
+        </button>
+        <div id="sectionAdvanced" class="hidden">
+          <p class="text-sm text-muted mb-4">Paste a research paper and get plagiarism scores per section (Abstract, Introduction, Methods, etc.).</p>
+          <textarea id="secInput" rows="8" placeholder="Paste your research paper text here…"
+            class="glow-input w-full bg-surface border border-border rounded-xl p-5 text-sm leading-relaxed text-txt placeholder-muted resize-y focus:outline-none transition-all"
+            oninput="$('secBtn').disabled = this.value.trim().length < 50"></textarea>
+          <div class="text-center mt-4 mb-4">
+            <button id="secBtn" onclick="doSectionAnalysis()" disabled
+              class="pulse-btn inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-[#6c5ce7] to-[#5a4bd1] text-white rounded-xl text-[15px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all">
+              📑 <span id="secBtnText">Analyze Sections</span>
+            </button>
+          </div>
+          <div id="secLoader" class="hidden flex-col items-center gap-3 mt-4">
+            <div class="w-8 h-8 border-3 border-border border-t-accent rounded-full spinner"></div>
+            <p class="text-muted text-sm">Analyzing each section…</p>
+          </div>
+          <div id="secError" class="hidden mt-4 px-5 py-4 bg-danger/10 border border-danger rounded-xl text-danger text-sm"></div>
+          <div id="secResults" class="hidden space-y-3 mt-6"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ Reference / DOI Validator ═══════════ -->
+    <section id="refValidation" class="py-12 px-6 border-t border-border/50 bg-surface/20">
+      <div class="max-w-4xl mx-auto">
+        <button onclick="toggleAdvanced('refAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
+          <div class="flex items-center gap-3">
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#00b894]/10 border border-[#00b894]/20 text-[#00b894] text-sm font-medium">
+              <span class="w-2 h-2 bg-[#00b894] rounded-full animate-pulse"></span>
+              Research Tool
+            </div>
+            <h2 class="text-xl font-bold">Reference &amp; DOI Validator</h2>
+          </div>
+          <span class="text-muted text-lg transition-transform" id="refArrow">▶</span>
+        </button>
+        <div id="refAdvanced" class="hidden">
+          <p class="text-sm text-muted mb-4">Paste your paper including references. We'll extract each citation and verify it against OpenAlex.</p>
+          <textarea id="refInput" rows="8" placeholder="Paste your paper text (with reference list) here…"
+            class="glow-input w-full bg-surface border border-border rounded-xl p-5 text-sm leading-relaxed text-txt placeholder-muted resize-y focus:outline-none transition-all"
+            oninput="$('refBtn').disabled = this.value.trim().length < 50"></textarea>
+          <div class="text-center mt-4 mb-4">
+            <button id="refBtn" onclick="doRefValidation()" disabled
+              class="pulse-btn inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-[#00b894] to-[#00a382] text-white rounded-xl text-[15px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-[#00b894]/25 hover:-translate-y-0.5 transition-all">
+              🔗 <span id="refBtnText">Validate References</span>
+            </button>
+          </div>
+          <div id="refLoader" class="hidden flex-col items-center gap-3 mt-4">
+            <div class="w-8 h-8 border-3 border-border border-t-[#00b894] rounded-full spinner"></div>
+            <p class="text-muted text-sm">Validating references against OpenAlex…</p>
+          </div>
+          <div id="refError" class="hidden mt-4 px-5 py-4 bg-danger/10 border border-danger rounded-xl text-danger text-sm"></div>
+          <div id="refResults" class="hidden space-y-2 mt-6"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ Cross-Document Comparison ═══════════ -->
+    <section id="crossCompare" class="py-12 px-6 border-t border-border/50">
+      <div class="max-w-4xl mx-auto">
+        <button onclick="toggleAdvanced('crossAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
+          <div class="flex items-center gap-3">
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#fdcb6e]/10 border border-[#fdcb6e]/20 text-[#fdcb6e] text-sm font-medium">
+              <span class="w-2 h-2 bg-[#fdcb6e] rounded-full animate-pulse"></span>
+              Research Tool
+            </div>
+            <h2 class="text-xl font-bold">Cross-Document Comparison</h2>
+          </div>
+          <span class="text-muted text-lg transition-transform" id="crossArrow">▶</span>
+        </button>
+        <div id="crossAdvanced" class="hidden">
+          <p class="text-sm text-muted mb-4">Compare two documents for overlap or self-plagiarism using embedding similarity.</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="text-xs text-muted mb-1 block">Document A</label>
+              <textarea id="crossInputA" rows="6" placeholder="Paste first document…"
+                class="glow-input w-full bg-surface border border-border rounded-xl p-4 text-sm leading-relaxed text-txt placeholder-muted resize-y focus:outline-none transition-all"
+                oninput="updateCrossBtn()"></textarea>
+            </div>
+            <div>
+              <label class="text-xs text-muted mb-1 block">Document B</label>
+              <textarea id="crossInputB" rows="6" placeholder="Paste second document…"
+                class="glow-input w-full bg-surface border border-border rounded-xl p-4 text-sm leading-relaxed text-txt placeholder-muted resize-y focus:outline-none transition-all"
+                oninput="updateCrossBtn()"></textarea>
+            </div>
+          </div>
+          <div class="text-center mt-4 mb-4">
+            <button id="crossBtn" onclick="doCrossCompare()" disabled
+              class="pulse-btn inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-[#fdcb6e] to-[#f39c12] text-gray-900 rounded-xl text-[15px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-[#fdcb6e]/25 hover:-translate-y-0.5 transition-all">
+              🔄 <span id="crossBtnText">Compare Documents</span>
+            </button>
+          </div>
+          <div id="crossLoader" class="hidden flex-col items-center gap-3 mt-4">
+            <div class="w-8 h-8 border-3 border-border border-t-[#fdcb6e] rounded-full spinner"></div>
+            <p class="text-muted text-sm">Comparing documents…</p>
+          </div>
+          <div id="crossError" class="hidden mt-4 px-5 py-4 bg-danger/10 border border-danger rounded-xl text-danger text-sm"></div>
+          <div id="crossResults" class="hidden mt-6"></div>
         </div>
       </div>
     </section>
@@ -1378,29 +1134,12 @@
     </div>
   </div>
 
-  <style>
-    .payment-check-path {
-      stroke-dasharray: 24;
-      stroke-dashoffset: 24;
-      animation: paymentCheckDraw 0.5s ease-out 0.3s forwards;
-    }
-    @keyframes paymentCheckDraw {
-      to { stroke-dashoffset: 0; }
-    }
-    #paymentModal.show {
-      opacity: 1;
-      pointer-events: auto;
-    }
-    #paymentModal.show #paymentModalCard {
-      transform: scale(1);
-    }
-  </style>
+  <!-- payment modal styles in theme.css -->
 
 <script>
   /* ═══════════════════════════════════════════════════════════
-     Constants & State
+     Constants & State  ($ is defined in auth.js)
      ═══════════════════════════════════════════════════════════ */
-  const $ = id => document.getElementById(id);
   const SOURCE_COLORS = [
     '#FF6B6B','#4ECDC4','#45B7D1','#96CEB4','#FFEAA7',
     '#DDA0DD','#98D8C8','#F7DC6F','#BB8FCE','#85C1E9',
@@ -1501,11 +1240,7 @@
     updateAnalyzeBtn();
   }
 
-  function fmtBytes(b) {
-    if (b < 1024) return b + ' B';
-    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
-    return (b / 1048576).toFixed(1) + ' MB';
-  }
+  // fmtBytes() is defined in common.js
 
   function updateAnalyzeBtn() {
     const ready = currentMode === 'text'
@@ -1526,10 +1261,38 @@
     $('loader').classList.remove('hidden');
     $('loader').classList.add('flex');
     $('errorBox').classList.add('hidden');
+    $('loaderMsg').textContent = 'Running multi-agent analysis\u2026';
+
+    // Generate a document_id so we can connect SSE progress immediately
+    const docId = crypto.randomUUID ? crypto.randomUUID().replaceAll('-','') : Math.random().toString(36).slice(2) + Date.now().toString(36);
+    let eventSource = null;
+
+    function connectProgress() {
+      try {
+        eventSource = new EventSource('/api/v1/scan-progress/' + docId);
+        $('progressWrap').classList.remove('hidden');
+        eventSource.onmessage = function(e) {
+          try {
+            const d = JSON.parse(e.data);
+            if (d.percent >= 0) {
+              $('progressBar').style.width = d.percent + '%';
+              $('progressLabel').textContent = d.percent + '%';
+            }
+            if (d.message) $('loaderMsg').textContent = d.message;
+            if (d.stage === 'complete' || d.stage === 'timeout') eventSource.close();
+          } catch {}
+        };
+        eventSource.onerror = function() { eventSource.close(); };
+      } catch {}
+    }
+
+    // Small delay then connect SSE (give server time to create tracker)
+    const sseTimer = setTimeout(connectProgress, 500);
 
     try {
       // --- Batch mode ---
       if (currentMode === 'file' && currentFiles.length > 1) {
+        clearTimeout(sseTimer);
         const form = new FormData();
         currentFiles.forEach(f => form.append('files', f));
         const res = await fetch('/api/v1/analyze-batch', { method: 'POST', body: form });
@@ -1545,7 +1308,7 @@
       // --- Single analysis ---
       let res;
       if (currentMode === 'text') {
-        const body = { text: $('textInput').value };
+        const body = { text: $('textInput').value, document_id: docId };
         if (excludedDomains.length > 0) body.excluded_domains = excludedDomains;
         res = await fetch('/api/v1/analyze-agent', {
           method: 'POST',
@@ -1577,8 +1340,13 @@
       $('errorBox').textContent = '⚠ ' + err.message;
       $('errorBox').classList.remove('hidden');
     } finally {
+      clearTimeout(sseTimer);
+      if (eventSource) try { eventSource.close(); } catch {}
       $('loader').classList.add('hidden');
       $('loader').classList.remove('flex');
+      $('progressWrap').classList.add('hidden');
+      $('progressBar').style.width = '0%';
+      $('progressLabel').textContent = '0%';
       $('btnText').textContent = 'Analyze';
       $('btnIcon').textContent = '🔍';
       updateAnalyzeBtn();
@@ -2245,20 +2013,8 @@
   }
 
   /* ═══════════════════════════════════════════════════════════
-     Helpers
+     Helpers  (scoreColor, esc defined in common.js)
      ═══════════════════════════════════════════════════════════ */
-  function scoreColor(s) {
-    if (s < 30) return '#00b894';
-    if (s < 60) return '#fdcb6e';
-    return '#e17055';
-  }
-
-  function esc(str) {
-    if (!str) return '';
-    const d = document.createElement('div');
-    d.textContent = str;
-    return d.innerHTML;
-  }
 
   function toggleSection(id) {
     const el = document.getElementById(id);
@@ -2294,24 +2050,7 @@
     URL.revokeObjectURL(url);
   }
 
-  function showToast(msg, type) {
-    const t = $('toast');
-    t.textContent = msg || 'Done!';
-    // Reset classes
-    t.className = 'fixed bottom-6 right-6 px-5 py-3 rounded-lg text-sm font-medium shadow-lg transition-all duration-300 z-50 max-w-sm';
-    if (type === 'error') {
-      t.classList.add('bg-danger', 'text-white');
-    } else if (type === 'warning') {
-      t.classList.add('bg-warn', 'text-gray-900');
-    } else if (type === 'success') {
-      t.classList.add('bg-ok', 'text-white');
-    } else {
-      t.classList.add('bg-accent', 'text-white');
-    }
-    t.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
-    clearTimeout(t._timer);
-    t._timer = setTimeout(() => t.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none'), 3000);
-  }
+  // showToast() is defined in common.js
 
   /* ═══════════════════════════════════════════════════════════
      AI Rewriter
@@ -2913,10 +2652,36 @@
   }
 
   /* ═══════════════════════════════════════════════════════════
-     PDF Export
+     PDF Export  (lazy-loads jsPDF + autoTable on first call)
      ═══════════════════════════════════════════════════════════ */
-  function exportPDF() {
+  let _jsPdfLoading = null;
+  function _loadJsPDF() {
+    if (window.jspdf) return Promise.resolve();
+    if (_jsPdfLoading) return _jsPdfLoading;
+    _jsPdfLoading = new Promise((resolve, reject) => {
+      const s1 = document.createElement('script');
+      s1.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      s1.onload = () => {
+        const s2 = document.createElement('script');
+        s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+        s2.onload = resolve;
+        s2.onerror = reject;
+        document.head.appendChild(s2);
+      };
+      s1.onerror = reject;
+      document.head.appendChild(s1);
+    });
+    return _jsPdfLoading;
+  }
+
+  async function exportPDF() {
     if (!lastReport) return;
+    try {
+      await _loadJsPDF();
+    } catch {
+      showToast('Failed to load PDF library', 'error');
+      return;
+    }
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     const d = lastReport;
@@ -3263,14 +3028,7 @@
      Scan History (DB-backed)
      ═══════════════════════════════════════════════════════════ */
 
-  function _authHeaders() {
-    const token = localStorage.getItem('pg_token');
-    return token ? { 'Authorization': 'Bearer ' + token } : {};
-  }
-
-  function isLoggedIn() {
-    return !!localStorage.getItem('pg_token');
-  }
+  // _authHeaders() and isLoggedIn() are defined in auth.js
 
   /** Called after a scan completes — just refreshes dashboard & history from DB */
   function saveToHistory(_report) {
@@ -3519,37 +3277,8 @@
 
   /* ═══════════════════════════════════════════════════════════
      Auth — manage login state in the navbar
+     (initTheme, toggleTheme, updateThemeIcons from common.js)
      ═══════════════════════════════════════════════════════════ */
-  /* ═══════════════════════════════════════════════════════════
-     Theme Toggle (dark/light)
-     ═══════════════════════════════════════════════════════════ */
-  function initTheme() {
-    const saved = localStorage.getItem('pg_theme');
-    if (saved === 'light') {
-      document.documentElement.classList.add('light');
-      updateThemeIcons(true);
-    }
-  }
-
-  function toggleTheme() {
-    const isLight = document.documentElement.classList.toggle('light');
-    localStorage.setItem('pg_theme', isLight ? 'light' : 'dark');
-    updateThemeIcons(isLight);
-  }
-
-  function updateThemeIcons(isLight) {
-    // Main nav toggle icons
-    const moon = $('themeIconMoon');
-    const sun = $('themeIconSun');
-    if (moon && sun) {
-      moon.classList.toggle('hidden', isLight);
-      sun.classList.toggle('hidden', !isLight);
-    }
-    // Logged-out toggle icons
-    document.querySelectorAll('.themeIconMoon2').forEach(el => el.classList.toggle('hidden', isLight));
-    document.querySelectorAll('.themeIconSun2').forEach(el => el.classList.toggle('hidden', !isLight));
-  }
-
   initTheme();
 
   function initAuth() {
@@ -3558,8 +3287,6 @@
     const loggedOut = $('authLoggedOut');
     const loggedIn  = $('authLoggedIn');
     const dashboard = $('dashboardView');
-    const landing   = $('landingContent');
-    const guestLinks = document.querySelectorAll('.nav-guest-link');
 
     if (token && userStr) {
       try {
@@ -3567,41 +3294,28 @@
         const displayName = user.name || user.email || 'User';
         $('userName').textContent = displayName;
         $('userAvatar').textContent = displayName[0].toUpperCase();
-        loggedIn.classList.remove('hidden');
-        loggedIn.style.display = 'flex';
-        loggedOut.classList.add('hidden');
-        loggedOut.style.display = 'none';
-
-        // Show dashboard, hide landing
-        dashboard.classList.remove('hidden');
-        landing.classList.add('hidden');
-        landing.style.display = 'none';
-        guestLinks.forEach(l => l.style.display = 'none');
+        if (loggedIn) { loggedIn.classList.remove('hidden'); loggedIn.style.display = 'flex'; }
+        if (loggedOut) { loggedOut.classList.add('hidden'); loggedOut.style.display = 'none'; }
+        if (dashboard) dashboard.classList.remove('hidden');
 
         // Populate dashboard
         $('dashWelcomeName').textContent = displayName.split(' ')[0];
         loadDashboardData();
       } catch {
-        showLoggedOutState();
+        // Bad token/user data — redirect to login
+        window.location.href = '/login?redirect=/app';
       }
     } else {
-      showLoggedOutState();
-    }
-
-    function showLoggedOutState() {
-      loggedOut.classList.remove('hidden');
-      loggedOut.style.display = 'flex';
-      loggedIn.classList.add('hidden');
-      loggedIn.style.display = 'none';
-      dashboard.classList.add('hidden');
-      landing.classList.remove('hidden');
-      landing.style.display = '';
-      guestLinks.forEach(l => l.style.display = '');
+      // Not logged in — redirect to login
+      window.location.href = '/login?redirect=/app';
     }
   }
 
   async function loadDashboardData() {
     const hdrs = _authHeaders();
+    const errEl = $('dashError');
+    if (errEl) errEl.classList.add('hidden');
+
     // --- Load server-side stats ---
     try {
       const statsRes = await fetch('/api/v1/auth/stats', { headers: hdrs });
@@ -3616,7 +3330,9 @@
             : 'text-3xl font-bold text-ok';
         }
       }
-    } catch {}
+    } catch (err) {
+      if (errEl) { errEl.textContent = '⚠ Could not load stats: ' + (err.message || 'Network error'); errEl.classList.remove('hidden'); }
+    }
 
     // --- Load recent scans ---
     try {
@@ -3625,7 +3341,9 @@
         const data = await scansRes.json();
         renderDashboardScans(data.scans || []);
       }
-    } catch {}
+    } catch (err) {
+      if (errEl) { errEl.textContent = '⚠ Could not load recent scans: ' + (err.message || 'Network error'); errEl.classList.remove('hidden'); }
+    }
 
     // --- Load usage from API (DB-backed) ---
     await loadUsageFromAPI();
@@ -3993,35 +3711,182 @@
     }).join('');
   }
 
-  function handleLogout() {
-    localStorage.removeItem('pg_token');
-    localStorage.removeItem('pg_user');
-    initAuth();
+  // handleLogout is defined in auth.js (redirects to /)
+
+  /* ═══════════════════════════════════════════════════════════
+     Section-by-Section Analysis
+     ═══════════════════════════════════════════════════════════ */
+  async function doSectionAnalysis() {
+    const text = $('secInput').value.trim();
+    if (!text) return;
+    $('secBtn').disabled = true;
+    $('secBtnText').textContent = 'Analyzing…';
+    $('secLoader').classList.remove('hidden'); $('secLoader').classList.add('flex');
+    $('secError').classList.add('hidden');
+    $('secResults').classList.add('hidden');
+    try {
+      const res = await fetch('/api/v1/analyze-sections', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || 'Section analysis failed'); }
+      const data = await res.json();
+      renderSectionResults(data);
+    } catch (err) {
+      $('secError').textContent = '⚠ ' + err.message;
+      $('secError').classList.remove('hidden');
+    } finally {
+      $('secBtn').disabled = false;
+      $('secBtnText').textContent = 'Analyze Sections';
+      $('secLoader').classList.add('hidden'); $('secLoader').classList.remove('flex');
+    }
   }
 
-  // Attach token to all fetch requests that go to our API
-  const _origFetch = window.fetch;
-  window.fetch = function(input, init) {
-    const url = typeof input === 'string' ? input : input.url;
-    if (url.startsWith('/api/')) {
-      init = init || {};
-      init.headers = init.headers || {};
-      const token = localStorage.getItem('pg_token');
-      if (token) {
-        // Support both Headers object and plain object
-        if (init.headers instanceof Headers) {
-          if (!init.headers.has('Authorization')) {
-            init.headers.set('Authorization', 'Bearer ' + token);
-          }
-        } else {
-          if (!init.headers['Authorization']) {
-            init.headers['Authorization'] = 'Bearer ' + token;
-          }
-        }
-      }
+  function renderSectionResults(data) {
+    const el = $('secResults');
+    const overall = data.overall_score != null ? Math.round(data.overall_score) : null;
+    let html = '';
+    if (overall != null) {
+      html += `<div class="flex items-center gap-3 p-4 bg-surface rounded-xl border border-border mb-4">
+        <div class="text-2xl font-bold" style="color:${scoreColor(overall)}">${overall}%</div>
+        <div class="text-sm text-muted">Overall Score</div>
+      </div>`;
     }
-    return _origFetch.call(this, input, init);
-  };
+    const sections = data.sections || [];
+    sections.forEach(s => {
+      const score = Math.round(s.plagiarism_score || 0);
+      html += `<div class="p-4 bg-surface rounded-xl border border-border">
+        <div class="flex items-center justify-between mb-2">
+          <h4 class="font-semibold text-sm">${esc(s.title || 'Untitled Section')}</h4>
+          <span class="text-sm font-bold" style="color:${scoreColor(score)}">${score}%</span>
+        </div>
+        <div class="w-full h-1.5 bg-surface2 rounded-full overflow-hidden">
+          <div class="h-full rounded-full" style="width:${score}%;background:${scoreColor(score)}"></div>
+        </div>
+        <div class="text-xs text-muted mt-2">${s.sources_found || 0} source${(s.sources_found||0)!==1?'s':''} found &bull; ${(s.word_count||0).toLocaleString()} words</div>
+      </div>`;
+    });
+    el.innerHTML = html || '<p class="text-muted text-sm">No sections detected.</p>';
+    el.classList.remove('hidden');
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Reference / DOI Validation
+     ═══════════════════════════════════════════════════════════ */
+  async function doRefValidation() {
+    const text = $('refInput').value.trim();
+    if (!text) return;
+    $('refBtn').disabled = true;
+    $('refBtnText').textContent = 'Validating…';
+    $('refLoader').classList.remove('hidden'); $('refLoader').classList.add('flex');
+    $('refError').classList.add('hidden');
+    $('refResults').classList.add('hidden');
+    try {
+      const res = await fetch('/api/v1/validate-references', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || 'Reference validation failed'); }
+      const data = await res.json();
+      renderRefResults(data);
+    } catch (err) {
+      $('refError').textContent = '⚠ ' + err.message;
+      $('refError').classList.remove('hidden');
+    } finally {
+      $('refBtn').disabled = false;
+      $('refBtnText').textContent = 'Validate References';
+      $('refLoader').classList.add('hidden'); $('refLoader').classList.remove('flex');
+    }
+  }
+
+  function renderRefResults(data) {
+    const el = $('refResults');
+    const refs = data.references || [];
+    const summary = data.summary || {};
+    let html = `<div class="flex items-center gap-4 p-4 bg-surface rounded-xl border border-border mb-4 text-sm">
+      <div><span class="font-bold text-txt">${summary.total || refs.length}</span> <span class="text-muted">references</span></div>
+      <div><span class="font-bold text-ok">${summary.verified || 0}</span> <span class="text-muted">verified</span></div>
+      <div><span class="font-bold text-danger">${summary.not_found || 0}</span> <span class="text-muted">not found</span></div>
+    </div>`;
+    refs.forEach(r => {
+      const ok = r.status === 'verified' || r.verified;
+      html += `<div class="flex items-start gap-3 p-3 bg-surface rounded-lg border border-border">
+        <span class="text-lg mt-0.5">${ok ? '✅' : '❌'}</span>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium">${esc(r.raw || r.title || 'Unknown reference')}</div>
+          ${r.doi ? `<div class="text-xs text-muted mt-0.5">DOI: ${esc(r.doi)}</div>` : ''}
+          ${r.message ? `<div class="text-xs ${ok ? 'text-ok' : 'text-danger'} mt-0.5">${esc(r.message)}</div>` : ''}
+        </div>
+      </div>`;
+    });
+    el.innerHTML = html || '<p class="text-muted text-sm">No references found in the text.</p>';
+    el.classList.remove('hidden');
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Cross-Document Comparison
+     ═══════════════════════════════════════════════════════════ */
+  function updateCrossBtn() {
+    $('crossBtn').disabled = $('crossInputA').value.trim().length < 50 || $('crossInputB').value.trim().length < 50;
+  }
+
+  async function doCrossCompare() {
+    const textA = $('crossInputA').value.trim();
+    const textB = $('crossInputB').value.trim();
+    if (!textA || !textB) return;
+    $('crossBtn').disabled = true;
+    $('crossBtnText').textContent = 'Comparing…';
+    $('crossLoader').classList.remove('hidden'); $('crossLoader').classList.add('flex');
+    $('crossError').classList.add('hidden');
+    $('crossResults').classList.add('hidden');
+    try {
+      const res = await fetch('/api/v1/compare-documents', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text_a: textA, text_b: textB, label_a: 'Document A', label_b: 'Document B' }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || 'Comparison failed'); }
+      const data = await res.json();
+      renderCrossResults(data);
+    } catch (err) {
+      $('crossError').textContent = '⚠ ' + err.message;
+      $('crossError').classList.remove('hidden');
+    } finally {
+      $('crossBtn').disabled = false;
+      $('crossBtnText').textContent = 'Compare Documents';
+      $('crossLoader').classList.add('hidden'); $('crossLoader').classList.remove('flex');
+    }
+  }
+
+  function renderCrossResults(data) {
+    const el = $('crossResults');
+    const sim = data.overall_similarity != null ? Math.round(data.overall_similarity * 100) : null;
+    let html = '';
+    if (sim != null) {
+      html += `<div class="text-center p-6 bg-surface rounded-xl border border-border mb-4">
+        <div class="text-4xl font-bold mb-1" style="color:${scoreColor(sim)}">${sim}%</div>
+        <div class="text-sm text-muted">Similarity Score</div>
+        <div class="w-full max-w-xs mx-auto h-2 bg-surface2 rounded-full overflow-hidden mt-3">
+          <div class="h-full rounded-full" style="width:${sim}%;background:${scoreColor(sim)}"></div>
+        </div>
+      </div>`;
+    }
+    const pairs = data.matching_pairs || data.overlapping_chunks || [];
+    if (pairs.length) {
+      html += '<h4 class="text-sm font-semibold mb-2">Overlapping Passages</h4>';
+      pairs.forEach((p, i) => {
+        const pairSim = p.similarity != null ? Math.round(p.similarity * 100) : '—';
+        html += `<div class="p-3 bg-surface rounded-lg border border-border mb-2">
+          <div class="text-xs text-muted mb-1">Pair ${i+1} — ${pairSim}% similar</div>
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <div class="p-2 bg-surface2 rounded">${esc((p.chunk_a || p.text_a || '').slice(0, 200))}…</div>
+            <div class="p-2 bg-surface2 rounded">${esc((p.chunk_b || p.text_b || '').slice(0, 200))}…</div>
+          </div>
+        </div>`;
+      });
+    }
+    el.innerHTML = html || '<p class="text-muted text-sm">No significant overlap detected.</p>';
+    el.classList.remove('hidden');
+  }
 
   initAuth();
 </script>

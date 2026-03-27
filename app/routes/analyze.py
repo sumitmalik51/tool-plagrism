@@ -34,6 +34,10 @@ class AnalyzeTextRequest(BaseModel):
         default_factory=list,
         description="List of domains to exclude from plagiarism detection (e.g. your own website)",
     )
+    document_id: str | None = Field(
+        default=None,
+        description="Optional client-generated document ID for SSE progress tracking",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +129,7 @@ async def analyze_text(
     This is the primary endpoint used by the frontend text-paste flow
     and by Azure Foundry agents.
     """
-    document_id = uuid.uuid4().hex
+    document_id = body.document_id or uuid.uuid4().hex
     user_id = getattr(request.state, "user_id", None)
 
     logger.info(

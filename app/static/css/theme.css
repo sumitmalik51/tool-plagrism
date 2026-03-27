@@ -1,0 +1,168 @@
+/* ═══════════════════════════════════════════════════════════
+   PlagiarismGuard — Shared Theme CSS
+   Used by index.html, app.html, and all auth pages
+   ═══════════════════════════════════════════════════════════ */
+
+/* --- Animations --- */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner { animation: spin .8s linear infinite; }
+
+@keyframes float1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,-40px) scale(1.1); } }
+@keyframes float2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-20px,30px) scale(1.15); } }
+@keyframes float3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(15px,25px) scale(1.05); } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes scan { 0% { left: 0; width: 0; } 50% { width: 40%; } 100% { left: 100%; width: 0; } }
+@keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+@keyframes pulse-ring { 0% { transform: scale(1); opacity: .4; } 100% { transform: scale(1.5); opacity: 0; } }
+
+.fade-up { animation: fadeUp .6s ease-out both; }
+.fade-up-d1 { animation-delay: .1s; }
+.fade-up-d2 { animation-delay: .2s; }
+.fade-up-d3 { animation-delay: .3s; }
+.fade-up-d4 { animation-delay: .4s; }
+
+/* --- Scrollbar --- */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #1a1d27; }
+::-webkit-scrollbar-thumb { background: #2e3348; border-radius: 3px; }
+
+/* --- Orbs --- */
+.orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: .10; pointer-events: none; }
+.orb-1 { width: 500px; height: 500px; background: #6c5ce7; top: -120px; left: -80px; animation: float1 8s ease-in-out infinite; }
+.orb-2 { width: 400px; height: 400px; background: #00b894; bottom: -100px; right: -60px; animation: float2 10s ease-in-out infinite; }
+.orb-3 { width: 300px; height: 300px; background: #e17055; top: 50%; left: 50%; transform: translate(-50%,-50%); animation: float3 12s ease-in-out infinite; }
+
+/* --- Gradient text --- */
+.gradient-text {
+  background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 30%, #00b894 70%, #4ECDC4 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+
+/* --- Scan line underline --- */
+.scan-line { position: relative; }
+.scan-line::after {
+  content: ''; position: absolute; bottom: -4px; left: 0; height: 3px; width: 0;
+  background: linear-gradient(90deg, transparent, #6c5ce7, #00b894, transparent);
+  animation: scan 3s ease-in-out infinite; border-radius: 2px;
+}
+
+/* --- Shimmer text --- */
+.shimmer-text {
+  background: linear-gradient(90deg, #a29bfe 0%, #6c5ce7 25%, #00b894 50%, #6c5ce7 75%, #a29bfe 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  animation: shimmer 4s linear infinite;
+}
+
+/* --- Mobile --- */
+@media (max-width: 640px) {
+  .hero-title { font-size: 2rem !important; }
+  .hero-subtitle { font-size: 0.875rem !important; }
+}
+
+/* --- Feature card --- */
+.feature-card {
+  background: rgba(26,29,39,.8); border: 1px solid #2e3348; border-radius: 16px;
+  padding: 24px; transition: all .3s ease; position: relative; overflow: hidden;
+}
+.feature-card:hover {
+  border-color: #6c5ce7; transform: translateY(-4px);
+  box-shadow: 0 20px 60px rgba(108,92,231,.15);
+}
+.feature-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--card-accent, #6c5ce7), transparent);
+  opacity: 0; transition: opacity .3s;
+}
+.feature-card:hover::before { opacity: 1; }
+
+/* --- Stat card --- */
+.stat-card {
+  background: rgba(26,29,39,.6); border: 1px solid #2e3348; border-radius: 12px;
+  padding: 20px 24px; text-align: center; transition: border-color .3s;
+}
+.stat-card:hover { border-color: #6c5ce7; }
+
+/* --- Dashboard action card --- */
+.action-card {
+  background: rgba(26,29,39,.8); border: 1px solid #2e3348; border-radius: 16px;
+  padding: 20px; transition: all .3s ease; position: relative; overflow: hidden;
+  cursor: pointer; text-decoration: none; display: block;
+}
+.action-card:hover {
+  border-color: var(--card-accent, #6c5ce7); transform: translateY(-3px);
+  box-shadow: 0 12px 40px rgba(108,92,231,.12);
+}
+.action-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--card-accent, #6c5ce7), transparent);
+  opacity: 0; transition: opacity .3s;
+}
+.action-card:hover::before { opacity: 1; }
+
+/* --- Usage bar --- */
+.usage-bar { height: 6px; border-radius: 3px; background: #2e3348; overflow: hidden; }
+.usage-fill { height: 100%; border-radius: 3px; transition: width .5s ease; }
+
+/* --- Pulse button --- */
+.pulse-btn { position: relative; }
+.pulse-btn::before {
+  content: ''; position: absolute; inset: -4px; border-radius: 12px;
+  border: 2px solid #6c5ce7; opacity: 0;
+}
+.pulse-btn:not(:disabled):hover::before { animation: pulse-ring 1.5s ease-out infinite; }
+
+/* --- Glow input --- */
+.glow-input:focus { border-color: #6c5ce7; box-shadow: 0 0 0 3px rgba(108,92,231,.15); }
+
+/* --- Source highlight colors --- */
+.hl-1  { background: rgba(255,107,107,.25); border-bottom: 2px solid #FF6B6B; }
+.hl-2  { background: rgba(78,205,196,.25);  border-bottom: 2px solid #4ECDC4; }
+.hl-3  { background: rgba(69,183,209,.25);  border-bottom: 2px solid #45B7D1; }
+.hl-4  { background: rgba(150,206,180,.25); border-bottom: 2px solid #96CEB4; }
+.hl-5  { background: rgba(255,234,167,.25); border-bottom: 2px solid #FFEAA7; }
+.hl-6  { background: rgba(221,160,221,.25); border-bottom: 2px solid #DDA0DD; }
+.hl-7  { background: rgba(152,216,200,.25); border-bottom: 2px solid #98D8C8; }
+.hl-8  { background: rgba(247,220,111,.25); border-bottom: 2px solid #F7DC6F; }
+.hl-9  { background: rgba(187,143,206,.25); border-bottom: 2px solid #BB8FCE; }
+.hl-10 { background: rgba(133,193,233,.25); border-bottom: 2px solid #85C1E9; }
+.hl-internal { background: rgba(253,203,110,.2); border-bottom: 2px solid #fdcb6e; }
+.hl-ai { background: rgba(108,92,231,.2); border-bottom: 2px solid #6c5ce7; }
+.hl-active { outline: 2px solid #fff; outline-offset: 1px; border-radius: 2px; }
+
+/* --- Source badge --- */
+.src-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 3px; font-size: 10px;
+  font-weight: 700; color: #fff; vertical-align: text-bottom;
+  margin-left: 2px; cursor: pointer; user-select: none;
+}
+
+/* --- Payment modal --- */
+.payment-check-path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: paymentCheckDraw 0.5s ease-out 0.3s forwards;
+}
+@keyframes paymentCheckDraw { to { stroke-dashoffset: 0; } }
+#paymentModal.show { opacity: 1; pointer-events: auto; }
+#paymentModal.show #paymentModalCard { transform: scale(1); }
+
+/* --- SSE Progress bar --- */
+@keyframes progress-pulse { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
+.progress-pulse { animation: progress-pulse 2s ease-in-out infinite; }
+
+/* --- Light theme overrides --- */
+html.light body { background: #f8f9fc !important; color: #1a1d27 !important; }
+html.light .bg-bg { background: #f8f9fc !important; }
+html.light .bg-surface, html.light .bg-surface\/80 { background: rgba(255,255,255,.9) !important; }
+html.light .bg-surface2 { background: #eef0f5 !important; }
+html.light .border-border, html.light .border-border\/50 { border-color: #d8dce6 !important; }
+html.light .text-txt { color: #1a1d27 !important; }
+html.light .text-muted { color: #6b7280 !important; }
+html.light .bg-bg\/80 { background: rgba(248,249,252,.85) !important; }
+html.light ::-webkit-scrollbar-track { background: #f0f0f0; }
+html.light ::-webkit-scrollbar-thumb { background: #c0c0c0; }
+html.light .stat-card { background: rgba(255,255,255,.9) !important; border-color: #d8dce6 !important; }
+html.light .feature-card { background: rgba(255,255,255,.9) !important; border-color: #d8dce6 !important; }
+html.light .action-card { background: rgba(255,255,255,.9) !important; border-color: #d8dce6 !important; }

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="AI-powered plagiarism detection and writing refinement for academics, researchers, and students. Detect similarity, check grammar, analyze readability, and rewrite with AI." />
+  <meta name="keywords" content="plagiarism detection, academic writing, AI rewriter, grammar checker, readability analyzer, similarity checker" />
+  <meta name="author" content="PlagiarismGuard" />
+  <meta name="robots" content="index, follow" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="PlagiarismGuard — AI-Powered Academic Plagiarism Detection" />
+  <meta property="og:description" content="Detect plagiarism, check grammar, analyze readability, and refine your writing with AI-powered tools built for academics." />
+  <meta property="og:url" content="https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net/" />
+  <meta property="og:site_name" content="PlagiarismGuard" />
+  <meta property="og:image" content="https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net/static/favicon.svg" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="PlagiarismGuard — AI-Powered Academic Plagiarism Detection" />
+  <meta name="twitter:description" content="Detect plagiarism, check grammar, analyze readability, and refine your writing with AI-powered tools." />
+  <link rel="canonical" href="https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net/" />
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <title>PlagiarismGuard — Academic Plagiarism Detection &amp; Writing Refinement</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/static/js/common.js"></script>
+  <link rel="stylesheet" href="/static/css/theme.css" />
+  <noscript><style>.fade-up{animation:none!important;opacity:1!important;transform:none!important}</style></noscript>
+</head>
+<body class="bg-bg text-txt min-h-screen">
+
+  <!-- Navbar -->
+  <nav class="fixed top-0 left-0 right-0 z-50 bg-bg/80 backdrop-blur-xl border-b border-border/50">
+    <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-gradient-to-br from-accent to-[#00b894] rounded-xl grid place-items-center text-white font-bold text-lg shadow-lg shadow-accent/20">P</div>
+        <span class="text-lg font-bold">PlagiarismGuard</span>
+        <span class="text-[10px] text-muted bg-surface2 px-2 py-0.5 rounded-full font-semibold tracking-wider uppercase">Academic</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="#features" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Features</a>
+        <a href="#pricing" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Pricing</a>
+        <button onclick="toggleTheme()" class="text-muted hover:text-txt transition-colors" title="Toggle theme">
+          <svg class="theme-icon-moon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          <svg class="theme-icon-sun hidden" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
+        <a href="/login" class="text-sm text-muted hover:text-txt transition-colors font-medium" id="navLogin">Sign In</a>
+        <a href="/signup" class="text-sm px-4 py-1.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-lg font-medium hover:shadow-lg hover:shadow-accent/25 transition-all" id="navSignup">Sign Up</a>
+        <!-- Shown when logged in -->
+        <a href="/app" class="hidden text-sm px-4 py-1.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-lg font-medium hover:shadow-lg hover:shadow-accent/25 transition-all" id="navDashboard">Dashboard →</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ════════════ HERO ════════════ -->
+  <section class="relative overflow-hidden pt-28 pb-16 px-6">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+
+    <div class="max-w-4xl mx-auto text-center relative z-10">
+      <div class="fade-up">
+        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent-l text-sm font-medium mb-6">
+          <span class="w-2 h-2 bg-ok rounded-full animate-pulse"></span>
+          🎉 Sign up &amp; get 3 days of Research plan — free, no credit card needed
+        </div>
+      </div>
+
+      <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold leading-tight mb-6 fade-up fade-up-d1">
+        Ensure Originality in<br>
+        <span class="gradient-text scan-line">Your Research</span>
+      </h1>
+      <p class="text-lg text-muted max-w-2xl mx-auto mb-2 fade-up fade-up-d1">
+        with AI-Powered Plagiarism Detection
+      </p>
+      <p class="text-base sm:text-lg text-muted max-w-2xl mx-auto mb-10 leading-relaxed fade-up fade-up-d2">
+        Detect, analyze, and safely rewrite content to maintain academic integrity and avoid plagiarism.
+      </p>
+
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-4 fade-up fade-up-d3">
+        <a href="/app#analyze"
+          class="inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl text-[15px] font-semibold hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all">
+          🔍 Check Your Document
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+        <a href="/app#rewriter"
+          class="inline-flex items-center gap-2 px-8 py-3.5 bg-surface2 border border-border text-txt rounded-xl text-[15px] font-medium hover:border-accent hover:text-accent-l transition-all">
+          Improve Writing
+        </a>
+      </div>
+
+      <!-- Trial CTA -->
+      <div class="mt-8 fade-up fade-up-d3">
+        <a href="/signup"
+          class="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-500/10 to-accent/10 border border-emerald-500/20 hover:border-emerald-400/40 transition-all group">
+          <span class="flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 text-lg">🚀</span>
+          <span class="text-left">
+            <span class="block text-sm font-semibold text-txt">Start your free 3-day Research trial</span>
+            <span class="block text-xs text-muted">Unlimited scans &bull; All Research features &bull; No credit card required</span>
+          </span>
+          <svg class="w-4 h-4 text-muted group-hover:text-accent-l transition-colors ml-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════ TRUST SIGNALS ════════════ -->
+  <section class="py-8 px-6">
+    <div class="max-w-4xl mx-auto">
+      <div class="flex flex-wrap justify-center gap-6 text-sm text-muted">
+        <div class="flex items-center gap-2"><span class="w-1.5 h-1.5 bg-ok rounded-full"></span> Designed for researchers and academic writing</div>
+        <div class="flex items-center gap-2"><span class="w-1.5 h-1.5 bg-ok rounded-full"></span> Supports theses, dissertations, and journal papers</div>
+        <div class="flex items-center gap-2"><span class="w-1.5 h-1.5 bg-ok rounded-full"></span> Maintain originality and proper attribution</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════ BEFORE / AFTER ════════════ -->
+  <section class="py-12 px-6">
+    <div class="max-w-3xl mx-auto">
+      <div class="grid grid-cols-2 gap-6">
+        <div class="bg-danger/5 border border-danger/20 rounded-2xl p-6 text-center">
+          <div class="text-4xl font-extrabold text-danger mb-2">42%</div>
+          <div class="text-sm text-danger font-semibold">Before — Similarity Detected</div>
+          <p class="text-xs text-muted mt-2">Matching phrases and overlapping sources identified</p>
+        </div>
+        <div class="bg-ok/5 border border-ok/20 rounded-2xl p-6 text-center">
+          <div class="text-4xl font-extrabold text-ok mb-2">5%</div>
+          <div class="text-sm text-ok font-semibold">After — Original &amp; Verified</div>
+          <p class="text-xs text-muted mt-2">Refined for clarity and originality while preserving meaning</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════ STATS BAR ════════════ -->
+  <section class="border-y border-border/50 bg-surface/50 backdrop-blur-sm">
+    <div class="max-w-5xl mx-auto px-6 py-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div class="stat-card fade-up"><div class="text-2xl font-bold gradient-text">10K+</div><div class="text-xs text-muted mt-1">Documents Analyzed</div></div>
+      <div class="stat-card fade-up fade-up-d1"><div class="text-2xl font-bold gradient-text">95%</div><div class="text-xs text-muted mt-1">Originality Achieved</div></div>
+      <div class="stat-card fade-up fade-up-d2"><div class="text-2xl font-bold gradient-text">250M+</div><div class="text-xs text-muted mt-1">Scholarly Sources</div></div>
+      <div class="stat-card fade-up fade-up-d3"><div class="text-2xl font-bold gradient-text">&lt; 30s</div><div class="text-xs text-muted mt-1">Analysis Time</div></div>
+    </div>
+  </section>
+
+  <!-- ════════════ FEATURES ════════════ -->
+  <section id="features" class="py-20 px-6">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center mb-14">
+        <h2 class="text-3xl font-bold mb-3">Intelligent Detection Engine</h2>
+        <p class="text-muted max-w-xl mx-auto">Scans web and academic sources to identify matching or similar content in your writing.</p>
+      </div>
+      <div class="grid sm:grid-cols-3 gap-5">
+        <div class="feature-card text-center" style="--card-accent: #FF6B6B;">
+          <div class="w-14 h-14 mx-auto rounded-2xl bg-[#FF6B6B]/15 grid place-items-center text-2xl mb-4">🌐</div>
+          <h3 class="font-semibold mb-2">Web &amp; Academic Sources</h3>
+          <p class="text-sm text-muted leading-relaxed">Cross-references web pages and scholarly databases to identify overlapping content.</p>
+        </div>
+        <div class="feature-card text-center" style="--card-accent: #6c5ce7;">
+          <div class="w-14 h-14 mx-auto rounded-2xl bg-accent/15 grid place-items-center text-2xl mb-4">🧠</div>
+          <h3 class="font-semibold mb-2">Deep Semantic Analysis</h3>
+          <p class="text-sm text-muted leading-relaxed">Detects paraphrasing and reworded content using AI sentence embeddings.</p>
+        </div>
+        <div class="feature-card text-center" style="--card-accent: #fdcb6e;">
+          <div class="w-14 h-14 mx-auto rounded-2xl bg-[#fdcb6e]/15 grid place-items-center text-2xl mb-4">🤖</div>
+          <h3 class="font-semibold mb-2">AI-Generated Text Detection</h3>
+          <p class="text-sm text-muted leading-relaxed">Identifies AI-generated passages to help you maintain authentic academic voice.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════ HOW IT WORKS ════════════ -->
+  <section class="py-16 px-6 border-t border-border/50 bg-surface/30">
+    <div class="max-w-4xl mx-auto">
+      <h2 class="text-2xl font-bold text-center mb-12">How It Works</h2>
+      <div class="grid sm:grid-cols-3 gap-8 text-center">
+        <div class="fade-up">
+          <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-accent/10 border border-accent/20 grid place-items-center text-2xl">1</div>
+          <h3 class="font-semibold mb-2">Paste Your Text</h3>
+          <p class="text-sm text-muted">Submit your thesis, paper, or any academic writing for analysis.</p>
+        </div>
+        <div class="fade-up fade-up-d1">
+          <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-accent/10 border border-accent/20 grid place-items-center text-2xl">2</div>
+          <h3 class="font-semibold mb-2">AI Analyzes &amp; Refines</h3>
+          <p class="text-sm text-muted">Our engine detects similarities and helps you rephrase safely while preserving meaning.</p>
+        </div>
+        <div class="fade-up fade-up-d2">
+          <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-accent/10 border border-accent/20 grid place-items-center text-2xl">3</div>
+          <h3 class="font-semibold mb-2">Review &amp; Submit</h3>
+          <p class="text-sm text-muted">Get original, properly refined text ready for publication or submission.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════ ACADEMIC USE CASES ════════════ -->
+  <section class="py-14 px-6 border-t border-border/50">
+    <div class="max-w-4xl mx-auto text-center">
+      <h2 class="text-2xl font-bold mb-6">Built for Academic Use</h2>
+      <div class="grid sm:grid-cols-4 gap-5">
+        <div class="bg-surface/80 border border-border rounded-xl p-5">
+          <div class="text-2xl mb-2">📚</div><h4 class="font-semibold text-sm mb-1">Thesis Writing</h4>
+          <p class="text-xs text-muted">Ensure originality across chapters and sections.</p>
+        </div>
+        <div class="bg-surface/80 border border-border rounded-xl p-5">
+          <div class="text-2xl mb-2">📄</div><h4 class="font-semibold text-sm mb-1">Research Papers</h4>
+          <p class="text-xs text-muted">Check for unintentional similarity before submission.</p>
+        </div>
+        <div class="bg-surface/80 border border-border rounded-xl p-5">
+          <div class="text-2xl mb-2">🗒️</div><h4 class="font-semibold text-sm mb-1">Journal Submissions</h4>
+          <p class="text-xs text-muted">Meet publisher originality requirements with confidence.</p>
+        </div>
+        <div class="bg-surface/80 border border-border rounded-xl p-5">
+          <div class="text-2xl mb-2">🔍</div><h4 class="font-semibold text-sm mb-1">Literature Reviews</h4>
+          <p class="text-xs text-muted">Properly paraphrase and attribute referenced works.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════ PRICING ════════════ -->
+  <section id="pricing" class="py-20 px-6">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center mb-12">
+        <span class="px-3 py-1 rounded-full bg-accent/10 text-accent-l text-xs font-semibold border border-accent/20 mb-4 inline-block">PRICING</span>
+        <h2 class="text-3xl font-bold mb-3">Plans for every researcher</h2>
+        <p class="text-muted max-w-lg mx-auto">Start with a free 3-day Research trial. Upgrade when your research demands more.</p>
+      </div>
+      <div class="grid md:grid-cols-3 gap-6">
+        <!-- Basic -->
+        <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative">
+          <h3 class="text-lg font-bold mb-1">Basic</h3>
+          <div class="flex items-end gap-1 mb-4"><span class="text-4xl font-bold">₹0</span><span class="text-muted text-sm mb-1">forever</span></div>
+          <ul class="space-y-3 text-sm flex-1 mb-6">
+            <li class="flex items-center gap-2"><span class="text-ok">✓</span> 3 tool uses per day</li>
+            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Plagiarism detection</li>
+            <li class="flex items-center gap-2"><span class="text-ok">✓</span> AI rewriter</li>
+            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Readability analyzer</li>
+            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Grammar checker</li>
+          </ul>
+          <a href="/signup" class="w-full py-2.5 rounded-xl bg-surface2 text-txt text-sm font-semibold border border-border text-center hover:border-accent transition-colors">Get Started Free</a>
+        </div>
+        <!-- Research (Most Popular) -->
+        <div class="bg-surface/80 backdrop-blur-sm border-2 border-accent rounded-2xl p-7 flex flex-col relative shadow-lg shadow-accent/10">
+          <span class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-accent text-white text-xs font-bold">MOST POPULAR</span>
+          <h3 class="text-lg font-bold mb-1">Research</h3>
+          <div class="flex items-end gap-1 mb-4"><span class="text-4xl font-bold">₹299</span><span class="text-muted text-sm mb-1">/month</span><span class="text-xs text-danger line-through ml-2 mb-1">₹499</span></div>
+          <ul class="space-y-3 text-sm flex-1 mb-6">
+            <li class="flex items-center gap-2"><span class="text-ok">✓</span> <strong>Unlimited</strong> tool uses</li>
+            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Everything in Basic</li>
+            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Priority processing</li>
+            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Detailed source reports</li>
+            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Scan history & analytics</li>
+          </ul>
+          <a href="/signup" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-bold text-center hover:shadow-lg hover:shadow-accent/25 transition-all">Start Free Trial</a>
+        </div>
+        <!-- Advanced -->
+        <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative">
+          <h3 class="text-lg font-bold mb-1">Advanced Research</h3>
+          <div class="flex items-end gap-1 mb-4"><span class="text-4xl font-bold">₹10</span><span class="text-muted text-sm mb-1">/month</span><span class="text-xs text-danger line-through ml-2 mb-1">₹999</span></div>
+          <ul class="space-y-3 text-sm flex-1 mb-6">
+            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Everything in Research</li>
+            <li class="flex items-center gap-2"><span class="text-ok">✓</span> API access</li>
+            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Batch file analysis</li>
+            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Custom integrations</li>
+            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Priority support</li>
+          </ul>
+          <a href="/signup" class="w-full py-2.5 rounded-xl bg-surface2 text-txt text-sm font-bold border border-border text-center hover:border-accent/50 hover:bg-accent/5 transition-all">Start Free Trial</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════ FINAL CTA ════════════ -->
+  <section class="py-10 px-6">
+    <div class="max-w-2xl mx-auto text-center">
+      <div class="bg-gradient-to-br from-accent/5 via-surface to-emerald-500/5 border border-accent/20 rounded-2xl p-8">
+        <h3 class="text-xl font-bold mb-2">Ready to upgrade your research workflow?</h3>
+        <p class="text-sm text-muted mb-5">Sign up now and get <span class="text-emerald-400 font-semibold">3 days of Research access</span> — completely free.</p>
+        <a href="/signup" class="inline-flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all">
+          Create Free Account
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+        <p class="text-xs text-muted mt-3">No credit card required &bull; Downgrades to Free after trial</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-border/50 py-8 px-6">
+    <div class="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted">
+      <div class="flex items-center gap-2">
+        <div class="w-6 h-6 bg-gradient-to-br from-accent to-[#00b894] rounded-md grid place-items-center text-white font-bold text-[10px]">P</div>
+        <span>PlagiarismGuard &copy; 2026</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="/terms" class="hover:text-txt transition-colors">Terms</a>
+        <a href="/privacy" class="hover:text-txt transition-colors">Privacy</a>
+        <span class="hidden sm:inline">&bull;</span>
+        <span class="hidden sm:inline">Powered by Azure OpenAI &bull; FastAPI &bull; Sentence-Transformers</span>
+      </div>
+    </div>
+  </footer>
+
+<script>
+  // If already logged in, show Dashboard link instead of Sign In / Sign Up
+  (function() {
+    if (localStorage.getItem('pg_token')) {
+      const login = document.getElementById('navLogin');
+      const signup = document.getElementById('navSignup');
+      const dash = document.getElementById('navDashboard');
+      if (login) login.style.display = 'none';
+      if (signup) signup.style.display = 'none';
+      if (dash) dash.classList.remove('hidden');
+    }
+  })();
+</script>
+</body>
+</html>

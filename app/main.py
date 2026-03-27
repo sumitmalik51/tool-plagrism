@@ -153,8 +153,14 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 @app.get("/", include_in_schema=False)
-async def serve_ui() -> FileResponse:
-    """Serve the single-page UI."""
+async def serve_landing() -> FileResponse:
+    """Serve the lightweight landing page for guests / SEO."""
+    return FileResponse(STATIC_DIR / "landing.html")
+
+
+@app.get("/app", include_in_schema=False)
+async def serve_app() -> FileResponse:
+    """Serve the full application (dashboard + tools + report)."""
     return FileResponse(STATIC_DIR / "index.html")
 
 

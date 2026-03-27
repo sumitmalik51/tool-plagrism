@@ -154,7 +154,7 @@
         // Redirect to intended destination (or main app)
         const params = new URLSearchParams(window.location.search);
         const redirect = params.get('redirect');
-        window.location.href = redirect || '/';
+        window.location.href = redirect || '/app';
       } catch (err) {
         showError('Network error — please try again.');
       } finally {
@@ -168,7 +168,7 @@
     if (localStorage.getItem('pg_token')) {
       const params = new URLSearchParams(window.location.search);
       const redirect = params.get('redirect');
-      window.location.href = redirect || '/';
+      window.location.href = redirect || '/app';
     }
   </script>
 </body>
