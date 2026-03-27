@@ -31,9 +31,17 @@ class Settings(BaseSettings):
 
     # Semantic agent
     embedding_model: str = "all-MiniLM-L6-v2"
+    embedding_executor_workers: int = 3  # Concurrent embedding requests
     chunk_size: int = 800
     chunk_overlap: int = 150
     semantic_similarity_threshold: float = 0.80
+
+    # Text processing limits (magic numbers extracted for tuning)
+    max_query_length: int = 150  # Max chars for academic search queries
+    web_query_max_length: int = 200  # Max chars for web search queries
+    passage_display_length: int = 500  # Chars to display in flagged passages
+    flagged_passages_limit: int = 50  # Max passages to return in response
+    page_content_length: int = 2000  # Max chars of fetched page to analyze
 
     # Risk classification thresholds (plagiarism_score 0-100)
     risk_threshold_high: float = 60.0

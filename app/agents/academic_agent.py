@@ -54,7 +54,7 @@ def _extract_queries(chunks: list[str], max_queries: int = 8) -> list[str]:
 
         # Ensure query has enough content to be a useful search term
         if len(q) >= 10:
-            queries.append(q[:150])  # Scholar handles up to ~256 chars
+            queries.append(q[:settings.max_query_length])  # Scholar handles up to ~256 chars
         if len(queries) >= max_queries:
             break
 
@@ -88,7 +88,8 @@ class AcademicAgent(BaseAgent):
             )
 
         # --- 2. Search academic sources ------------------------------------
-        queries = _extract_queries(chunks, max_queries=settings.scholar_max_queries)
+        max_q = agent_input.max_queries or settings.scholar_max_queries
+        queries = _extract_queries(chunks, max_queries=max_q)
         self.logger.info(
             "academic_queries_prepared",
             document_id=agent_input.document_id,
@@ -189,7 +190,7 @@ class AcademicAgent(BaseAgent):
                     title = paper.get("title", "Unknown")
                     flagged.append(
                         FlaggedPassage(
-                            text=chunks[i][:500],
+                            text=chunks[i][:settings.passage_display_length],
                             similarity_score=sim_val,
                             source=paper.get("url") or paper.get("openalex_id") or paper.get("scholar_url", ""),
                             reason=(
@@ -218,7 +219,7 @@ class AcademicAgent(BaseAgent):
             agent_name=self.name,
             score=score,
             confidence=round(confidence, 2),
-            flagged_passages=flagged[:50],  # cap to avoid huge responses
+            flagged_passages=flagged[:settings.flagged_passages_limit],  # cap to avoid huge responses
             details={
                 "status": "completed",
                 "source_used": source_used,

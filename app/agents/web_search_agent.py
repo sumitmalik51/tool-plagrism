@@ -98,7 +98,7 @@ def _extract_search_queries(
 
         # Only keep queries with enough meaningful content
         if len(q) >= 20:
-            queries.append(q[:200])
+            queries.append(q[:settings.web_query_max_length])
         if len(queries) >= max_queries:
             break
 
@@ -114,9 +114,10 @@ class WebSearchAgent(BaseAgent):
 
     async def _analyze(self, agent_input: AgentInput) -> AgentOutput:
         # --- 1. Create search queries from document text ----------------------
+        max_q = agent_input.max_queries or settings.web_search_max_queries
         queries = _extract_search_queries(
             agent_input.text,
-            max_queries=settings.web_search_max_queries,
+            max_queries=max_q,
         )
 
         if not queries:
@@ -174,8 +175,8 @@ class WebSearchAgent(BaseAgent):
         for r in web_results:
             fetched = page_texts.get(r.get("url", ""), "")
             if fetched and len(fetched) > 100:
-                # Use first 2000 chars of page content for comparison
-                r["full_text"] = _clean_text(fetched[:2000])
+                # Use first N chars of page content for comparison
+                r["full_text"] = _clean_text(fetched[:settings.page_content_length])
             else:
                 r["full_text"] = ""
 
@@ -221,7 +222,7 @@ class WebSearchAgent(BaseAgent):
                 source_url = web_results[orig_idx].get("url", "")
 
                 flagged.append(FlaggedPassage(
-                    text=doc_chunks[i][:500],
+                    text=doc_chunks[i][:settings.passage_display_length],
                     similarity_score=best_sim,
                     source=source_url,
                     reason=(

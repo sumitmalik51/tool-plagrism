@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
@@ -23,9 +24,26 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# The HuggingFace tokenizer (Rust/PyO3) is NOT thread-safe. Guard all
-# model.encode() calls so concurrent agents don't trigger "Already borrowed".
+# The HuggingFace tokenizer (Rust/PyO3) is NOT thread-safe. To avoid blocking
+# on a single lock, we use a dedicated ThreadPoolExecutor with multiple workers.
+# Each worker acquires the lock sequentially, allowing 2-4 concurrent requests
+# to queue and reduce latency vs. a single-threaded bottleneck.
 _model_lock = threading.Lock()
+_executor: ThreadPoolExecutor | None = None
+
+
+def _get_executor() -> ThreadPoolExecutor:
+    """Get or create the embedding executor pool."""
+    global _executor
+    if _executor is None:
+        # Use 2-4 workers based on config or CPU count
+        max_workers = getattr(settings, 'embedding_executor_workers', 3)
+        _executor = ThreadPoolExecutor(
+            max_workers=max_workers,
+            thread_name_prefix="embedding-worker-"
+        )
+        logger.info("embedding_executor_created", max_workers=max_workers)
+    return _executor
 
 
 @lru_cache(maxsize=1)
@@ -68,7 +86,8 @@ def _embed_sync(texts: list[str]) -> NDArray[np.float32]:
 async def generate_embeddings(texts: list[str]) -> NDArray[np.float32]:
     """Generate normalized embeddings for a list of text strings.
 
-    Runs the model in a thread-pool executor to avoid blocking the event loop.
+    Runs the model in a dedicated thread-pool executor to avoid blocking
+    the event loop and allow concurrent embedding requests to queue up.
 
     Args:
         texts: List of text chunks to embed.
@@ -82,7 +101,8 @@ async def generate_embeddings(texts: list[str]) -> NDArray[np.float32]:
 
     start = time.perf_counter()
     loop = asyncio.get_running_loop()
-    embeddings = await loop.run_in_executor(None, _embed_sync, texts)
+    executor = _get_executor()
+    embeddings = await loop.run_in_executor(executor, _embed_sync, texts)
     elapsed = round(time.perf_counter() - start, 3)
 
     logger.info(

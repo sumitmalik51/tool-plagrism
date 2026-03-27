@@ -12,6 +12,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 
+from app.exceptions import ExternalServiceError, ValidationError
 from app.tools.ai_detection_tool import detect_ai_text
 from app.tools.content_extractor_tool import chunk_text, extract_text
 from app.tools.embedding_tool import generate_embeddings_sync
@@ -106,9 +107,9 @@ async def embeddings_endpoint(request: EmbeddingsRequest) -> dict:
         return generate_embeddings_sync(request.texts)
     except Exception as exc:
         logger.error("tool_api_embeddings_error", error=str(exc))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Embedding generation failed: {exc}",
+        raise ExternalServiceError(
+            service_name="embedding_service",
+            detail="Could not generate embeddings. Please try again.",
         )
 
 
@@ -130,9 +131,9 @@ async def similarity_endpoint(request: SimilarityRequest) -> dict:
         )
     except Exception as exc:
         logger.error("tool_api_similarity_error", error=str(exc))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Similarity analysis failed: {exc}",
+        raise ExternalServiceError(
+            service_name="similarity_engine",
+            detail="Could not compute similarity. Please try again.",
         )
 
 
@@ -144,9 +145,9 @@ async def web_search_endpoint(request: WebSearchRequest) -> dict:
         return await search_web(request.query, count=request.count)
     except Exception as exc:
         logger.error("tool_api_web_search_error", error=str(exc))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Web search failed: {exc}",
+        raise ExternalServiceError(
+            service_name="web_search",
+            detail="Search service temporarily unavailable. Please try again.",
         )
 
 
@@ -162,9 +163,9 @@ async def scholar_search_endpoint(request: ScholarSearchRequest) -> dict:
         return await search_scholar(request.query, max_results=request.max_results)
     except Exception as exc:
         logger.error("tool_api_scholar_search_error", error=str(exc))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Scholar search failed: {exc}",
+        raise ExternalServiceError(
+            service_name="google_scholar",
+            detail="Scholar search temporarily unavailable. Please try again.",
         )
 
 
@@ -180,9 +181,9 @@ async def openalex_search_endpoint(request: ScholarSearchRequest) -> dict:
         return await search_openalex(request.query, max_results=request.max_results)
     except Exception as exc:
         logger.error("tool_api_openalex_search_error", error=str(exc))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"OpenAlex search failed: {exc}",
+        raise ExternalServiceError(
+            service_name="openalex",
+            detail="OpenAlex service temporarily unavailable. Please try again.",
         )
 
 
@@ -224,9 +225,9 @@ async def ai_detect_endpoint(request: AIDetectRequest) -> dict:
         return await detect_ai_text(request.text, chunks=request.chunks)
     except Exception as exc:
         logger.error("tool_api_ai_detect_error", error=str(exc))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"AI detection failed: {exc}",
+        raise ExternalServiceError(
+            service_name="ai_detection",
+            detail="AI detection service temporarily unavailable. Please try again.",
         )
 
 

@@ -53,6 +53,7 @@ class AgentInput(BaseModel):
     document_id: str = Field(..., description="Document identifier")
     text: str = Field(..., min_length=1, description="Full extracted text")
     chunks: list[str] = Field(default_factory=list, description="Text chunks for analysis")
+    max_queries: int | None = Field(default=None, description="Override for max search queries (set by adaptive scaling)")
 
 
 class FlaggedPassage(BaseModel):

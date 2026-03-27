@@ -96,7 +96,7 @@ class SemanticAgent(BaseAgent):
 
             flagged.append(
                 FlaggedPassage(
-                    text=chunks[idx_a][:500],
+                    text=chunks[idx_a][:settings.passage_display_length],
                     similarity_score=min(pair["similarity"], 1.0),
                     source=f"internal_chunk_{idx_b}",
                     reason=(

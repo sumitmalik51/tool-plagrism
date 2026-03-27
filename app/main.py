@@ -22,6 +22,7 @@ from app.routes.rewrite import router as rewrite_router
 from app.routes.tools import router as tools_router
 from app.routes.upload import router as upload_router
 from app.routes.writing import router as writing_router
+from app.routes.advanced import router as advanced_router
 from app.utils.logger import setup_logging, get_logger
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -76,12 +77,35 @@ app.include_router(analyze_router)
 app.include_router(rewrite_router)
 app.include_router(tools_router)
 app.include_router(writing_router)
+app.include_router(advanced_router)
 
 
-# --- Global exception handler ------------------------------------------------
+# --- Global exception handlers -----------------------------------------------
 @app.exception_handler(Exception)
-async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Catch unhandled exceptions — return sanitized 500 response."""
+async def app_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Handle custom application exceptions with structured responses."""
+    from app.exceptions import AppError
+    
+    if isinstance(exc, AppError):
+        _logger.warning(
+            f"{exc.error_type}_raised",
+            path=request.url.path,
+            method=request.method,
+            error_type=exc.error_type,
+            detail=str(exc),
+            extra=getattr(exc, 'extra', {}),
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "error": exc.detail,
+                "type": exc.error_type,
+                "status_code": exc.status_code,
+                **getattr(exc, 'extra', {})
+            },
+        )
+    
+    # Fallback for unhandled exceptions
     _logger.error(
         "unhandled_exception",
         path=request.url.path,
@@ -91,7 +115,11 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSON
     )
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal server error. Please try again later."},
+        content={
+            "error": "Internal server error. Please try again later.",
+            "type": "internal_error",
+            "status_code": 500,
+        },
     )
 
 
