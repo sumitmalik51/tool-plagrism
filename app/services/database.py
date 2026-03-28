@@ -181,46 +181,87 @@ class AzureSQLDatabase(Database):
             raise last_err  # unreachable, but satisfies type checker
         return self._local.conn
 
+    def _reset_conn(self) -> None:
+        """Drop the cached connection so the next _conn() call reconnects."""
+        if hasattr(self._local, "conn") and self._local.conn:
+            try:
+                self._local.conn.close()
+            except Exception:
+                pass
+            self._local.conn = None
+
+    def _is_transient(self, exc: Exception) -> bool:
+        """Return True if the error looks like a stale / auto-paused connection."""
+        msg = str(exc)
+        codes = ("40613", "08S01", "08001", "HYT00", "01000",
+                 "Communication link failure", "connection is broken",
+                 "TCP Provider", "Login timeout")
+        return any(c in msg for c in codes)
+
     def execute(self, sql: str, params: tuple = ()) -> int:
-        conn = self._conn()
-        cursor = conn.cursor()
-        try:
-            cursor.execute(sql, params)
-            conn.commit()
-            # For INSERT: try to get the identity value
-            if sql.strip().upper().startswith("INSERT"):
-                cursor.execute("SELECT SCOPE_IDENTITY()")
-                row = cursor.fetchone()
-                return int(row[0]) if row and row[0] else 0
-            return cursor.rowcount
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            cursor.close()
+        for attempt in range(2):
+            conn = self._conn()
+            cursor = conn.cursor()
+            try:
+                cursor.execute(sql, params)
+                conn.commit()
+                if sql.strip().upper().startswith("INSERT"):
+                    cursor.execute("SELECT SCOPE_IDENTITY()")
+                    row = cursor.fetchone()
+                    return int(row[0]) if row and row[0] else 0
+                return cursor.rowcount
+            except Exception as exc:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                if attempt == 0 and self._is_transient(exc):
+                    logger.warning("db_stale_conn_retry", method="execute", error=str(exc)[:120])
+                    self._reset_conn()
+                    continue
+                raise
+            finally:
+                cursor.close()
+        return 0  # unreachable
 
     def fetch_one(self, sql: str, params: tuple = ()) -> dict[str, Any] | None:
-        conn = self._conn()
-        cursor = conn.cursor()
-        try:
-            cursor.execute(sql, params)
-            row = cursor.fetchone()
-            if not row:
-                return None
-            columns = [desc[0] for desc in cursor.description]
-            return dict(zip(columns, row))
-        finally:
-            cursor.close()
+        for attempt in range(2):
+            conn = self._conn()
+            cursor = conn.cursor()
+            try:
+                cursor.execute(sql, params)
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                columns = [desc[0] for desc in cursor.description]
+                return dict(zip(columns, row))
+            except Exception as exc:
+                if attempt == 0 and self._is_transient(exc):
+                    logger.warning("db_stale_conn_retry", method="fetch_one", error=str(exc)[:120])
+                    self._reset_conn()
+                    continue
+                raise
+            finally:
+                cursor.close()
+        return None  # unreachable
 
     def fetch_all(self, sql: str, params: tuple = ()) -> list[dict[str, Any]]:
-        conn = self._conn()
-        cursor = conn.cursor()
-        try:
-            cursor.execute(sql, params)
-            columns = [desc[0] for desc in cursor.description]
-            return [dict(zip(columns, row)) for row in cursor.fetchall()]
-        finally:
-            cursor.close()
+        for attempt in range(2):
+            conn = self._conn()
+            cursor = conn.cursor()
+            try:
+                cursor.execute(sql, params)
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+            except Exception as exc:
+                if attempt == 0 and self._is_transient(exc):
+                    logger.warning("db_stale_conn_retry", method="fetch_all", error=str(exc)[:120])
+                    self._reset_conn()
+                    continue
+                raise
+            finally:
+                cursor.close()
+        return []  # unreachable
 
     def init_schema(self) -> None:
         conn = self._conn()
