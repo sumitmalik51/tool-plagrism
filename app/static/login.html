@@ -51,7 +51,7 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     .spinner { animation: spin .8s linear infinite; }
 
-    /* ── Fun loading overlay ── */
+    /* Fun loading overlay */
     .loading-overlay {
       position: fixed; inset: 0; z-index: 50;
       background: rgba(15,17,23,.92); backdrop-filter: blur(12px);
@@ -71,7 +71,7 @@
     .loading-msg { animation: fadeSwap 2s ease-in-out; }
     @keyframes progress-fill { from { width: 0; } }
     .progress-track { width: 220px; height: 4px; border-radius: 4px; background: #2e3348; overflow: hidden; margin-top: 20px; }
-    .progress-bar { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #6c5ce7, #00b894); animation: progress-fill 8s ease-out forwards; }
+    .progress-bar { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #6c5ce7, #00b894); animation: progress-fill 25s ease-out forwards; }
     @keyframes wiggle { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-8deg); } 75% { transform: rotate(8deg); } }
     .wiggle { display: inline-block; animation: wiggle .6s ease-in-out infinite; }
   </style>
@@ -154,12 +154,16 @@
       $('errorMsg').classList.add('hidden');
     }
 
-    /* ── Fun loading overlay controller ── */
+    /* Fun loading overlay controller — 10 unique steps = 20s before any repeat */
     const funSteps = [
       { emoji: '🔐', msg: 'Unlocking the vault…' },
       { emoji: '☕', msg: 'Brewing fresh credentials…' },
       { emoji: '🛰️', msg: 'Pinging the satellites…' },
       { emoji: '🧠', msg: 'Teaching the AI your name…' },
+      { emoji: '📡', msg: 'Connecting to Azure cloud…' },
+      { emoji: '🔎', msg: 'Warming up the search engine…' },
+      { emoji: '🗝️', msg: 'Verifying your identity…' },
+      { emoji: '📊', msg: 'Loading your analytics…' },
       { emoji: '🚀', msg: 'Almost there, buckling up…' },
       { emoji: '✨', msg: 'Polishing your dashboard…' },
     ];
@@ -168,7 +172,6 @@
     function showLoadingOverlay() {
       const overlay = $('loadingOverlay');
       overlay.classList.add('active');
-      // Reset progress bar animation
       const bar = $('progressBar');
       bar.style.animation = 'none'; bar.offsetHeight; bar.style.animation = '';
       let idx = 0;
@@ -188,7 +191,7 @@
       const el = $('loadingMsg');
       el.textContent = s.msg;
       el.classList.remove('loading-msg');
-      void el.offsetWidth; // reflow to restart animation
+      void el.offsetWidth;
       el.classList.add('loading-msg');
     }
 
@@ -207,53 +210,72 @@
       // Show fun overlay after a brief delay (instant responses skip it)
       const overlayDelay = setTimeout(showLoadingOverlay, 800);
 
-      try {
-        const res = await fetch('/api/v1/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-        });
-
-        const data = await res.json();
-        clearTimeout(overlayDelay);
-
-        if (!res.ok) {
+      let res, data;
+      const maxRetries = 2;
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          res = await fetch('/api/v1/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+          });
+          data = await res.json();
+          // Retry on 503 (DB waking up) — not on 401 (bad credentials)
+          if (res.status === 503 && attempt < maxRetries) {
+            await new Promise(r => setTimeout(r, 3000));
+            continue;
+          }
+          break;
+        } catch (err) {
+          if (attempt < maxRetries) {
+            await new Promise(r => setTimeout(r, 3000));
+            continue;
+          }
+          clearTimeout(overlayDelay);
           hideLoadingOverlay();
-          showError(data.detail || 'Login failed. Please try again.');
+          showError('Network error — please try again.');
+          $('submitBtn').disabled = false;
+          $('btnText').textContent = 'Sign In';
+          $('btnSpinner').classList.add('hidden');
           return;
         }
+      }
+      clearTimeout(overlayDelay);
 
-        // Show success step before redirect
-        $('loadingEmoji').textContent = '🎉';
-        $('loadingMsg').textContent = 'You\'re in! Redirecting…';
-        $('loadingSub').textContent = '';
-        clearInterval(stepTimer);
-
-        // Save token + user info
-        localStorage.setItem('pg_token', data.token);
-        localStorage.setItem('pg_user', JSON.stringify(data.user));
-
-        // Brief pause so user sees success, then redirect
-        await new Promise(r => setTimeout(r, 600));
-        const params = new URLSearchParams(window.location.search);
-        const redirect = params.get('redirect');
-        window.location.href = redirect || '/app';
-      } catch (err) {
-        clearTimeout(overlayDelay);
+      if (!res.ok) {
         hideLoadingOverlay();
-        showError('Network error — please try again.');
-      } finally {
+        showError(data.detail || 'Login failed. Please try again.');
         $('submitBtn').disabled = false;
         $('btnText').textContent = 'Sign In';
         $('btnSpinner').classList.add('hidden');
+        return;
       }
+
+      // Show success step before redirect
+      $('loadingEmoji').textContent = '🎉';
+      $('loadingMsg').textContent = "You're in! Redirecting…";
+      $('loadingSub').textContent = '';
+      clearInterval(stepTimer);
+      if (!$('loadingOverlay').classList.contains('active')) showLoadingOverlay();
+
+      // Save token + user info
+      localStorage.setItem('pg_token', data.token);
+      localStorage.setItem('pg_user', JSON.stringify(data.user));
+
+      // Brief pause so user sees success, then redirect
+      await new Promise(r => setTimeout(r, 600));
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get('redirect');
+      const safeRedirect = (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) ? redirect : '/app';
+      window.location.href = safeRedirect;
     }
 
     // If already logged in, redirect
     if (localStorage.getItem('pg_token')) {
       const params = new URLSearchParams(window.location.search);
       const redirect = params.get('redirect');
-      window.location.href = redirect || '/app';
+      const safeRedirect = (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) ? redirect : '/app';
+      window.location.href = safeRedirect;
     }
   </script>
 </body>

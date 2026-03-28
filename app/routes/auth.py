@@ -86,6 +86,9 @@ async def route_signup(body: SignupRequest):
         return result
     except AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.error("signup_db_error", error=str(exc)[:200])
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable. Please try again in a few seconds.")
 
 
 @router.post("/login", response_model=AuthResponse)
@@ -96,6 +99,9 @@ async def route_login(body: LoginRequest):
         return result
     except AuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
+    except Exception as exc:
+        logger.error("login_db_error", error=str(exc)[:200])
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable. Please try again in a few seconds.")
 
 
 @router.post("/forgot-password")
@@ -548,6 +554,8 @@ async def route_mock_upgrade(
     authorization: str = Header(default=""),
 ):
     """Mock upgrade endpoint — immediately sets the user's plan (for testing only)."""
+    if not settings.debug:
+        raise HTTPException(status_code=404, detail="Not found")
     user_id = _get_user_id(authorization)
     try:
         update_user_plan(user_id, plan)

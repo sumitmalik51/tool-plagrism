@@ -193,10 +193,13 @@ class AzureSQLDatabase(Database):
     def _is_transient(self, exc: Exception) -> bool:
         """Return True if the error looks like a stale / auto-paused connection."""
         msg = str(exc)
-        codes = ("40613", "08S01", "08001", "HYT00", "01000",
+        codes = ("40613", "08S01", "08001", "HYT00", "HY000", "01000",
                  "Communication link failure", "connection is broken",
-                 "TCP Provider", "Login timeout")
-        return any(c in msg for c in codes)
+                 "TCP Provider", "Login timeout", "Connection is not available",
+                 "Adaptive Server connection failed", "connected party did not",
+                 "established connection was aborted", "existing connection was forcibly closed",
+                 "server closed the connection", "Operation timed out")
+        return any(c.lower() in msg.lower() for c in codes)
 
     def execute(self, sql: str, params: tuple = ()) -> int:
         for attempt in range(2):
@@ -221,7 +224,10 @@ class AzureSQLDatabase(Database):
                     continue
                 raise
             finally:
-                cursor.close()
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
         return 0  # unreachable
 
     def fetch_one(self, sql: str, params: tuple = ()) -> dict[str, Any] | None:
@@ -242,7 +248,10 @@ class AzureSQLDatabase(Database):
                     continue
                 raise
             finally:
-                cursor.close()
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
         return None  # unreachable
 
     def fetch_all(self, sql: str, params: tuple = ()) -> list[dict[str, Any]]:
@@ -260,7 +269,10 @@ class AzureSQLDatabase(Database):
                     continue
                 raise
             finally:
-                cursor.close()
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
         return []  # unreachable
 
     def init_schema(self) -> None:
