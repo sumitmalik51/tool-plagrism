@@ -25,6 +25,7 @@ from app.services.auth_service import signup
 def _clean_tables():
     """Clear all tables before each test."""
     db = get_db()
+    db.execute("DELETE FROM document_fingerprints")
     db.execute("DELETE FROM scans")
     db.execute("DELETE FROM documents")
     db.execute("DELETE FROM users")

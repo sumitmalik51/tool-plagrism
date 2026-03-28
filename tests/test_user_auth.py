@@ -27,6 +27,7 @@ client = TestClient(app, raise_server_exceptions=False)
 def _clean_db():
     """Reset all tables before each test."""
     db = get_db()
+    db.execute("DELETE FROM document_fingerprints")
     db.execute("DELETE FROM scans")
     db.execute("DELETE FROM documents")
     db.execute("DELETE FROM users")

@@ -294,13 +294,12 @@ CREATE INDEX IF NOT EXISTS idx_usage_logs_created ON usage_logs(created_at);
 CREATE TABLE IF NOT EXISTS document_fingerprints (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     document_id TEXT          NOT NULL,
-    user_id     INTEGER       REFERENCES users(id),
+    user_id     INTEGER,
     fingerprints TEXT         NOT NULL,
     chunk_count  INTEGER      NOT NULL DEFAULT 0,
     char_count   INTEGER      NOT NULL DEFAULT 0,
     title       TEXT,
-    created_at  TEXT          NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (document_id) REFERENCES documents(document_id)
+    created_at  TEXT          NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_doc_fps_user ON document_fingerprints(user_id);
 """
@@ -398,13 +397,12 @@ IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'document_fingerprints')
 CREATE TABLE document_fingerprints (
     id           INT IDENTITY(1,1) PRIMARY KEY,
     document_id  NVARCHAR(64)      NOT NULL,
-    user_id      INT               NULL REFERENCES users(id),
+    user_id      INT               NULL,
     fingerprints NVARCHAR(MAX)     NOT NULL,
     chunk_count  INT               NOT NULL DEFAULT 0,
     char_count   INT               NOT NULL DEFAULT 0,
     title        NVARCHAR(255)     NULL,
-    created_at   DATETIME2         NOT NULL DEFAULT GETUTCDATE(),
-    FOREIGN KEY (document_id) REFERENCES documents(document_id)
+    created_at   DATETIME2         NOT NULL DEFAULT GETUTCDATE()
 );
 ---
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_doc_fps_user')
