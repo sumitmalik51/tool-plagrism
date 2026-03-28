@@ -151,11 +151,34 @@ class AzureSQLDatabase(Database):
 
     def _conn(self):
         if not hasattr(self._local, "conn") or self._local.conn is None:
-            self._local.conn = self._pyodbc.connect(
-                self._connection_string,
-                autocommit=False,
-                timeout=30,
-            )
+            import time as _time
+            last_err = None
+            for attempt in range(4):  # up to 4 attempts (~15s total)
+                try:
+                    self._local.conn = self._pyodbc.connect(
+                        self._connection_string,
+                        autocommit=False,
+                        timeout=30,
+                    )
+                    return self._local.conn
+                except Exception as exc:
+                    last_err = exc
+                    err_code = getattr(exc, "args", ("",))[0] if exc.args else ""
+                    # 40613 = DB not available (auto-pause waking)
+                    # 08S01 = Communication link failure
+                    # 08001 = Unable to connect
+                    transient = any(c in str(err_code) for c in ("40613", "08S01", "08001"))
+                    if not transient or attempt == 3:
+                        raise
+                    wait = (attempt + 1) * 2  # 2s, 4s, 6s
+                    logger.warning(
+                        "db_connect_retry",
+                        attempt=attempt + 1,
+                        wait_s=wait,
+                        error=str(exc)[:100],
+                    )
+                    _time.sleep(wait)
+            raise last_err  # unreachable, but satisfies type checker
         return self._local.conn
 
     def execute(self, sql: str, params: tuple = ()) -> int:
