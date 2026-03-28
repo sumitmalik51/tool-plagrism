@@ -24,6 +24,7 @@ from app.tools.content_extractor_tool import chunk_text
 from app.tools.embedding_tool import generate_embeddings
 from app.tools.similarity_tool import cosine_similarity_matrix, compute_overall_score
 from app.tools.web_search_tool import search_multiple, fetch_page_text
+from app.tools.fingerprint_tool import fingerprint_match_score, fingerprint_chunks
 
 
 # ---------------------------------------------------------------------------
@@ -171,14 +172,18 @@ class WebSearchAgent(BaseAgent):
         )
         page_texts = await fetch_page_text(urls_to_fetch, timeout=10.0)
 
-        # Enrich each web_result with fetched page text (truncated for embedding)
+        # Enrich each web_result with fetched page text
         for r in web_results:
             fetched = page_texts.get(r.get("url", ""), "")
             if fetched and len(fetched) > 100:
-                # Use first N chars of page content for comparison
-                r["full_text"] = _clean_text(fetched[:settings.page_content_length])
+                cleaned = _clean_text(fetched)
+                # Store full text for fingerprinting (up to 50K)
+                r["raw_full_text"] = cleaned[:50000]
+                # Truncated version for embedding comparison
+                r["full_text"] = cleaned[:settings.page_content_length]
             else:
                 r["full_text"] = ""
+                r["raw_full_text"] = ""
 
         # --- 4. Compare content via embeddings --------------------------------
         # Build reference texts: prefer fetched page content, fall back to snippet
@@ -234,6 +239,37 @@ class WebSearchAgent(BaseAgent):
 
         confidence = min(len(web_results) / 10, 1.0) * 0.6 + 0.2
 
+        # --- 5b. N-gram fingerprint matching (catches exact copies) -----------
+        ref_full_texts = [
+            r.get("raw_full_text", "") for r in web_results
+            if r.get("raw_full_text")
+        ]
+        fp_result = fingerprint_match_score(
+            cleaned_text, ref_full_texts, threshold=0.04,
+        )
+        fp_score = fp_result["score"]
+
+        # Boost flagged passages from fingerprint matches
+        for fm in fp_result.get("matches", [])[:5]:
+            ref_idx = fm["ref_index"]
+            if ref_idx < len(web_results):
+                src_url = web_results[ref_idx].get("url", "")
+                if src_url not in seen_sources:
+                    flagged.append(FlaggedPassage(
+                        text=f"[Exact-match fingerprint] Jaccard: {fm['jaccard']:.2%}",
+                        similarity_score=min(fm["jaccard"] * 5, 1.0),
+                        source=src_url,
+                        reason=(
+                            f"Exact text overlap detected via fingerprinting "
+                            f"(Jaccard: {fm['jaccard']:.2%}) with: "
+                            f"{web_results[ref_idx].get('title', 'Unknown')}"
+                        ),
+                    ))
+                    seen_sources.add(src_url)
+
+        # Combine embedding score and fingerprint score (max wins)
+        final_score = max(score_info["score"], fp_score)
+
         # Build a map from web_results index → column in sim_matrix
         snippet_col: dict[int, int] = {
             orig: col for col, orig in enumerate(snippet_indices)
@@ -242,14 +278,16 @@ class WebSearchAgent(BaseAgent):
         self.logger.info(
             "web_search_complete",
             document_id=agent_input.document_id,
-            score=score_info["score"],
+            embedding_score=score_info["score"],
+            fingerprint_score=fp_score,
+            final_score=final_score,
             flagged_count=len(flagged),
             web_results=len(web_results),
         )
 
         return AgentOutput(
             agent_name=self.name,
-            score=score_info["score"],
+            score=final_score,
             confidence=round(confidence, 2),
             flagged_passages=flagged,
             details={
@@ -257,6 +295,9 @@ class WebSearchAgent(BaseAgent):
                 "queries_searched": len(queries),
                 "web_results_found": len(web_results),
                 "pages_fetched": sum(1 for r in web_results if r.get("full_text")),
+                "embedding_score": score_info["score"],
+                "fingerprint_score": fp_score,
+                "fingerprint_max_jaccard": fp_result.get("max_jaccard", 0),
                 "sources": [
                     {
                         "url": r["url"],

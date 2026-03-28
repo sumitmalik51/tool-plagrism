@@ -479,6 +479,16 @@
           </div>
         </div>
 
+        <!-- Scan options -->
+        <div class="mt-3">
+          <label class="flex items-center gap-3 cursor-pointer group">
+            <input type="checkbox" id="gptAiToggle" class="w-4 h-4 rounded border-border text-accent focus:ring-accent bg-surface2">
+            <span class="text-sm text-muted group-hover:text-txt transition-colors">
+              🤖 GPT-Powered AI Detection <span class="text-[10px] bg-surface2 px-1.5 py-0.5 rounded ml-1">more accurate, uses API credits</span>
+            </span>
+          </label>
+        </div>
+
         <!-- Analyze button -->
         <div class="text-center mt-6">
           <button id="analyzeBtn" disabled
@@ -733,6 +743,41 @@
           </div>
           <div id="crossError" class="hidden mt-4 px-5 py-4 bg-danger/10 border border-danger rounded-xl text-danger text-sm"></div>
           <div id="crossResults" class="hidden mt-6"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ Institutional Repository Check ═══════════ -->
+    <section id="repoCheck" class="py-12 px-6 border-t border-border/50 bg-surface/20">
+      <div class="max-w-4xl mx-auto">
+        <button onclick="toggleAdvanced('repoAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
+          <div class="flex items-center gap-3">
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#a29bfe]/10 border border-[#a29bfe]/20 text-[#a29bfe] text-sm font-medium">
+              <span class="w-2 h-2 bg-[#a29bfe] rounded-full animate-pulse"></span>
+              Research Tool
+            </div>
+            <h2 class="text-xl font-bold">Repository Check</h2>
+            <span class="text-xs text-muted ml-1">Check against your prior submissions</span>
+          </div>
+          <span class="text-muted text-lg transition-transform" id="repoArrow">▶</span>
+        </button>
+        <div id="repoAdvanced" class="hidden">
+          <p class="text-sm text-muted mb-4">Paste text to check for overlap with your previously scanned documents. Detects self-plagiarism across submissions.</p>
+          <textarea id="repoInput" rows="6" placeholder="Paste text to check against your submission history…"
+            class="glow-input w-full bg-surface border border-border rounded-xl p-5 text-sm leading-relaxed text-txt placeholder-muted resize-y focus:outline-none transition-all"
+            oninput="$('repoBtn').disabled = this.value.trim().length < 50"></textarea>
+          <div class="text-center mt-4 mb-4">
+            <button id="repoBtn" onclick="doRepoCheck()" disabled
+              class="pulse-btn inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-[#a29bfe] to-[#6c5ce7] text-white rounded-xl text-[15px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all">
+              🏛️ <span id="repoBtnText">Check Repository</span>
+            </button>
+          </div>
+          <div id="repoLoader" class="hidden flex-col items-center gap-3 mt-4">
+            <div class="w-8 h-8 border-3 border-border border-t-accent rounded-full spinner"></div>
+            <p class="text-muted text-sm">Checking against stored documents…</p>
+          </div>
+          <div id="repoError" class="hidden mt-4 px-5 py-4 bg-danger/10 border border-danger rounded-xl text-danger text-sm"></div>
+          <div id="repoResults" class="hidden space-y-2 mt-6"></div>
         </div>
       </div>
     </section>
@@ -1310,6 +1355,7 @@
       if (currentMode === 'text') {
         const body = { text: $('textInput').value, document_id: docId };
         if (excludedDomains.length > 0) body.excluded_domains = excludedDomains;
+        if ($('gptAiToggle') && $('gptAiToggle').checked) body.use_gpt_ai_detection = true;
         res = await fetch('/api/v1/analyze-agent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1824,8 +1870,17 @@
             </div>
 
             <!-- Source text block content — side-by-side comparison -->
-            <div class="text-[10px] uppercase tracking-wide text-muted font-semibold">Matched Text in Your Document</div>
-            <div id="src-block-content-${num}" class="text-sm leading-relaxed p-3 bg-surface rounded-md border border-border text-muted"></div>
+            <div class="text-[10px] uppercase tracking-wide text-muted font-semibold">Side-by-Side Comparison</div>
+            <div id="src-block-content-${num}" class="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <div class="text-[10px] uppercase tracking-wide text-danger mb-1 font-semibold">Your Document</div>
+                <div id="src-block-doc-${num}" class="text-sm leading-relaxed p-3 bg-surface rounded-md border border-border text-muted"></div>
+              </div>
+              <div>
+                <div class="text-[10px] uppercase tracking-wide text-ok mb-1 font-semibold">Matched Source</div>
+                <div id="src-block-ref-${num}" class="text-sm leading-relaxed p-3 bg-surface rounded-md border border-border text-muted"></div>
+              </div>
+            </div>
           </div>
         </div>`;
     });
@@ -1873,9 +1928,11 @@
   function renderTextBlock(srcNum) {
     const sources = lastReport?.detected_sources || [];
     const src = sources.find(s => s.source_number === srcNum);
+    const docEl = $(`src-block-doc-${srcNum}`);
+    const refEl = $(`src-block-ref-${srcNum}`);
     if (!src || !src.matched_passages || src.matched_passages.length === 0) {
-      const content = $(`src-block-content-${srcNum}`);
-      if (content) content.innerHTML = '<span class="italic">No text blocks available.</span>';
+      if (docEl) docEl.innerHTML = '<span class="italic">No text blocks available.</span>';
+      if (refEl) refEl.innerHTML = '';
       return;
     }
 
@@ -1898,12 +1955,24 @@
       simLabel.style.color = block.similarity_score > 0.7 ? 'var(--color-danger)' : block.similarity_score > 0.4 ? 'var(--color-warn)' : 'var(--color-ok)';
     }
 
-    // Render text block with highlighted words
-    const content = $(`src-block-content-${srcNum}`);
-    if (content) {
-      const color = SOURCE_COLORS[(srcNum - 1) % 10] || '#888';
-      // Highlight the matched text with colored underline
-      content.innerHTML = `<span style="border-bottom: 2px solid ${color}; padding-bottom: 1px;">${esc(block.text)}</span>`;
+    // Render side-by-side comparison
+    const color = SOURCE_COLORS[(srcNum - 1) % 10] || '#888';
+    if (docEl) {
+      docEl.innerHTML = `<span style="border-bottom: 2px solid ${color}; padding-bottom: 1px;">${esc(block.text)}</span>`;
+    }
+    if (refEl) {
+      // Show the source reference text (from flagged_passages matching this source)
+      const flagged = (lastReport?.flagged_passages || []).find(fp =>
+        fp.source === src.url && fp.text && fp.text !== block.text
+      );
+      const srcTitle = src.title || (src.url ? new URL(src.url).hostname : 'Source');
+      if (flagged && flagged.reason) {
+        refEl.innerHTML = `<div class="text-xs text-muted mb-1">${esc(srcTitle)}</div><span style="border-bottom: 2px solid ${color}; padding-bottom: 1px;">${esc(flagged.text || flagged.reason)}</span>`;
+      } else if (src.url) {
+        refEl.innerHTML = `<div class="text-xs text-muted mb-1">${esc(srcTitle)}</div><span class="italic text-xs">Source text excerpt not available — <a href="${esc(src.url)}" target="_blank" class="text-accent-l hover:underline">view original ↗</a></span>`;
+      } else {
+        refEl.innerHTML = '<span class="italic text-xs">Source text not available</span>';
+      }
     }
 
     // Scroll to corresponding highlight in document viewer
@@ -3885,6 +3954,56 @@
       });
     }
     el.innerHTML = html || '<p class="text-muted text-sm">No significant overlap detected.</p>';
+    el.classList.remove('hidden');
+  }
+
+  /* ── Repository Check ── */
+  async function doRepoCheck() {
+    const text = $('repoInput').value.trim();
+    if (text.length < 50) return;
+    $('repoBtn').disabled = true;
+    $('repoBtnText').textContent = 'Checking…';
+    $('repoLoader').classList.remove('hidden'); $('repoLoader').classList.add('flex');
+    $('repoError').classList.add('hidden');
+    $('repoResults').classList.add('hidden');
+    try {
+      const res = await fetch('/api/v1/repository-check', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || 'Repository check failed'); }
+      const data = await res.json();
+      renderRepoResults(data);
+    } catch (err) {
+      $('repoError').textContent = '⚠ ' + err.message;
+      $('repoError').classList.remove('hidden');
+    } finally {
+      $('repoBtn').disabled = false;
+      $('repoBtnText').textContent = 'Check Repository';
+      $('repoLoader').classList.add('hidden'); $('repoLoader').classList.remove('flex');
+    }
+  }
+
+  function renderRepoResults(data) {
+    const el = $('repoResults');
+    const matches = data.matches || [];
+    let html = `<div class="text-center p-4 bg-surface rounded-xl border border-border mb-4">
+      <div class="text-sm text-muted">${data.total_checked || 0} documents checked</div>
+      <div class="text-xl font-bold mt-1">${matches.length ? '⚠️ Overlap Detected' : '✅ No Overlap Found'}</div>
+    </div>`;
+    if (matches.length) {
+      matches.forEach((m, i) => {
+        const pct = m.similarity != null ? Math.round(m.similarity * 100) : '—';
+        html += `<div class="p-4 bg-surface rounded-xl border border-border flex items-center justify-between">
+          <div>
+            <div class="font-semibold text-sm">${esc(m.title || m.document_id || 'Document ' + (i + 1))}</div>
+            <div class="text-xs text-muted mt-0.5">${m.created_at ? new Date(m.created_at).toLocaleDateString() : ''}</div>
+          </div>
+          <div class="text-lg font-bold" style="color:${scoreColor(pct)}">${pct}%</div>
+        </div>`;
+      });
+    }
+    el.innerHTML = html;
     el.classList.remove('hidden');
   }
 

@@ -290,6 +290,19 @@ CREATE INDEX IF NOT EXISTS idx_scans_document_id ON scans(document_id);
 CREATE INDEX IF NOT EXISTS idx_usage_logs_user_id ON usage_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_usage_logs_ip ON usage_logs(ip_address);
 CREATE INDEX IF NOT EXISTS idx_usage_logs_created ON usage_logs(created_at);
+
+CREATE TABLE IF NOT EXISTS document_fingerprints (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_id TEXT          NOT NULL,
+    user_id     INTEGER       REFERENCES users(id),
+    fingerprints TEXT         NOT NULL,
+    chunk_count  INTEGER      NOT NULL DEFAULT 0,
+    char_count   INTEGER      NOT NULL DEFAULT 0,
+    title       TEXT,
+    created_at  TEXT          NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (document_id) REFERENCES documents(document_id)
+);
+CREATE INDEX IF NOT EXISTS idx_doc_fps_user ON document_fingerprints(user_id);
 """
 
 _MSSQL_SCHEMA = """
@@ -380,6 +393,22 @@ ALTER TABLE users ADD plan_type NVARCHAR(20) NOT NULL DEFAULT 'free';
 ---
 IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('users') AND name = 'trial_ends_at')
 ALTER TABLE users ADD trial_ends_at DATETIME2 NULL;
+---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'document_fingerprints')
+CREATE TABLE document_fingerprints (
+    id           INT IDENTITY(1,1) PRIMARY KEY,
+    document_id  NVARCHAR(64)      NOT NULL,
+    user_id      INT               NULL REFERENCES users(id),
+    fingerprints NVARCHAR(MAX)     NOT NULL,
+    chunk_count  INT               NOT NULL DEFAULT 0,
+    char_count   INT               NOT NULL DEFAULT 0,
+    title        NVARCHAR(255)     NULL,
+    created_at   DATETIME2         NOT NULL DEFAULT GETUTCDATE(),
+    FOREIGN KEY (document_id) REFERENCES documents(document_id)
+);
+---
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_doc_fps_user')
+CREATE INDEX idx_doc_fps_user ON document_fingerprints(user_id);
 """
 
 
@@ -414,12 +443,18 @@ def get_db() -> Database:
         if conn_str:
             db = AzureSQLDatabase(conn_str)
         else:
-            db_path = Path(
-                os.environ.get(
-                    "PG_DATA_DIR",
-                    str(Path(__file__).resolve().parent.parent.parent),
-                )
-            ) / "plagiarismguard.db"
+            # Use /home/data/ on Azure (writable & persistent) or project root locally
+            default_dir = "/home/data" if os.path.isdir("/home/site") else str(
+                Path(__file__).resolve().parent.parent.parent
+            )
+            data_dir = Path(os.environ.get("PG_DATA_DIR", default_dir))
+            data_dir.mkdir(parents=True, exist_ok=True)
+            db_path = data_dir / "plagiarismguard.db"
+            logger.warning(
+                "sql_connection_string_not_set",
+                fallback="sqlite",
+                path=str(db_path),
+            )
             db = SQLiteDatabase(db_path)
 
         db.init_schema()

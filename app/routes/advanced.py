@@ -460,6 +460,48 @@ async def compare_files(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Feature 6: Institutional Document Repository
+# ═══════════════════════════════════════════════════════════════════════════
+
+class RepositoryCheckRequest(BaseModel):
+    """Request for checking text against institutional repository."""
+    text: str = Field(..., min_length=1, description="Text to check against stored documents")
+
+
+@router.post(
+    "/repository-check",
+    status_code=status.HTTP_200_OK,
+    summary="Check text against institutional document repository",
+    dependencies=[Depends(enforce_usage_limit)],
+)
+async def repository_check(
+    body: RepositoryCheckRequest,
+    http_request: Request = None,
+) -> dict:
+    """Compare text against all previously scanned documents using fingerprinting.
+
+    Returns matching documents with Jaccard similarity scores.
+    Useful for detecting self-plagiarism or overlap with prior submissions.
+    """
+    from app.services.repository import find_similar_documents
+
+    user_id = getattr(http_request.state, "user_id", None) if http_request else None
+
+    matches = find_similar_documents(
+        body.text,
+        user_id=user_id,
+        threshold=0.02,
+        limit=15,
+    )
+
+    return {
+        "matches": matches,
+        "total_checked": len(matches),
+        "has_overlap": any(m["jaccard"] >= 0.05 for m in matches),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Helpers
 # ═══════════════════════════════════════════════════════════════════════════
 

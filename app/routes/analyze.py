@@ -38,6 +38,10 @@ class AnalyzeTextRequest(BaseModel):
         default=None,
         description="Optional client-generated document ID for SSE progress tracking",
     )
+    use_gpt_ai_detection: bool = Field(
+        default=False,
+        description="Enable GPT-powered AI detection (more accurate, uses API credits)",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -155,6 +159,7 @@ async def analyze_text(
         document_id=document_id,
         text=body.text,
         excluded_domains=body.excluded_domains or None,
+        use_gpt_ai_detection=body.use_gpt_ai_detection,
     )
 
     # --- Save scan result to DB -----------------------------------------------

@@ -31,7 +31,8 @@ class AIDetectionAgent(BaseAgent):
         chunks = agent_input.chunks or chunk_result["chunks"]
 
         # --- 2. Run AI detection (via ai_detection_tool) ----------------------
-        result = await detect_ai_text(agent_input.text, chunks=chunks)
+        use_gpt = getattr(agent_input, "use_gpt_ai_detection", False)
+        result = await detect_ai_text(agent_input.text, chunks=chunks, use_gpt=use_gpt)
 
         # --- 3. Build flagged passages from tool output -----------------------
         flagged: list[FlaggedPassage] = []

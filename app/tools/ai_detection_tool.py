@@ -1,8 +1,12 @@
 """AI detection tool — detects AI-generated text.
 
 Standalone, framework-agnostic tool. Returns structured JSON.
-Uses statistical heuristics (perplexity, burstiness) as a baseline.
-Can be extended with external API integrations.
+
+Two modes:
+1. **Heuristic** (default) — statistical signals: TTR, burstiness, repetition.
+   Fast, free, no API call. Always runs as a baseline.
+2. **GPT-powered** — uses Azure OpenAI to classify text passages.
+   More accurate, but uses API credits. Opt-in via ``use_gpt=True``.
 """
 
 from __future__ import annotations
@@ -11,26 +15,122 @@ import math
 import time
 from collections import Counter
 
+import httpx
+
+from app.config import settings
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-async def detect_ai_text(text: str, chunks: list[str] | None = None) -> dict:
-    """Analyse text for AI-generated content indicators.
+# ---------------------------------------------------------------------------
+# GPT-based AI detection
+# ---------------------------------------------------------------------------
 
-    Uses statistical heuristics:
-    - Vocabulary richness (type-token ratio)
-    - Sentence length variance (burstiness)
-    - Repeated phrase detection
+_GPT_SYSTEM_PROMPT = """You are an expert AI-generated text detector for academic documents.
+Analyze each text passage and classify it as HUMAN or AI-GENERATED.
+
+For each passage, return a JSON object with:
+- "label": "human" or "ai"
+- "confidence": 0.0 to 1.0
+- "reason": brief explanation (max 30 words)
+
+Look for these AI signals:
+- Unnaturally uniform sentence length and rhythm
+- Generic hedging ("It is important to note that...")
+- Lack of specific personal insight or novel argument
+- Formulaic transitions ("Furthermore", "Moreover", "In conclusion")
+- Perfect grammar with no colloquialisms or stylistic personality
+- Lists of generic points without deep analysis
+
+Look for these HUMAN signals:
+- Variable sentence length and complexity
+- Specific domain expertise with novel insights
+- Stylistic quirks, informal asides, or strong opinions
+- Imperfect but natural phrasing
+- Complex reasoning chains with original analogies
+
+Return ONLY a JSON array, one object per passage. No markdown, no explanation outside JSON."""
+
+
+async def _gpt_classify_chunks(chunks: list[str]) -> list[dict]:
+    """Classify chunks as human/AI using Azure OpenAI GPT-4o.
+
+    Returns a list of ``{"label": "human"|"ai", "confidence": float, "reason": str}``
+    aligned to the input chunks.
+    """
+    if not settings.azure_openai_endpoint or not settings.azure_openai_api_key:
+        return []
+
+    # Batch chunks (max 10 per call to stay within token limits)
+    batch_size = 10
+    results: list[dict] = []
+
+    for batch_start in range(0, len(chunks), batch_size):
+        batch = chunks[batch_start : batch_start + batch_size]
+        user_msg = "\n\n---\n\n".join(
+            f"[Passage {i+1}]\n{chunk[:1500]}" for i, chunk in enumerate(batch)
+        )
+
+        url = (
+            f"{settings.azure_openai_endpoint.rstrip('/')}"
+            f"/openai/deployments/{settings.azure_openai_deployment}"
+            f"/chat/completions?api-version={settings.azure_openai_api_version}"
+        )
+        headers = {
+            "Content-Type": "application/json",
+            "api-key": settings.azure_openai_api_key,
+        }
+        payload = {
+            "messages": [
+                {"role": "system", "content": _GPT_SYSTEM_PROMPT},
+                {"role": "user", "content": user_msg},
+            ],
+            "temperature": 0.1,
+            "max_tokens": 1500,
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(url, headers=headers, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+
+            content = data["choices"][0]["message"]["content"].strip()
+            # Parse JSON array from response
+            import json
+            # Strip markdown code fences if present
+            if content.startswith("```"):
+                content = content.split("\n", 1)[-1].rsplit("```", 1)[0]
+            parsed = json.loads(content)
+            if isinstance(parsed, list):
+                results.extend(parsed[:len(batch)])
+            else:
+                results.extend([{"label": "unknown", "confidence": 0.0, "reason": "Parse error"}] * len(batch))
+        except Exception as exc:
+            logger.warning("gpt_ai_detection_failed", error=str(exc))
+            results.extend([{"label": "unknown", "confidence": 0.0, "reason": "API error"}] * len(batch))
+
+    return results
+
+
+async def detect_ai_text(
+    text: str,
+    chunks: list[str] | None = None,
+    *,
+    use_gpt: bool = False,
+) -> dict:
+    """Analyse text for AI-generated content indicators.
 
     Args:
         text: Full document text.
         chunks: Optional pre-split chunks.
+        use_gpt: If True, also run GPT-based classification for higher accuracy.
 
     Returns:
         Dict with ``score`` (0-100), ``confidence`` (0-1),
-        ``indicators``, ``flagged_chunks``, ``elapsed_s``.
+        ``indicators``, ``flagged_chunks``, ``elapsed_s``,
+        and ``gpt_results`` (if use_gpt=True).
     """
     start = time.perf_counter()
 
@@ -112,6 +212,29 @@ async def detect_ai_text(text: str, chunks: list[str] | None = None) -> dict:
                         "reason": f"Low sentence length variance (std={c_std:.1f})",
                     })
 
+    # --- GPT-based classification (optional, higher accuracy) ----------------
+    gpt_results: list[dict] = []
+    gpt_score: float | None = None
+    if use_gpt and chunks:
+        # Send a sample of chunks (up to 20) for GPT classification
+        sample = chunks[:20]
+        gpt_results = await _gpt_classify_chunks(sample)
+        if gpt_results:
+            ai_count = sum(1 for r in gpt_results if r.get("label") == "ai")
+            gpt_ratio = ai_count / len(gpt_results)
+            gpt_score = round(gpt_ratio * 100, 2)
+            # Blend heuristic and GPT scores (GPT weighted 70%, heuristic 30%)
+            score = round(gpt_score * 0.70 + score * 0.30, 2)
+            confidence = min(confidence + 0.25, 0.95)
+            # Add GPT-flagged chunks
+            for i, r in enumerate(gpt_results):
+                if r.get("label") == "ai" and r.get("confidence", 0) >= 0.6 and i < len(sample):
+                    flagged_chunks.append({
+                        "chunk_index": i,
+                        "text": sample[i][:500],
+                        "reason": f"GPT classifier: {r.get('reason', 'AI-generated')} (confidence: {r.get('confidence', 0):.0%})",
+                    })
+
     elapsed = round(time.perf_counter() - start, 3)
 
     indicators = {
@@ -122,6 +245,8 @@ async def detect_ai_text(text: str, chunks: list[str] | None = None) -> dict:
         "uniformity_signal": round(uniformity_signal, 4),
         "sentence_count": len(sentences),
         "word_count": len(words),
+        "gpt_enabled": use_gpt,
+        "gpt_score": gpt_score,
     }
 
     logger.info(
@@ -129,6 +254,8 @@ async def detect_ai_text(text: str, chunks: list[str] | None = None) -> dict:
         score=score,
         confidence=confidence,
         sentence_count=len(sentences),
+        gpt_enabled=use_gpt,
+        gpt_score=gpt_score,
         elapsed_s=elapsed,
     )
 
@@ -137,5 +264,6 @@ async def detect_ai_text(text: str, chunks: list[str] | None = None) -> dict:
         "confidence": confidence,
         "indicators": indicators,
         "flagged_chunks": flagged_chunks,
+        "gpt_results": gpt_results,
         "elapsed_s": elapsed,
     }

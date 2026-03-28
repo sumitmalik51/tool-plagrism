@@ -24,6 +24,7 @@ from app.tools.citation_stripper import prepare_text_for_scanning
 from app.tools.language_detector import detect_language
 from app.config import settings
 from app.services import progress as scan_progress
+from app.services.repository import store_document_fingerprints
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -54,6 +55,7 @@ async def run_pipeline(
     text: str,
     *,
     excluded_domains: list[str] | None = None,
+    use_gpt_ai_detection: bool = False,
 ) -> PlagiarismReport:
     """Execute the full plagiarism detection pipeline.
 
@@ -113,6 +115,7 @@ async def run_pipeline(
         text=scan_text,
         chunks=chunks,
         max_queries=web_q,
+        use_gpt_ai_detection=use_gpt_ai_detection,
     )
 
     # --- 2. Run detection agents in parallel ----------------------------------
@@ -169,6 +172,12 @@ async def run_pipeline(
     # --- 5. Filter excluded domains -------------------------------------------
     if excluded_domains:
         _filter_excluded_domains(report, excluded_domains)
+
+    # --- 6. Store fingerprints for institutional repository -------------------
+    try:
+        store_document_fingerprints(document_id, text)
+    except Exception as exc:
+        logger.warning("fingerprint_storage_skipped", document_id=document_id, error=str(exc))
 
     pipeline_elapsed = round(time.perf_counter() - pipeline_start, 3)
 
