@@ -38,9 +38,14 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     import threading
     from app.tools.embedding_tool import preload_model
     threading.Thread(target=preload_model, daemon=True, name="model-preload").start()
-    # Initialise database schema (creates tables if needed)
-    from app.services.database import get_db
-    get_db()
+    # Initialise database schema (creates tables if needed).
+    # Non-fatal: if Azure SQL is temporarily unavailable the app still starts
+    # and will connect lazily on first request.
+    try:
+        from app.services.database import get_db
+        get_db()
+    except Exception as exc:
+        _logger.warning("db_init_deferred", error=str(exc)[:120])
     yield
 
 
