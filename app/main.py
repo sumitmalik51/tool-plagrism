@@ -33,9 +33,11 @@ _logger = get_logger(__name__)
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan: runs setup on startup and teardown on shutdown."""
     setup_logging(settings.log_level)
-    # Preload the embedding model so first request doesn't timeout
+    # Preload the embedding model in background so the app answers health
+    # checks immediately (Azure kills containers that don't respond in 10 min).
+    import threading
     from app.tools.embedding_tool import preload_model
-    preload_model()
+    threading.Thread(target=preload_model, daemon=True, name="model-preload").start()
     # Initialise database schema (creates tables if needed)
     from app.services.database import get_db
     get_db()
@@ -239,8 +241,9 @@ async def health_check() -> dict[str, Any]:
 
     # 2. Embedding model
     try:
-        from app.tools.embedding_tool import _model
-        if _model is not None:
+        from app.tools.embedding_tool import _load_model
+        model = _load_model()
+        if model is not None:
             checks["embedding_model"] = {"status": "loaded", "model": settings.embedding_model}
         else:
             checks["embedding_model"] = {"status": "not_loaded", "model": settings.embedding_model}

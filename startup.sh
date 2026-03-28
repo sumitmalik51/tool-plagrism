@@ -25,11 +25,12 @@ if [ ! -d "$VENV/bin" ]; then
     python -m venv "$VENV"
     source "$VENV/bin/activate"
 
-    echo "[startup] Installing CPU-only PyTorch..."
-    pip install torch --index-url https://download.pytorch.org/whl/cpu --quiet --no-cache-dir
-
-    echo "[startup] Installing production dependencies..."
-    pip install -r "$REQS" --quiet --no-cache-dir
+    echo "[startup] Installing CPU-only PyTorch + production deps (parallel)..."
+    pip install torch --index-url https://download.pytorch.org/whl/cpu --quiet --no-cache-dir &
+    TORCH_PID=$!
+    pip install -r "$REQS" --quiet --no-cache-dir &
+    REQS_PID=$!
+    wait $TORCH_PID $REQS_PID
 
     echo "$REQS_HASH" > "$HASH_FILE"
     echo "[startup] Full install complete."
@@ -69,6 +70,12 @@ if ! odbcinst -q -d -n "ODBC Driver 18 for SQL Server" > /dev/null 2>&1; then
 else
     echo "[startup] ODBC Driver 18 already present."
 fi
+
+# ---- Persistent HuggingFace cache (survives restarts) -------------------
+export HF_HOME="/home/data/hf_cache"
+export TRANSFORMERS_CACHE="/home/data/hf_cache"
+mkdir -p "$HF_HOME"
+echo "[startup] HF_HOME=$HF_HOME"
 
 # ---- Start gunicorn with uvicorn workers --------------------------------
 cd /home/site/wwwroot
