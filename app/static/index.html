@@ -88,6 +88,12 @@
       <section class="relative overflow-hidden pt-8 pb-10 px-6">
         <div class="orb orb-1"></div>
         <div class="orb orb-2"></div>
+        <!-- Decorative particles -->
+        <div class="particle" style="top:15%;left:10%;--dx:20px;--dy:-30px;--duration:5s;background:#6c5ce7;"></div>
+        <div class="particle" style="top:60%;left:85%;--dx:-25px;--dy:15px;--duration:7s;background:#00b894;"></div>
+        <div class="particle" style="top:30%;left:70%;--dx:15px;--dy:20px;--duration:6s;background:#e17055;width:3px;height:3px;"></div>
+        <div class="particle" style="top:75%;left:25%;--dx:-10px;--dy:-25px;--duration:8s;background:#a29bfe;width:5px;height:5px;"></div>
+        <div class="particle" style="top:20%;left:50%;--dx:30px;--dy:10px;--duration:9s;background:#fdcb6e;width:3px;height:3px;"></div>
 
         <div class="max-w-5xl mx-auto relative z-10">
           <div class="fade-up">
@@ -101,9 +107,9 @@
           </div>
 
           <!-- Usage & Stats row -->
-          <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-8 fade-up fade-up-d1">
+          <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-8 stagger">
             <!-- Scans remaining -->
-            <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-5">
+            <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-5 reveal tilt-card">
               <div class="flex items-center justify-between mb-3">
                 <span class="text-xs text-muted font-medium uppercase tracking-wider">Uses Today</span>
                 <span class="text-lg">📊</span>
@@ -119,7 +125,7 @@
             </div>
 
             <!-- Total scans -->
-            <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-5">
+            <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-5 reveal tilt-card">
               <div class="flex items-center justify-between mb-3">
                 <span class="text-xs text-muted font-medium uppercase tracking-wider">Total Scans</span>
                 <span class="text-lg">🔍</span>
@@ -129,7 +135,7 @@
             </div>
 
             <!-- Avg score -->
-            <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-5">
+            <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-5 reveal tilt-card">
               <div class="flex items-center justify-between mb-3">
                 <span class="text-xs text-muted font-medium uppercase tracking-wider">Avg Score</span>
                 <span class="text-lg">📈</span>
@@ -139,7 +145,7 @@
             </div>
 
             <!-- Account tier -->
-            <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-5">
+            <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-5 reveal tilt-card">
               <div class="flex items-center justify-between mb-3">
                 <span class="text-xs text-muted font-medium uppercase tracking-wider">Plan</span>
                 <span class="text-lg">⭐</span>
@@ -164,51 +170,51 @@
           <h2 class="text-lg font-semibold mb-5 flex items-center gap-2">
             <span class="text-base">⚡</span> Quick Actions
           </h2>
-          <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 stagger">
 
-            <a href="#analyze" class="action-card" style="--card-accent: #6c5ce7;">
+            <a href="#analyze" class="action-card reveal" style="--card-accent: #6c5ce7;">
               <div class="w-11 h-11 rounded-xl bg-accent/15 grid place-items-center text-xl mb-3">🔍</div>
               <h3 class="font-semibold text-sm mb-1">Plagiarism Check</h3>
               <p class="text-xs text-muted">Scan text or upload documents for plagiarism detection</p>
             </a>
 
-            <a href="#rewriter" class="action-card" style="--card-accent: #00b894;">
+            <a href="#rewriter" class="action-card reveal" style="--card-accent: #00b894;">
               <div class="w-11 h-11 rounded-xl bg-[#00b894]/15 grid place-items-center text-xl mb-3">✏️</div>
               <h3 class="font-semibold text-sm mb-1">Writing Refinement</h3>
               <p class="text-xs text-muted">Rephrase, refine, or improve academic tone of your content</p>
             </a>
 
-            <a href="#readability" class="action-card" style="--card-accent: #45B7D1;">
+            <a href="#readability" class="action-card reveal" style="--card-accent: #45B7D1;">
               <div class="w-11 h-11 rounded-xl bg-[#45B7D1]/15 grid place-items-center text-xl mb-3">📊</div>
               <h3 class="font-semibold text-sm mb-1">Readability</h3>
               <p class="text-xs text-muted">Check Flesch-Kincaid, reading level & word stats</p>
             </a>
 
-            <a href="#grammar" class="action-card" style="--card-accent: #e17055;">
+            <a href="#grammar" class="action-card reveal" style="--card-accent: #e17055;">
               <div class="w-11 h-11 rounded-xl bg-[#e17055]/15 grid place-items-center text-xl mb-3">✏️</div>
               <h3 class="font-semibold text-sm mb-1">Grammar Check</h3>
               <p class="text-xs text-muted">Fix grammar, spelling & style issues with AI</p>
             </a>
 
-            <a href="#writecheck" class="action-card" style="--card-accent: #0984e3;">
+            <a href="#writecheck" class="action-card reveal" style="--card-accent: #0984e3;">
               <div class="w-11 h-11 rounded-xl bg-[#0984e3]/15 grid place-items-center text-xl mb-3">⚡</div>
               <h3 class="font-semibold text-sm mb-1">Write & Check</h3>
               <p class="text-xs text-muted">Type freely with real-time plagiarism warnings</p>
             </a>
 
-            <a href="#sectionAnalysis" class="action-card" style="--card-accent: #6c5ce7;">
+            <a href="#sectionAnalysis" class="action-card reveal" style="--card-accent: #6c5ce7;">
               <div class="w-11 h-11 rounded-xl bg-accent/15 grid place-items-center text-xl mb-3">📑</div>
               <h3 class="font-semibold text-sm mb-1">Section Analysis</h3>
               <p class="text-xs text-muted">Per-section plagiarism scores for research papers</p>
             </a>
 
-            <a href="#refValidation" class="action-card" style="--card-accent: #00b894;">
+            <a href="#refValidation" class="action-card reveal" style="--card-accent: #00b894;">
               <div class="w-11 h-11 rounded-xl bg-[#00b894]/15 grid place-items-center text-xl mb-3">🔗</div>
               <h3 class="font-semibold text-sm mb-1">Reference Validator</h3>
               <p class="text-xs text-muted">Verify citations & DOIs against OpenAlex</p>
             </a>
 
-            <a href="#crossCompare" class="action-card" style="--card-accent: #fdcb6e;">
+            <a href="#crossCompare" class="action-card reveal" style="--card-accent: #fdcb6e;">
               <div class="w-11 h-11 rounded-xl bg-[#fdcb6e]/15 grid place-items-center text-xl mb-3">🔄</div>
               <h3 class="font-semibold text-sm mb-1">Cross-Doc Compare</h3>
               <p class="text-xs text-muted">Compare two documents for overlap or self-plagiarism</p>
@@ -258,7 +264,7 @@
 
     <!-- ═══════════ Fix & Rewrite Section (PRIMARY TOOL) ═══════════ -->
     <section id="rewriter" class="py-20 px-6 bg-surface/20">
-      <div class="max-w-4xl mx-auto">
+      <div class="max-w-4xl mx-auto reveal">
         <div class="text-center mb-10">
           <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#00b894]/10 border border-[#00b894]/20 text-[#00b894] text-sm font-medium mb-4">
             <span class="w-2 h-2 bg-[#00b894] rounded-full animate-pulse"></span>
@@ -343,7 +349,7 @@
 
     <!-- ═══════════ Plagiarism Analysis Section ═══════════ -->
     <section id="analyze" class="py-20 px-6 border-t border-border/50">
-      <div class="max-w-4xl mx-auto">
+      <div class="max-w-4xl mx-auto reveal">
         <div class="text-center mb-10">
           <h2 class="text-3xl font-bold mb-3">Plagiarism Detection</h2>
           <p class="text-muted">Paste your text or upload a document to check for similarity across web and academic sources.</p>
@@ -444,7 +450,7 @@
 
     <!-- ═══════════ Readability Analyzer Section (Advanced) ═══════════ -->
     <section id="readability" class="py-12 px-6 border-t border-border/50">
-      <div class="max-w-4xl mx-auto">
+      <div class="max-w-4xl mx-auto reveal">
         <button onclick="toggleAdvanced('readabilityAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
           <div class="flex items-center gap-3">
             <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#45B7D1]/10 border border-[#45B7D1]/20 text-[#45B7D1] text-sm font-medium">
@@ -484,7 +490,7 @@
 
     <!-- ═══════════ Grammar & Style Checker Section (Advanced) ═══════════ -->
     <section id="grammar" class="py-12 px-6 border-t border-border/50 bg-surface/20">
-      <div class="max-w-4xl mx-auto">
+      <div class="max-w-4xl mx-auto reveal">
         <button onclick="toggleAdvanced('grammarAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
           <div class="flex items-center gap-3">
             <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#e17055]/10 border border-[#e17055]/20 text-[#e17055] text-sm font-medium">
@@ -525,7 +531,7 @@
 
     <!-- ═══════════ Write & Check — Real-time Writing Mode ═══════════ -->
     <section id="writecheck" class="py-12 px-6 border-t border-border/50">
-      <div class="max-w-4xl mx-auto">
+      <div class="max-w-4xl mx-auto reveal">
         <button onclick="toggleAdvanced('writecheckAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
           <div class="flex items-center gap-3">
             <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#0984e3]/10 border border-[#0984e3]/20 text-[#0984e3] text-sm font-medium">
@@ -563,7 +569,7 @@
 
     <!-- ═══════════ Section-by-Section Analysis ═══════════ -->
     <section id="sectionAnalysis" class="py-12 px-6 border-t border-border/50">
-      <div class="max-w-4xl mx-auto">
+      <div class="max-w-4xl mx-auto reveal">
         <button onclick="toggleAdvanced('sectionAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
           <div class="flex items-center gap-3">
             <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#6c5ce7]/10 border border-[#6c5ce7]/20 text-[#6c5ce7] text-sm font-medium">
@@ -596,8 +602,9 @@
     </section>
 
     <!-- ═══════════ Reference / DOI Validator ═══════════ -->
-    <section id="refValidation" class="py-12 px-6 border-t border-border/50 bg-surface/20">
-      <div class="max-w-4xl mx-auto">
+    <hr class="glow-divider">
+    <section id="refValidation" class="py-12 px-6 bg-surface/20">
+      <div class="max-w-4xl mx-auto reveal">
         <button onclick="toggleAdvanced('refAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
           <div class="flex items-center gap-3">
             <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#00b894]/10 border border-[#00b894]/20 text-[#00b894] text-sm font-medium">
@@ -631,7 +638,7 @@
 
     <!-- ═══════════ Cross-Document Comparison ═══════════ -->
     <section id="crossCompare" class="py-12 px-6 border-t border-border/50">
-      <div class="max-w-4xl mx-auto">
+      <div class="max-w-4xl mx-auto reveal">
         <button onclick="toggleAdvanced('crossAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
           <div class="flex items-center gap-3">
             <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#fdcb6e]/10 border border-[#fdcb6e]/20 text-[#fdcb6e] text-sm font-medium">
@@ -676,7 +683,7 @@
 
     <!-- ═══════════ Institutional Repository Check ═══════════ -->
     <section id="repoCheck" class="py-12 px-6 border-t border-border/50 bg-surface/20">
-      <div class="max-w-4xl mx-auto">
+      <div class="max-w-4xl mx-auto reveal">
         <button onclick="toggleAdvanced('repoAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
           <div class="flex items-center gap-3">
             <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#a29bfe]/10 border border-[#a29bfe]/20 text-[#a29bfe] text-sm font-medium">
@@ -710,17 +717,18 @@
     </section>
 
     <!-- ══════════════ PRICING SECTION (hidden for premium users) ══════════════ -->
-    <section id="pricingSection" class="py-20 px-6 border-t border-border/50">
+    <hr class="glow-divider">
+    <section id="pricingSection" class="py-20 px-6">
       <div class="max-w-5xl mx-auto">
-        <div class="text-center mb-12" id="pricingHeader">
+        <div class="text-center mb-12 reveal" id="pricingHeader">
           <span class="px-3 py-1 rounded-full bg-accent/10 text-accent-l text-xs font-semibold border border-accent/20 mb-4 inline-block">PRICING</span>
           <h2 class="text-3xl font-bold mb-3">Plans for every researcher</h2>
           <p class="text-muted max-w-lg mx-auto">Start with a free 3-day Research trial. Upgrade when your research demands more.</p>
         </div>
 
-        <div class="grid md:grid-cols-3 gap-6" id="pricingCards">
+        <div class="grid md:grid-cols-3 gap-6 stagger" id="pricingCards">
           <!-- Basic Plan -->
-          <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative" data-plan-card="free">
+          <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative reveal tilt-card" data-plan-card="free">
             <h3 class="text-lg font-bold mb-1">Basic</h3>
             <div class="flex items-end gap-1 mb-4">
               <span class="text-4xl font-bold">₹0</span>
@@ -737,7 +745,7 @@
           </div>
 
           <!-- Research Plan (Most Popular) -->
-          <div class="bg-surface/80 backdrop-blur-sm border-2 border-accent rounded-2xl p-7 flex flex-col relative shadow-lg shadow-accent/10" data-plan-card="pro">
+          <div class="bg-surface/80 backdrop-blur-sm border-2 border-accent rounded-2xl p-7 flex flex-col relative shadow-lg shadow-accent/10 reveal tilt-card" data-plan-card="pro">
             <span class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-accent text-white text-xs font-bold">MOST POPULAR</span>
             <h3 class="text-lg font-bold mb-1">Research</h3>
             <div class="flex items-end gap-1 mb-4">
@@ -759,7 +767,7 @@
           </div>
 
           <!-- Advanced Research Plan -->
-          <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative" data-plan-card="premium">
+          <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative reveal tilt-card" data-plan-card="premium">
             <h3 class="text-lg font-bold mb-1">Advanced Research</h3>
             <div class="flex items-end gap-1 mb-4">
               <span class="text-4xl font-bold">₹599</span>
@@ -4084,6 +4092,31 @@
     el.innerHTML = html;
     el.classList.remove('hidden');
   }
+
+  /* ═══════ Scroll-Reveal Observer ═══════ */
+  (function initReveal() {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          io.unobserve(e.target); // animate once
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+    // Re-observe dynamically added .reveal elements (e.g. after route change)
+    const mo = new MutationObserver(muts => {
+      muts.forEach(m => m.addedNodes.forEach(n => {
+        if (n.nodeType === 1) {
+          if (n.classList?.contains('reveal')) io.observe(n);
+          n.querySelectorAll?.('.reveal').forEach(c => io.observe(c));
+        }
+      }));
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
+  })();
 
   initAuth();
 </script>
