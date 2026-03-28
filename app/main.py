@@ -267,19 +267,17 @@ async def health_check() -> dict[str, Any]:
         checks["azure_openai"] = {"status": "not_configured"}
         overall = "degraded"
 
-    # 4. Bing Search API
+    # 4. Bing Search API (optional — DuckDuckGo fallback available)
     if settings.bing_api_key:
         checks["bing_search"] = {"status": "configured"}
     else:
         checks["bing_search"] = {"status": "not_configured"}
-        overall = "degraded"
 
-    # 5. Razorpay
+    # 5. Razorpay (optional — payments)
     if settings.razorpay_key_id and settings.razorpay_key_secret:
         checks["razorpay"] = {"status": "configured", "key_prefix": settings.razorpay_key_id[:12] + "…"}
     else:
         checks["razorpay"] = {"status": "not_configured"}
-        overall = "degraded"
 
     # 6. Azure Communication Services (Email)
     if settings.acs_connection_string:
