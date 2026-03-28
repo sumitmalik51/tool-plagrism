@@ -232,8 +232,7 @@ async def health_check() -> dict[str, Any]:
     try:
         from app.services.database import get_db
         db = get_db()
-        cur = db.execute("SELECT 1")
-        cur.fetchone()
+        db.fetch_one("SELECT 1", ())
         checks["database"] = {"status": "connected", "type": "Azure SQL" if settings.sql_connection_string else "SQLite"}
     except Exception as e:
         checks["database"] = {"status": "error", "error": str(e)[:120]}
