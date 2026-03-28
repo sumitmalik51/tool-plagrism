@@ -50,7 +50,7 @@
           <a href="#rewriter" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Refine Writing</a>
           <a href="#analyze" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Analyze</a>
           <a href="#features" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block nav-guest-link">Features</a>
-          <a href="#pricing" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Pricing</a>
+          <a href="#pricingSection" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Pricing</a>
           <a href="#readability" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">More Tools</a>
           <!-- Auth: logged-out buttons -->
           <div id="authLoggedOut" class="hidden flex items-center gap-2">
@@ -148,7 +148,7 @@
                 <span class="px-3 py-1 rounded-full bg-accent/15 text-accent-l text-sm font-semibold border border-accent/25">Basic</span>
               </span>
               <p class="text-xs text-muted mt-3" id="dashTierMsg">3 uses/day included</p>
-              <a href="#pricing" id="dashUpgradeLink" class="inline-block mt-2 text-xs font-semibold text-accent-l hover:text-accent transition-colors">Upgrade →</a>
+              <a href="#pricingSection" id="dashUpgradeLink" class="inline-block mt-2 text-xs font-semibold text-accent-l hover:text-accent transition-colors">Upgrade →</a>
               <!-- Trial banner -->
               <div id="trialBanner" class="hidden mt-3 px-3 py-2 bg-amber-500/10 border border-amber-500/25 rounded-lg">
                 <span id="trialMsg" class="text-xs font-semibold text-amber-400">Research trial: 3 days remaining</span>
@@ -251,83 +251,10 @@
           <p class="text-xs opacity-90 mt-0.5">Upgrade to Research plan for unlimited access to all tools.</p>
           <p id="resetCountdown" class="text-xs opacity-75 mt-1 hidden">Resets in <span id="resetTimer" class="font-semibold">&mdash;</span></p>
         </div>
-        <a href="#pricing" onclick="$('upgradeBanner').classList.add('hidden')" class="shrink-0 px-4 py-2 bg-white text-accent rounded-xl text-xs font-bold hover:bg-white/90 transition-colors">View Plans</a>
+        <a href="#pricingSection" onclick="$('upgradeBanner').classList.add('hidden')" class="shrink-0 px-4 py-2 bg-white text-accent rounded-xl text-xs font-bold hover:bg-white/90 transition-colors">View Plans</a>
         <button onclick="$('upgradeBanner').classList.add('hidden')" class="text-white/60 hover:text-white text-lg leading-none">&times;</button>
       </div>
     </div>
-
-    <!-- ══════════════ PRICING SECTION ══════════════ -->
-    <section id="pricing" class="py-20 px-6">
-      <div class="max-w-5xl mx-auto">
-        <div class="text-center mb-12">
-          <span class="px-3 py-1 rounded-full bg-accent/10 text-accent-l text-xs font-semibold border border-accent/20 mb-4 inline-block">PRICING</span>
-          <h2 class="text-3xl font-bold mb-3">Plans for every researcher</h2>
-          <p class="text-muted max-w-lg mx-auto">Start with a free 3-day Research trial. Upgrade when your research demands more.</p>
-        </div>
-
-        <div class="grid md:grid-cols-3 gap-6" id="pricingCards">
-          <!-- Basic Plan -->
-          <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative">
-            <h3 class="text-lg font-bold mb-1">Basic</h3>
-            <div class="flex items-end gap-1 mb-4">
-              <span class="text-4xl font-bold">₹0</span>
-              <span class="text-muted text-sm mb-1">forever</span>
-            </div>
-            <ul class="space-y-3 text-sm flex-1 mb-6">
-              <li class="flex items-center gap-2"><span class="text-ok">✓</span> 3 tool uses per day</li>
-              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Plagiarism detection</li>
-              <li class="flex items-center gap-2"><span class="text-ok">✓</span> AI rewriter</li>
-              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Readability analyzer</li>
-              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Grammar checker</li>
-            </ul>
-            <button disabled class="w-full py-2.5 rounded-xl bg-surface2 text-muted text-sm font-semibold cursor-default border border-border">Get Started</button>
-          </div>
-
-          <!-- Research Plan (Most Popular) -->
-          <div class="bg-surface/80 backdrop-blur-sm border-2 border-accent rounded-2xl p-7 flex flex-col relative shadow-lg shadow-accent/10">
-            <span class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-accent text-white text-xs font-bold">MOST POPULAR</span>
-            <h3 class="text-lg font-bold mb-1">Research</h3>
-            <div class="flex items-end gap-1 mb-4">
-              <span class="text-4xl font-bold">₹299</span>
-              <span class="text-muted text-sm mb-1">/month</span>
-              <span class="text-xs text-danger line-through ml-2 mb-1">₹499</span>
-            </div>
-            <ul class="space-y-3 text-sm flex-1 mb-6">
-              <li class="flex items-center gap-2"><span class="text-ok">✓</span> <strong>Unlimited</strong> tool uses</li>
-              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Everything in Basic</li>
-              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Priority processing</li>
-              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Detailed source reports</li>
-              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Scan history & analytics</li>
-            </ul>
-            <button onclick="handleUpgrade('pro', this)" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-bold hover:shadow-lg hover:shadow-accent/25 transition-all pricing-btn flex items-center justify-center gap-2" data-plan="pro">
-              <svg class="animate-spin h-4 w-4 hidden" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
-              <span>Upgrade to Research</span>
-            </button>
-          </div>
-
-          <!-- Advanced Research Plan -->
-          <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative">
-            <h3 class="text-lg font-bold mb-1">Advanced Research</h3>
-            <div class="flex items-end gap-1 mb-4">
-              <span class="text-4xl font-bold">₹10</span>
-              <span class="text-muted text-sm mb-1">/month</span>
-              <span class="text-xs text-danger line-through ml-2 mb-1">₹999</span>
-            </div>
-            <ul class="space-y-3 text-sm flex-1 mb-6">
-              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Everything in Research</li>
-              <li class="flex items-center gap-2"><span class="text-ok">✓</span> API access</li>
-              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Batch file analysis</li>
-              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Custom integrations</li>
-              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Priority support</li>
-            </ul>
-            <button onclick="handleUpgrade('premium', this)" class="w-full py-2.5 rounded-xl bg-surface2 text-txt text-sm font-bold border border-border hover:border-accent/50 hover:bg-accent/5 transition-all pricing-btn flex items-center justify-center gap-2" data-plan="premium">
-              <svg class="animate-spin h-4 w-4 hidden" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
-              <span>Upgrade to Advanced</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
 
     <!-- ═══════════ Fix & Rewrite Section (PRIMARY TOOL) ═══════════ -->
     <section id="rewriter" class="py-20 px-6 bg-surface/20">
@@ -778,6 +705,79 @@
           </div>
           <div id="repoError" class="hidden mt-4 px-5 py-4 bg-danger/10 border border-danger rounded-xl text-danger text-sm"></div>
           <div id="repoResults" class="hidden space-y-2 mt-6"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════ PRICING SECTION (hidden for premium users) ══════════════ -->
+    <section id="pricingSection" class="py-20 px-6 border-t border-border/50">
+      <div class="max-w-5xl mx-auto">
+        <div class="text-center mb-12" id="pricingHeader">
+          <span class="px-3 py-1 rounded-full bg-accent/10 text-accent-l text-xs font-semibold border border-accent/20 mb-4 inline-block">PRICING</span>
+          <h2 class="text-3xl font-bold mb-3">Plans for every researcher</h2>
+          <p class="text-muted max-w-lg mx-auto">Start with a free 3-day Research trial. Upgrade when your research demands more.</p>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-6" id="pricingCards">
+          <!-- Basic Plan -->
+          <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative" data-plan-card="free">
+            <h3 class="text-lg font-bold mb-1">Basic</h3>
+            <div class="flex items-end gap-1 mb-4">
+              <span class="text-4xl font-bold">₹0</span>
+              <span class="text-muted text-sm mb-1">forever</span>
+            </div>
+            <ul class="space-y-3 text-sm flex-1 mb-6">
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> 3 tool uses per day</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Plagiarism detection</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> AI rewriter</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Readability analyzer</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Grammar checker</li>
+            </ul>
+            <button disabled class="w-full py-2.5 rounded-xl bg-surface2 text-muted text-sm font-semibold cursor-default border border-border pricing-btn" data-plan="free">Get Started</button>
+          </div>
+
+          <!-- Research Plan (Most Popular) -->
+          <div class="bg-surface/80 backdrop-blur-sm border-2 border-accent rounded-2xl p-7 flex flex-col relative shadow-lg shadow-accent/10" data-plan-card="pro">
+            <span class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-accent text-white text-xs font-bold">MOST POPULAR</span>
+            <h3 class="text-lg font-bold mb-1">Research</h3>
+            <div class="flex items-end gap-1 mb-4">
+              <span class="text-4xl font-bold">₹299</span>
+              <span class="text-muted text-sm mb-1">/month</span>
+              <span class="text-xs text-danger line-through ml-2 mb-1">₹499</span>
+            </div>
+            <ul class="space-y-3 text-sm flex-1 mb-6">
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> <strong>Unlimited</strong> tool uses</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Everything in Basic</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Priority processing</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Detailed source reports</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Scan history & analytics</li>
+            </ul>
+            <button onclick="handleUpgrade('pro', this)" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-bold hover:shadow-lg hover:shadow-accent/25 transition-all pricing-btn flex items-center justify-center gap-2" data-plan="pro">
+              <svg class="animate-spin h-4 w-4 hidden" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+              <span>Upgrade to Research</span>
+            </button>
+          </div>
+
+          <!-- Advanced Research Plan -->
+          <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative" data-plan-card="premium">
+            <h3 class="text-lg font-bold mb-1">Advanced Research</h3>
+            <div class="flex items-end gap-1 mb-4">
+              <span class="text-4xl font-bold">₹599</span>
+              <span class="text-muted text-sm mb-1">/month</span>
+              <span class="text-xs text-danger line-through ml-2 mb-1">₹999</span>
+            </div>
+            <ul class="space-y-3 text-sm flex-1 mb-6">
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Everything in Research</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> API access</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Batch file analysis</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Custom integrations</li>
+              <li class="flex items-center gap-2"><span class="text-ok">✓</span> Priority support</li>
+            </ul>
+            <button onclick="handleUpgrade('premium', this)" class="w-full py-2.5 rounded-xl bg-surface2 text-txt text-sm font-bold border border-border hover:border-accent/50 hover:bg-accent/5 transition-all pricing-btn flex items-center justify-center gap-2" data-plan="premium">
+              <svg class="animate-spin h-4 w-4 hidden" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+              <span>Upgrade to Advanced</span>
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -3519,15 +3519,29 @@
     if (plan === 'pro') {
       badge.innerHTML = '<span class="px-3 py-1 rounded-full bg-accent/15 text-accent-l text-sm font-semibold border border-accent/25">Research</span>';
       msg.textContent = 'Unlimited uses';
-      if (upgradeLink) upgradeLink.textContent = 'Upgrade to Advanced →';
+      if (upgradeLink) {
+        upgradeLink.textContent = 'Upgrade to Advanced →';
+        upgradeLink.style.display = '';
+      }
     } else if (plan === 'premium') {
       badge.innerHTML = '<span class="px-3 py-1 rounded-full bg-[#00b894]/15 text-[#00b894] text-sm font-semibold border border-[#00b894]/25">Advanced Research</span>';
       msg.textContent = 'Unlimited uses + API';
-      if (upgradeLink) upgradeLink.style.display = 'none';
+      if (upgradeLink) {
+        upgradeLink.textContent = 'Manage Plan ↓';
+        upgradeLink.href = '#pricingSection';
+        upgradeLink.style.display = '';
+        upgradeLink.onclick = (e) => {
+          e.preventDefault();
+          document.getElementById('pricingSection')?.scrollIntoView({ behavior: 'smooth' });
+        };
+      }
     } else {
       badge.innerHTML = '<span class="px-3 py-1 rounded-full bg-accent/15 text-accent-l text-sm font-semibold border border-accent/25">Basic</span>';
       msg.textContent = '3 uses/day included';
-      if (upgradeLink) upgradeLink.textContent = 'Upgrade →';
+      if (upgradeLink) {
+        upgradeLink.textContent = 'Upgrade →';
+        upgradeLink.style.display = '';
+      }
     }
 
     // Update pricing buttons based on current plan
@@ -3535,18 +3549,82 @@
   }
 
   function updatePricingButtons(currentPlan) {
-    document.querySelectorAll('.pricing-btn').forEach(btn => {
-      const btnPlan = btn.dataset.plan;
-      if (btnPlan === currentPlan) {
-        btn.disabled = true;
-        btn.textContent = 'Current Plan';
-        btn.className = 'w-full py-2.5 rounded-xl bg-surface2 text-muted text-sm font-semibold cursor-default border border-border pricing-btn';
+    const section = $('pricingSection');
+    if (!section) return;
+    section.classList.remove('hidden');
+
+    const RANK = { free: 0, pro: 1, premium: 2 };
+    const currentRank = RANK[currentPlan] || 0;
+
+    // Adapt header text based on plan
+    const header = $('pricingHeader');
+    if (header) {
+      if (currentPlan === 'premium') {
+        header.querySelector('h2').textContent = 'Your Plan: Advanced Research';
+        header.querySelector('p').textContent = 'You have access to all features. You can switch plans below.';
+      } else if (currentPlan === 'pro') {
+        header.querySelector('h2').textContent = 'Manage Your Plan';
+        header.querySelector('p').textContent = 'Upgrade to Advanced or switch plans below.';
       }
+    }
+
+    // Mark current plan card and adapt lower/higher tier buttons
+    document.querySelectorAll('[data-plan-card]').forEach(card => {
+      const cardPlan = card.dataset.planCard;
+      const cardRank = RANK[cardPlan] ?? 0;
+      const btn = card.querySelector('.pricing-btn');
+
+      if (cardPlan === currentPlan) {
+        // Current plan — green border + badge
+        card.classList.add('ring-2', 'ring-[#00b894]/50');
+        card.style.opacity = '';
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '✓ Current Plan';
+          btn.className = 'w-full py-2.5 rounded-xl bg-[#00b894]/10 text-[#00b894] text-sm font-semibold cursor-default border border-[#00b894]/30 pricing-btn';
+        }
+      } else if (cardRank < currentRank) {
+        // Lower-tier card — show downgrade option
+        card.style.opacity = '0.7';
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = 'Switch to ' + card.querySelector('h3').textContent;
+          btn.className = 'w-full py-2.5 rounded-xl bg-surface2 text-muted text-sm font-semibold border border-border hover:border-danger/50 hover:text-danger transition-all pricing-btn';
+          btn.onclick = () => showDowngradeModal(currentPlan, cardPlan);
+        }
+      }
+      // Higher-tier cards keep their default upgrade buttons
     });
-    // Free card button
-    const freeBtn = document.querySelector('#pricingCards > div:first-child button');
-    if (freeBtn && currentPlan !== 'free') {
-      freeBtn.textContent = currentPlan === 'pro' || currentPlan === 'premium' ? 'Downgrade not available' : 'Current Plan';
+  }
+
+  function showDowngradeModal(fromPlan, toPlan) {
+    const planNames = { free: 'Basic', pro: 'Research', premium: 'Advanced Research' };
+    const msg = toPlan === 'free'
+      ? `Switch to Basic? You'll lose unlimited uses and be limited to 3 per day.`
+      : `Switch from ${planNames[fromPlan]} to ${planNames[toPlan]}?`;
+    if (!confirm(msg + '\n\nThis takes effect immediately. No refund for the current period.')) return;
+    doChangePlan(toPlan);
+  }
+
+  async function doChangePlan(targetPlan) {
+    const token = localStorage.getItem('pg_token');
+    if (!token) { window.location.href = '/login'; return; }
+    try {
+      const res = await fetch('/api/v1/auth/change-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ plan: targetPlan }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to change plan');
+      // Update local storage
+      const user = JSON.parse(localStorage.getItem('pg_user') || '{}');
+      user.plan_type = targetPlan;
+      localStorage.setItem('pg_user', JSON.stringify(user));
+      showToast('Plan changed to ' + (targetPlan === 'free' ? 'Basic' : targetPlan === 'pro' ? 'Research' : 'Advanced'));
+      updatePlanUI(targetPlan, user.trial_ends_at);
+    } catch (err) {
+      alert('⚠ ' + err.message);
     }
   }
 

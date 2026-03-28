@@ -330,7 +330,7 @@ PLANS = [
     {
         "id": "premium",
         "name": "Premium",
-        "price": 10,
+        "price": 599,
         "currency": "INR",
         "period": "month",
         "features": [
@@ -347,7 +347,7 @@ PLANS = [
 # Map plan → amount in paise (Razorpay uses smallest currency unit)
 PLAN_AMOUNTS = {
     "pro": 299_00,       # ₹299
-    "premium": 10_00,    # ₹10 (testing)
+    "premium": 599_00,   # ₹599
 }
 
 
@@ -554,3 +554,53 @@ async def route_mock_upgrade(
     except AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"success": True, "plan_type": plan, "message": f"Plan upgraded to {plan}."}
+
+
+class ChangePlanRequest(BaseModel):
+    plan: str = Field(..., description="Target plan: free, pro, or premium")
+
+
+@router.post("/change-plan")
+async def route_change_plan(
+    body: ChangePlanRequest,
+    authorization: str = Header(default=""),
+):
+    """Switch the user to a different plan (upgrade or downgrade).
+
+    For downgrades, the change takes effect immediately.
+    For upgrades to a paid plan, use /create-order instead.
+    """
+    user_id = _get_user_id(authorization)
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    current = user.get("plan_type", "free")
+    target = body.plan
+
+    PLAN_RANK = {"free": 0, "pro": 1, "premium": 2}
+    if target not in PLAN_RANK:
+        raise HTTPException(status_code=400, detail="Invalid plan. Choose 'free', 'pro', or 'premium'.")
+
+    if target == current:
+        raise HTTPException(status_code=400, detail="You are already on this plan.")
+
+    # Upgrades to paid plans require payment — redirect to payment flow
+    if PLAN_RANK.get(target, 0) > PLAN_RANK.get(current, 0) and target != "free":
+        raise HTTPException(
+            status_code=400,
+            detail="To upgrade to a paid plan, use the payment flow via /api/v1/auth/create-order.",
+        )
+
+    try:
+        update_user_plan(user_id, target)
+    except AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    logger.info("user_plan_changed", user_id=user_id, from_plan=current, to_plan=target)
+    return {
+        "success": True,
+        "plan_type": target,
+        "previous_plan": current,
+        "message": f"Plan changed from {current} to {target}.",
+    }
