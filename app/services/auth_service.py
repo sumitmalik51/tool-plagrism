@@ -138,7 +138,7 @@ class AuthError(Exception):
     """Raised for authentication / validation failures."""
 
 
-def signup(name: str, email: str, password: str) -> dict[str, Any]:
+def signup(name: str, email: str, password: str, referral_code: str | None = None) -> dict[str, Any]:
     """Register a new user.  Returns ``{user, token}``."""
     # Basic validation
     if not name or not name.strip():
@@ -163,13 +163,21 @@ def signup(name: str, email: str, password: str) -> dict[str, Any]:
     hashed = _hash_password(password)
     verification_token = secrets.token_urlsafe(32)
 
+    # Generate a unique referral code for this user
+    my_referral_code = secrets.token_urlsafe(8)
+
     # Grant a 3-day Pro trial to every new user
     trial_ends_at = (datetime.now(timezone.utc) + timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
     _ensure_trial_ends_at_column(db)
+    _ensure_referral_tables(db)
     user_id = db.execute(
-        "INSERT INTO users (name, email, password, plan_type, trial_ends_at) VALUES (?, ?, ?, ?, ?)",
-        (name, email, hashed, "pro", trial_ends_at),
+        "INSERT INTO users (name, email, password, plan_type, trial_ends_at, referral_code) VALUES (?, ?, ?, ?, ?, ?)",
+        (name, email, hashed, "pro", trial_ends_at, my_referral_code),
     )
+
+    # Process referral if provided
+    if referral_code and referral_code.strip():
+        _process_referral(db, user_id, referral_code.strip())
 
     # Store verification token
     _ensure_email_verifications_table(db)
@@ -186,7 +194,7 @@ def signup(name: str, email: str, password: str) -> dict[str, Any]:
     logger.info("user_created", user_id=user_id, email=email)
 
     return {
-        "user": {"id": user_id, "name": name, "email": email, "plan_type": "pro", "trial_ends_at": trial_ends_at},
+        "user": {"id": user_id, "name": name, "email": email, "plan_type": "pro", "trial_ends_at": trial_ends_at, "referral_code": my_referral_code},
         "token": token,
         "refresh_token": refresh,
         "verification_token": verification_token,
@@ -261,18 +269,22 @@ def get_user_by_id(user_id: int) -> dict[str, Any] | None:
 
 def update_user_plan(user_id: int, plan_type: str) -> bool:
     """Update a user's subscription plan.  Returns True on success."""
+    # Map annual plans to their base type for DB storage
+    _annual_map = {"pro_annual": "pro", "premium_annual": "premium"}
+    base_plan = _annual_map.get(plan_type, plan_type)
+
     valid_plans = ("free", "pro", "premium")
-    if plan_type not in valid_plans:
+    if base_plan not in valid_plans:
         raise AuthError(f"Invalid plan type. Must be one of: {', '.join(valid_plans)}")
 
     db = get_db()
-    is_paid = 1 if plan_type != "free" else 0
+    is_paid = 1 if base_plan != "free" else 0
     affected = db.execute(
         "UPDATE users SET plan_type = ?, is_paid = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-        (plan_type, is_paid, user_id),
+        (base_plan, is_paid, user_id),
     )
     if affected:
-        logger.info("user_plan_updated", user_id=user_id, plan_type=plan_type)
+        logger.info("user_plan_updated", user_id=user_id, plan_type=base_plan, billing=plan_type)
     return bool(affected)
 
 
@@ -471,6 +483,111 @@ def _ensure_email_verified_column(db) -> None:
             )
         except Exception:
             pass  # Column already exists
+
+
+def _ensure_referral_tables(db) -> None:
+    """Ensure referral-related columns and table exist."""
+    # Add referral_code column to users
+    try:
+        db.execute("ALTER TABLE users ADD COLUMN referral_code TEXT NULL")
+    except Exception:
+        try:
+            db.execute(
+                "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('users') AND name = 'referral_code') "
+                "ALTER TABLE users ADD referral_code NVARCHAR(50) NULL"
+            )
+        except Exception:
+            pass
+    # Add bonus_scans column to users
+    try:
+        db.execute("ALTER TABLE users ADD COLUMN bonus_scans INTEGER DEFAULT 0")
+    except Exception:
+        try:
+            db.execute(
+                "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('users') AND name = 'bonus_scans') "
+                "ALTER TABLE users ADD bonus_scans INT DEFAULT 0"
+            )
+        except Exception:
+            pass
+    # Create referrals table
+    try:
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS referrals ("
+            "  id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "  referrer_id INTEGER NOT NULL, "
+            "  referee_id INTEGER NOT NULL, "
+            "  reward_given INTEGER DEFAULT 0, "
+            "  created_at TEXT DEFAULT CURRENT_TIMESTAMP)"
+        )
+    except Exception:
+        try:
+            db.execute(
+                "IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID('referrals')) "
+                "CREATE TABLE referrals ("
+                "  id INT IDENTITY(1,1) PRIMARY KEY, "
+                "  referrer_id INT NOT NULL, "
+                "  referee_id INT NOT NULL, "
+                "  reward_given INT DEFAULT 0, "
+                "  created_at DATETIME2 DEFAULT GETUTCDATE())"
+            )
+        except Exception:
+            pass
+
+
+_REFERRAL_BONUS_SCANS = 5  # Both referrer and referee get 5 bonus scans
+
+
+def _process_referral(db, new_user_id: int, referral_code: str) -> None:
+    """Credit both referrer and new user with bonus scans."""
+    try:
+        referrer = db.fetch_one(
+            "SELECT id FROM users WHERE referral_code = ?", (referral_code,)
+        )
+        if not referrer or referrer["id"] == new_user_id:
+            return
+
+        referrer_id = referrer["id"]
+
+        # Record the referral
+        db.execute(
+            "INSERT INTO referrals (referrer_id, referee_id, reward_given) VALUES (?, ?, ?)",
+            (referrer_id, new_user_id, _REFERRAL_BONUS_SCANS),
+        )
+
+        # Credit both users
+        db.execute(
+            "UPDATE users SET bonus_scans = bonus_scans + ? WHERE id = ?",
+            (_REFERRAL_BONUS_SCANS, referrer_id),
+        )
+        db.execute(
+            "UPDATE users SET bonus_scans = bonus_scans + ? WHERE id = ?",
+            (_REFERRAL_BONUS_SCANS, new_user_id),
+        )
+
+        logger.info("referral_processed", referrer_id=referrer_id, referee_id=new_user_id, bonus=_REFERRAL_BONUS_SCANS)
+    except Exception as exc:
+        logger.warning("referral_processing_failed", error=str(exc))
+
+
+def get_referral_info(user_id: int) -> dict[str, Any]:
+    """Return referral stats for a user."""
+    db = get_db()
+    _ensure_referral_tables(db)
+
+    user = db.fetch_one("SELECT referral_code, bonus_scans FROM users WHERE id = ?", (user_id,))
+    if not user:
+        return {"referral_code": "", "bonus_scans": 0, "referral_count": 0}
+
+    count_row = db.fetch_one(
+        "SELECT COUNT(*) as cnt FROM referrals WHERE referrer_id = ?", (user_id,)
+    )
+    referral_count = count_row["cnt"] if count_row else 0
+
+    return {
+        "referral_code": user.get("referral_code", ""),
+        "bonus_scans": user.get("bonus_scans", 0),
+        "referral_count": referral_count,
+    }
 
 
 def _ensure_trial_ends_at_column(db) -> None:

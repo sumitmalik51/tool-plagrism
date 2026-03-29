@@ -118,6 +118,17 @@ def get_scan(document_id: str) -> dict[str, Any] | None:
     )
 
 
+def get_document_revisions(document_id: str, user_id: int) -> list[dict[str, Any]]:
+    """Return all scans for a document owned by the user, oldest first."""
+    db = get_db()
+    return db.fetch_all(
+        "SELECT id, document_id, plagiarism_score, confidence_score, "
+        "risk_level, sources_count, flagged_count, created_at "
+        "FROM scans WHERE document_id = ? AND user_id = ? ORDER BY created_at ASC",
+        (document_id, user_id),
+    )
+
+
 def get_user_scans(
     user_id: int,
     limit: int = 50,

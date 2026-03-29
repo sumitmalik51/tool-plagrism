@@ -10,7 +10,7 @@ import structlog
 
 from pydantic import BaseModel, Field
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request
 
 from app.config import settings
 from app.services.auth_service import (
@@ -27,8 +27,9 @@ from app.services.auth_service import (
     verify_email,
     is_email_verified,
     resend_verification_token,
+    get_referral_info,
 )
-from app.services.email_service import send_password_reset_email, send_verification_email
+from app.services.email_service import send_password_reset_email, send_verification_email, send_welcome_email
 from app.services.persistence import get_scan, get_user_scans, get_user_stats
 from app.services.rate_limiter import PLAN_TO_TIER, UserTier, limiter
 
@@ -99,6 +100,7 @@ class SignupRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     email: str = Field(..., min_length=3, max_length=255)
     password: str = Field(..., min_length=6, max_length=128)
+    referral_code: str | None = Field(default=None, max_length=50)
 
 
 class LoginRequest(BaseModel):
@@ -141,11 +143,13 @@ async def route_signup(body: SignupRequest, request: Request):
     """Register a new account and send a verification email."""
     _auth_limiter.check(_client_ip(request))
     try:
-        result = signup(name=body.name, email=body.email, password=body.password)
+        result = signup(name=body.name, email=body.email, password=body.password, referral_code=body.referral_code)
         # Send verification email via ACS
         v_token = result.pop("verification_token", None)
         if v_token:
             send_verification_email(body.email, v_token)
+        # Send welcome onboarding email
+        send_welcome_email(body.email, body.name)
         return result
     except AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -155,11 +159,15 @@ async def route_signup(body: SignupRequest, request: Request):
 
 
 @router.post("/login", response_model=AuthResponse)
-async def route_login(body: LoginRequest, request: Request):
+async def route_login(body: LoginRequest, request: Request, bg: BackgroundTasks):
     """Authenticate with email + password and receive a JWT."""
     _auth_limiter.check(_client_ip(request))
     try:
         result = login(email=body.email, password=body.password)
+        # Check if trial emails need to be sent (fire-and-forget)
+        user = result.get("user", {})
+        if user.get("plan_type") == "free":
+            bg.add_task(_check_trial_emails, user)
         return result
     except AuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
@@ -340,11 +348,32 @@ async def route_scan_detail(
     return scan
 
 
+@router.get("/scans/{document_id}/revisions")
+async def route_scan_revisions(
+    document_id: str,
+    authorization: str = Header(default=""),
+):
+    """Return all scans for a document to show score progression."""
+    from app.services.persistence import get_document_revisions
+    user_id = _get_user_id(authorization)
+    revisions = get_document_revisions(document_id, user_id)
+    if not revisions:
+        raise HTTPException(status_code=404, detail="No revisions found.")
+    return {"revisions": revisions}
+
+
 @router.get("/stats")
 async def route_user_stats(authorization: str = Header(default="")):
     """Return aggregate stats for the authenticated user's dashboard."""
     user_id = _get_user_id(authorization)
     return get_user_stats(user_id)
+
+
+@router.get("/referral")
+async def route_referral_info(authorization: str = Header(default="")):
+    """Return referral code, bonus scans, and referral count for the user."""
+    user_id = _get_user_id(authorization)
+    return get_referral_info(user_id)
 
 
 # ---------------------------------------------------------------------------
@@ -375,6 +404,80 @@ async def route_usage(authorization: str = Header(default="")):
         "remaining": remaining if remaining >= 0 else "unlimited",
         "limit": limit,
     }
+
+
+# ---------------------------------------------------------------------------
+# Trial email sequence (fire-and-forget background task)
+# ---------------------------------------------------------------------------
+
+def _check_trial_emails(user: dict) -> None:
+    """Send day-2 or day-5 trial emails if the user qualifies."""
+    from datetime import datetime, timezone
+    from app.services.email_service import send_trial_usage_email, send_trial_ending_email
+
+    try:
+        created_raw = user.get("created_at")
+        if not created_raw:
+            return
+        if isinstance(created_raw, str):
+            created = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
+        else:
+            created = created_raw
+        now = datetime.now(timezone.utc)
+        if created.tzinfo is None:
+            from datetime import timezone as tz
+            created = created.replace(tzinfo=tz.utc)
+        days_since = (now - created).days
+
+        email = user.get("email", "")
+        name = user.get("name", "User")
+        user_id = user.get("id")
+        if not email or not user_id:
+            return
+
+        from app.services.database import get_db
+        db = get_db()
+
+        # Ensure tracking table exists
+        try:
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS trial_emails ("
+                "  user_id INTEGER NOT NULL, email_type TEXT NOT NULL, sent_at TEXT DEFAULT CURRENT_TIMESTAMP, "
+                "  PRIMARY KEY (user_id, email_type))"
+            )
+        except Exception:
+            pass  # Table may already exist
+
+        def _already_sent(email_type: str) -> bool:
+            row = db.fetch_one(
+                "SELECT 1 FROM trial_emails WHERE user_id = ? AND email_type = ?",
+                (user_id, email_type),
+            )
+            return row is not None
+
+        def _mark_sent(email_type: str) -> None:
+            try:
+                db.execute(
+                    "INSERT INTO trial_emails (user_id, email_type) VALUES (?, ?)",
+                    (user_id, email_type),
+                )
+            except Exception:
+                pass
+
+        # Day 2+: usage summary
+        if days_since >= 2 and not _already_sent("trial_usage"):
+            stats = get_user_stats(user_id)
+            scans_used = stats.get("total_scans", 0) if stats else 0
+            if send_trial_usage_email(email, name, scans_used):
+                _mark_sent("trial_usage")
+
+        # Day 5+: trial ending nudge
+        if days_since >= 5 and not _already_sent("trial_ending"):
+            if send_trial_ending_email(email, name):
+                _mark_sent("trial_ending")
+
+    except Exception as exc:
+        logger.error("trial_email_check_failed", error=str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -414,6 +517,24 @@ PLANS = [
         "cta": "Upgrade to Pro",
     },
     {
+        "id": "pro_annual",
+        "name": "Pro",
+        "price": 2999,
+        "currency": "INR",
+        "period": "year",
+        "monthly_equivalent": 250,
+        "popular": True,
+        "save_percent": 16,
+        "features": [
+            "Unlimited tool uses",
+            "Everything in Free",
+            "Priority processing",
+            "Detailed source reports",
+            "Scan history & analytics",
+        ],
+        "cta": "Upgrade to Pro",
+    },
+    {
         "id": "premium",
         "name": "Premium",
         "price": 599,
@@ -428,12 +549,31 @@ PLANS = [
         ],
         "cta": "Upgrade to Premium",
     },
+    {
+        "id": "premium_annual",
+        "name": "Premium",
+        "price": 5999,
+        "currency": "INR",
+        "period": "year",
+        "monthly_equivalent": 500,
+        "save_percent": 16,
+        "features": [
+            "Everything in Pro",
+            "API access",
+            "Batch file analysis",
+            "Custom integrations",
+            "Priority support",
+        ],
+        "cta": "Upgrade to Premium",
+    },
 ]
 
 # Map plan → amount in paise (Razorpay uses smallest currency unit)
 PLAN_AMOUNTS = {
-    "pro": 299_00,       # ₹299
-    "premium": 599_00,   # ₹599
+    "pro": 299_00,              # ₹299/month
+    "premium": 599_00,          # ₹599/month
+    "pro_annual": 2999_00,      # ₹2,999/year
+    "premium_annual": 5999_00,  # ₹5,999/year
 }
 
 

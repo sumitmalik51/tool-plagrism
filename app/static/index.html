@@ -224,6 +224,29 @@
         </div>
       </section>
 
+      <!-- Referral Program -->
+      <section class="px-6 pb-8" id="referralSection">
+        <div class="max-w-5xl mx-auto">
+          <div class="bg-gradient-to-r from-accent/10 to-[#00b894]/10 border border-accent/20 rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-6">
+            <div class="text-4xl">🎁</div>
+            <div class="flex-1 text-center sm:text-left">
+              <h3 class="text-lg font-bold mb-1">Invite Friends, Earn Free Scans</h3>
+              <p class="text-sm text-muted mb-3">Share your referral link. You and your friend each get <strong class="text-ok">5 bonus scans</strong> when they sign up!</p>
+              <div class="flex flex-col sm:flex-row items-center gap-3">
+                <div class="flex items-center bg-surface border border-border rounded-xl overflow-hidden w-full sm:w-auto">
+                  <input type="text" id="referralLink" readonly class="bg-transparent text-sm text-txt px-4 py-2.5 w-full sm:w-80 outline-none" value="Loading...">
+                  <button onclick="copyReferralLink()" class="px-4 py-2.5 bg-accent text-white text-sm font-semibold hover:opacity-85 transition-opacity whitespace-nowrap">Copy Link</button>
+                </div>
+                <div class="flex items-center gap-4 text-xs text-muted">
+                  <span>Referrals: <strong class="text-txt" id="referralCount">0</strong></span>
+                  <span>Bonus scans: <strong class="text-ok" id="referralBonus">0</strong></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Recent Scans -->
       <section class="px-6 pb-12">
         <div class="max-w-5xl mx-auto">
@@ -724,6 +747,14 @@
           <span class="px-3 py-1 rounded-full bg-accent/10 text-accent-l text-xs font-semibold border border-accent/20 mb-4 inline-block">PRICING</span>
           <h2 class="text-3xl font-bold mb-3">Plans for every researcher</h2>
           <p class="text-muted max-w-lg mx-auto">Start with a free 3-day Research trial. Upgrade when your research demands more.</p>
+          <!-- Billing toggle -->
+          <div class="flex items-center justify-center gap-3 mt-6">
+            <span class="text-sm font-medium" id="billingLabelMonthly">Monthly</span>
+            <button id="billingToggle" onclick="toggleBillingCycle()" class="relative w-14 h-7 rounded-full bg-surface2 border border-border transition-colors focus:outline-none focus:ring-2 focus:ring-accent/50" aria-label="Toggle annual billing">
+              <span id="billingDot" class="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform"></span>
+            </button>
+            <span class="text-sm font-medium" id="billingLabelAnnual">Annual <span class="text-ok text-xs font-bold ml-1">Save 16%</span></span>
+          </div>
         </div>
 
         <div class="grid md:grid-cols-3 gap-6 stagger" id="pricingCards">
@@ -749,10 +780,11 @@
             <span class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-accent text-white text-xs font-bold">MOST POPULAR</span>
             <h3 class="text-lg font-bold mb-1">Research</h3>
             <div class="flex items-end gap-1 mb-4">
-              <span class="text-4xl font-bold">₹299</span>
-              <span class="text-muted text-sm mb-1">/month</span>
-              <span class="text-xs text-danger line-through ml-2 mb-1">₹499</span>
+              <span class="text-4xl font-bold plan-price" data-monthly="299" data-annual="2999" data-annual-equiv="250">₹299</span>
+              <span class="text-muted text-sm mb-1 plan-period">/month</span>
+              <span class="text-xs text-danger line-through ml-2 mb-1 plan-strikethrough" data-monthly="499" data-annual="3588">₹499</span>
             </div>
+            <div class="hidden text-xs text-ok font-semibold mb-2 annual-save-badge">Save 16% — ₹250/mo</div>
             <ul class="space-y-3 text-sm flex-1 mb-6">
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> <strong>Unlimited</strong> tool uses</li>
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> Everything in Basic</li>
@@ -760,7 +792,7 @@
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> Detailed source reports</li>
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> Scan history & analytics</li>
             </ul>
-            <button onclick="handleUpgrade('pro', this)" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-bold hover:shadow-lg hover:shadow-accent/25 transition-all pricing-btn flex items-center justify-center gap-2" data-plan="pro">
+            <button onclick="handleUpgrade('pro', this)" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-bold hover:shadow-lg hover:shadow-accent/25 transition-all pricing-btn flex items-center justify-center gap-2" data-plan="pro" data-plan-annual="pro_annual">
               <svg class="animate-spin h-4 w-4 hidden" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
               <span>Upgrade to Research</span>
             </button>
@@ -770,10 +802,11 @@
           <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative reveal tilt-card" data-plan-card="premium">
             <h3 class="text-lg font-bold mb-1">Advanced Research</h3>
             <div class="flex items-end gap-1 mb-4">
-              <span class="text-4xl font-bold">₹599</span>
-              <span class="text-muted text-sm mb-1">/month</span>
-              <span class="text-xs text-danger line-through ml-2 mb-1">₹999</span>
+              <span class="text-4xl font-bold plan-price" data-monthly="599" data-annual="5999" data-annual-equiv="500">₹599</span>
+              <span class="text-muted text-sm mb-1 plan-period">/month</span>
+              <span class="text-xs text-danger line-through ml-2 mb-1 plan-strikethrough" data-monthly="999" data-annual="7188">₹999</span>
             </div>
+            <div class="hidden text-xs text-ok font-semibold mb-2 annual-save-badge">Save 16% — ₹500/mo</div>
             <ul class="space-y-3 text-sm flex-1 mb-6">
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> Everything in Research</li>
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> API access</li>
@@ -781,7 +814,7 @@
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> Custom integrations</li>
               <li class="flex items-center gap-2"><span class="text-ok">✓</span> Priority support</li>
             </ul>
-            <button onclick="handleUpgrade('premium', this)" class="w-full py-2.5 rounded-xl bg-surface2 text-txt text-sm font-bold border border-border hover:border-accent/50 hover:bg-accent/5 transition-all pricing-btn flex items-center justify-center gap-2" data-plan="premium">
+            <button onclick="handleUpgrade('premium', this)" class="w-full py-2.5 rounded-xl bg-surface2 text-txt text-sm font-bold border border-border hover:border-accent/50 hover:bg-accent/5 transition-all pricing-btn flex items-center justify-center gap-2" data-plan="premium" data-plan-annual="premium_annual">
               <svg class="animate-spin h-4 w-4 hidden" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
               <span>Upgrade to Advanced</span>
             </button>
@@ -965,7 +998,33 @@
       <div class="flex-1 overflow-y-auto bg-bg" id="docViewerContainer">
         <!-- Similarity panel (default) -->
         <div id="panelSimilarity" class="p-4 sm:p-8 max-w-3xl mx-auto">
-          <div id="docViewer" class="bg-white text-gray-900 rounded-lg shadow-lg p-4 sm:p-8 text-sm sm:text-[15px] leading-[1.8] font-serif whitespace-pre-wrap">
+          <div class="flex gap-4">
+            <!-- Original document -->
+            <div class="flex-1 min-w-0">
+              <div class="text-xs text-muted font-semibold uppercase tracking-wider mb-2 flex items-center gap-2">
+                📄 Your Document
+                <span id="sourceCompareHint" class="hidden text-accent-l font-normal normal-case">← click a highlighted passage to compare</span>
+              </div>
+              <div id="docViewer" class="bg-white text-gray-900 rounded-lg shadow-lg p-4 sm:p-8 text-sm sm:text-[15px] leading-[1.8] font-serif whitespace-pre-wrap">
+              </div>
+            </div>
+            <!-- Source comparison panel (appears on passage click) -->
+            <div id="sourceComparePanel" class="hidden w-[380px] shrink-0 flex flex-col">
+              <div class="text-xs text-muted font-semibold uppercase tracking-wider mb-2 flex items-center justify-between">
+                <span>🔍 Matching Source</span>
+                <button onclick="closeSourceCompare()" class="text-muted hover:text-txt text-sm">&times;</button>
+              </div>
+              <div class="bg-surface border border-accent/30 rounded-lg shadow-lg p-5 flex-1 overflow-y-auto space-y-3">
+                <div id="sourceCompareTitle" class="text-sm font-bold text-accent-l"></div>
+                <div id="sourceCompareUrl" class="text-xs text-muted truncate"></div>
+                <div class="border-t border-border my-2"></div>
+                <div id="sourceComparePassage" class="text-sm leading-relaxed text-txt font-serif whitespace-pre-wrap bg-accent/5 rounded-lg p-3 border-l-2 border-accent"></div>
+                <div class="flex items-center gap-3 mt-3">
+                  <span id="sourceCompareSimilarity" class="text-xs font-bold px-2 py-0.5 rounded bg-danger/15 text-danger"></span>
+                  <a id="sourceCompareLink" href="#" target="_blank" rel="noopener" class="text-xs text-accent-l hover:underline">View source →</a>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1113,6 +1172,31 @@
               Rephrase Flagged Sections
             </button>
           </div>
+
+          <!-- Upgrade nudge for free users -->
+          <div id="upgradeNudge" class="hidden mt-4 bg-accent/5 border border-accent/20 rounded-xl p-4">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="text-lg">🚀</span>
+              <p class="text-sm font-semibold text-accent-l">Unlock Full Potential</p>
+            </div>
+            <ul class="text-xs text-muted space-y-1.5 mb-3">
+              <li class="flex items-center gap-1.5"><span class="text-ok">✓</span> Clean PDF export (no watermark)</li>
+              <li class="flex items-center gap-1.5"><span class="text-ok">✓</span> Originality certificate</li>
+              <li class="flex items-center gap-1.5"><span class="text-ok">✓</span> Unlimited daily scans</li>
+              <li class="flex items-center gap-1.5"><span class="text-ok">✓</span> Detailed source reports</li>
+            </ul>
+            <a href="#pricingSection" onclick="$('reportView').classList.add('hidden');showView('main');" class="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-lg text-xs font-bold hover:shadow-lg hover:shadow-accent/25 transition-all">
+              Upgrade to Pro — ₹299/mo
+            </a>
+          </div>
+        </div>
+
+        <!-- Revision History (shows if doc has multiple scans) -->
+        <div id="revisionHistory" class="hidden border-b border-border px-4 py-3">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-xs font-semibold text-muted uppercase tracking-wider">📈 Score History</span>
+          </div>
+          <div id="revisionTimeline" class="flex items-end gap-1"></div>
         </div>
 
         <!-- Sidebar Tabs: Match Groups / Sources -->
@@ -1572,6 +1656,21 @@
     // --- Raw JSON ---
     $('jsonPre').textContent = JSON.stringify(data, null, 2);
 
+    // --- Upgrade nudge for free users ---
+    const nudgeEl = document.getElementById('upgradeNudge');
+    if (nudgeEl) {
+      const u = getUser();
+      const isFree = !u || u.plan_type === 'free';
+      if (isFree && score > 15) {
+        nudgeEl.classList.remove('hidden');
+      } else {
+        nudgeEl.classList.add('hidden');
+      }
+    }
+
+    // --- Revision history ---
+    loadRevisionHistory(data.document_id);
+
     // Reset to similarity tab and groups tab
     switchReportTab('similarity');
     switchSideTab('groups');
@@ -1743,12 +1842,117 @@
       const badge = h.srcNum > 0
         ? `<span class="src-badge" style="background:${SOURCE_COLORS[(h.srcNum-1)%10]}" onclick="highlightSource(${h.srcNum})" title="Source ${h.srcNum}">${h.srcNum}</span>`
         : '';
-      html += `<span class="${h.hlClass}" data-src="${h.srcNum}" data-pidx="${h.passageIdx}">${esc(text.slice(h.start, h.end))}${badge}</span>`;
+      html += `<span class="${h.hlClass} cursor-pointer hover:ring-2 hover:ring-accent/50 rounded-sm transition-all" data-src="${h.srcNum}" data-pidx="${h.passageIdx}" onclick="showSourceCompare(${h.passageIdx})">${esc(text.slice(h.start, h.end))}${badge}</span>`;
       cursor = h.end;
     }
     if (cursor < text.length) html += esc(text.slice(cursor));
 
     $('docViewer').innerHTML = html;
+
+    // Show compare hint if there are highlights
+    const hintEl = document.getElementById('sourceCompareHint');
+    if (hintEl && clean.length > 0) hintEl.classList.remove('hidden');
+  }
+
+  // --- Side-by-side source comparison ---
+  function showSourceCompare(passageIdx) {
+    if (!lastReport) return;
+    const fp = (lastReport.flagged_passages || [])[passageIdx];
+    if (!fp) return;
+
+    const panel = $('sourceComparePanel');
+    const sources = lastReport.detected_sources || [];
+
+    // Find matching source
+    let srcObj = null;
+    if (fp.source) {
+      srcObj = sources.find(s => s.url === fp.source) || null;
+    }
+
+    $('sourceCompareTitle').textContent = srcObj ? (srcObj.title || srcObj.url || 'Unknown Source') : (fp.source || 'Internal / AI Match');
+    $('sourceCompareUrl').textContent = srcObj ? (srcObj.url || '') : (fp.source || '');
+    $('sourceComparePassage').textContent = fp.text || '';
+    $('sourceCompareSimilarity').textContent = ((fp.similarity_score || 0) * 100).toFixed(0) + '% match';
+
+    const link = $('sourceCompareLink');
+    if (srcObj && srcObj.url && srcObj.url.startsWith('http')) {
+      link.href = srcObj.url;
+      link.classList.remove('hidden');
+    } else {
+      link.classList.add('hidden');
+    }
+
+    panel.classList.remove('hidden');
+
+    // Highlight active passage
+    document.querySelectorAll('#docViewer [data-pidx]').forEach(el => {
+      el.classList.remove('ring-2', 'ring-accent');
+    });
+    const activeEl = document.querySelector(`#docViewer [data-pidx="${passageIdx}"]`);
+    if (activeEl) {
+      activeEl.classList.add('ring-2', 'ring-accent');
+      activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  function closeSourceCompare() {
+    $('sourceComparePanel').classList.add('hidden');
+    document.querySelectorAll('#docViewer [data-pidx]').forEach(el => {
+      el.classList.remove('ring-2', 'ring-accent');
+    });
+  }
+
+  async function loadRevisionHistory(documentId) {
+    const container = $('revisionHistory');
+    const timeline = $('revisionTimeline');
+    if (!container || !timeline || !documentId) { container?.classList.add('hidden'); return; }
+
+    const token = localStorage.getItem('pg_token');
+    if (!token) { container.classList.add('hidden'); return; }
+
+    try {
+      const res = await fetch(`/api/v1/auth/scans/${encodeURIComponent(documentId)}/revisions`, {
+        headers: { 'Authorization': 'Bearer ' + token },
+      });
+      if (!res.ok) { container.classList.add('hidden'); return; }
+      const data = await res.json();
+      const revisions = data.revisions || [];
+
+      if (revisions.length < 2) { container.classList.add('hidden'); return; }
+
+      container.classList.remove('hidden');
+
+      const maxScore = Math.max(...revisions.map(r => r.plagiarism_score), 1);
+      let html = '';
+      revisions.forEach((r, i) => {
+        const score = Math.round(r.plagiarism_score);
+        const barH = Math.max(8, (score / maxScore) * 50);
+        const color = score > 40 ? '#e74c3c' : score > 20 ? '#f39c12' : '#00b894';
+        const date = new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const isLast = i === revisions.length - 1;
+        const arrow = i > 0
+          ? (score < revisions[i-1].plagiarism_score ? '<span class="text-ok text-[9px]">↓</span>' : score > revisions[i-1].plagiarism_score ? '<span class="text-danger text-[9px]">↑</span>' : '')
+          : '';
+        html += `
+          <div class="flex flex-col items-center gap-0.5 flex-1 min-w-[32px] max-w-[48px]" title="Scan ${i+1}: ${score}% on ${date}">
+            <div class="text-[10px] font-bold ${isLast ? 'text-accent-l' : 'text-muted'}">${score}%${arrow}</div>
+            <div class="w-full rounded-t" style="height:${barH}px; background:${color}; opacity:${isLast ? 1 : 0.5}"></div>
+            <div class="text-[8px] text-muted">${date}</div>
+          </div>`;
+      });
+
+      // Show improvement summary
+      const first = Math.round(revisions[0].plagiarism_score);
+      const last = Math.round(revisions[revisions.length - 1].plagiarism_score);
+      const diff = first - last;
+      if (diff > 0) {
+        html += `<div class="flex items-center ml-2 text-[10px] text-ok font-bold whitespace-nowrap">↓ ${diff}pt</div>`;
+      }
+
+      timeline.innerHTML = html;
+    } catch {
+      container.classList.add('hidden');
+    }
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -2774,6 +2978,9 @@
     const d = lastReport;
     const score = Math.round(d.plagiarism_score);
     const w = doc.internal.pageSize.getWidth();
+    const h = doc.internal.pageSize.getHeight();
+    const user = getUser();
+    const isPaid = user && (user.plan_type === 'pro' || user.plan_type === 'premium');
 
     // Header
     doc.setFillColor(15, 17, 23);
@@ -2851,12 +3058,8 @@
       });
     }
 
-    doc.save(`plagiarism-report-${d.document_id}.pdf`);
-    showToast('PDF exported!', 'success');
-
     // Add agent breakdown if available
     if (d.agent_results?.length) {
-      // This goes to a new page if needed
       const agentY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : y + 10;
       if (agentY > 260) doc.addPage();
       const startAgentY = agentY > 260 ? 20 : agentY;
@@ -2877,6 +3080,72 @@
         margin: { left: 14, right: 14 },
       });
     }
+
+    // Originality Certificate page (paid users only)
+    if (isPaid && score < 30) {
+      doc.addPage();
+      const cw = doc.internal.pageSize.getWidth();
+      const ch = doc.internal.pageSize.getHeight();
+      // Border
+      doc.setDrawColor(108, 92, 231);
+      doc.setLineWidth(2);
+      doc.rect(15, 15, cw - 30, ch - 30);
+      doc.setLineWidth(0.5);
+      doc.rect(18, 18, cw - 36, ch - 36);
+      // Title
+      doc.setTextColor(108, 92, 231);
+      doc.setFontSize(28);
+      doc.text('Certificate of Originality', cw / 2, 55, { align: 'center' });
+      // Subtitle
+      doc.setFontSize(12);
+      doc.setTextColor(100, 100, 100);
+      doc.text('This document has been analyzed by PlagiarismGuard', cw / 2, 70, { align: 'center' });
+      // Score badge
+      doc.setFillColor(0, 184, 148);
+      doc.roundedRect(cw / 2 - 30, 85, 60, 30, 5, 5, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(22);
+      doc.text(`${100 - score}%`, cw / 2, 105, { align: 'center' });
+      doc.setFontSize(10);
+      doc.text('ORIGINAL', cw / 2, 112, { align: 'center' });
+      // Details
+      doc.setTextColor(33, 33, 33);
+      doc.setFontSize(11);
+      const certY = 135;
+      doc.text(`Document ID: ${d.document_id}`, cw / 2, certY, { align: 'center' });
+      doc.text(`Similarity Score: ${score}% | Risk Level: ${d.risk_level}`, cw / 2, certY + 10, { align: 'center' });
+      doc.text(`Scanned Against: 250M+ scholarly sources & web pages`, cw / 2, certY + 20, { align: 'center' });
+      doc.text(`Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, cw / 2, certY + 30, { align: 'center' });
+      // Footer
+      doc.setFontSize(9);
+      doc.setTextColor(150, 150, 150);
+      doc.text('Verified by PlagiarismGuard AI-Powered Analysis Engine', cw / 2, ch - 40, { align: 'center' });
+      doc.text('https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net', cw / 2, ch - 33, { align: 'center' });
+    }
+
+    // Watermark on ALL pages for free users
+    if (!isPaid) {
+      const pages = doc.internal.getNumberOfPages();
+      for (let p = 1; p <= pages; p++) {
+        doc.setPage(p);
+        doc.setTextColor(200, 200, 200);
+        doc.setFontSize(50);
+        doc.saveGraphicsState();
+        doc.setGState(new doc.GState({ opacity: 0.12 }));
+        doc.text('PlagiarismGuard FREE', w / 2, h / 2, {
+          align: 'center', angle: 45,
+        });
+        doc.restoreGraphicsState();
+      }
+      // Footer on last page: upsell
+      doc.setPage(pages);
+      doc.setFontSize(10);
+      doc.setTextColor(108, 92, 231);
+      doc.text('Upgrade to Pro to remove watermark & get Originality Certificate → plagiarismguard.com', w / 2, h - 10, { align: 'center' });
+    }
+
+    doc.save(`plagiarism-report-${d.document_id}.pdf`);
+    showToast('PDF exported!', 'success');
 
     // Footer on all pages
     const pageCount = doc.internal.getNumberOfPages();
@@ -3440,6 +3709,39 @@
 
     // --- Refresh scan history section ---
     loadScanHistory();
+
+    // --- Load referral info ---
+    loadReferralInfo();
+  }
+
+  async function loadReferralInfo() {
+    try {
+      const res = await fetch('/api/v1/auth/referral', { headers: _authHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      const code = data.referral_code || '';
+      const base = window.location.origin;
+      const linkEl = document.getElementById('referralLink');
+      if (linkEl && code) {
+        linkEl.value = `${base}/signup?ref=${encodeURIComponent(code)}`;
+      }
+      const countEl = document.getElementById('referralCount');
+      if (countEl) countEl.textContent = data.referral_count || 0;
+      const bonusEl = document.getElementById('referralBonus');
+      if (bonusEl) bonusEl.textContent = data.bonus_scans || 0;
+    } catch {}
+  }
+
+  function copyReferralLink() {
+    const linkEl = document.getElementById('referralLink');
+    if (!linkEl) return;
+    navigator.clipboard.writeText(linkEl.value).then(() => {
+      showToast('Referral link copied!', 'success');
+    }).catch(() => {
+      linkEl.select();
+      document.execCommand('copy');
+      showToast('Referral link copied!', 'success');
+    });
   }
 
   async function loadUsageFromAPI() {
@@ -3646,12 +3948,47 @@
     }
   }
 
+  let _billingAnnual = false;
+
+  function toggleBillingCycle() {
+    _billingAnnual = !_billingAnnual;
+    const dot = document.getElementById('billingDot');
+    const toggle = document.getElementById('billingToggle');
+    if (_billingAnnual) {
+      dot.style.transform = 'translateX(1.75rem)';
+      toggle.classList.add('bg-accent');
+      toggle.classList.remove('bg-surface2');
+    } else {
+      dot.style.transform = 'translateX(0)';
+      toggle.classList.remove('bg-accent');
+      toggle.classList.add('bg-surface2');
+    }
+    // Update price displays
+    document.querySelectorAll('.plan-price').forEach(el => {
+      const price = _billingAnnual ? el.dataset.annual : el.dataset.monthly;
+      el.textContent = '₹' + Number(price).toLocaleString('en-IN');
+    });
+    document.querySelectorAll('.plan-period').forEach(el => {
+      el.textContent = _billingAnnual ? '/year' : '/month';
+    });
+    document.querySelectorAll('.plan-strikethrough').forEach(el => {
+      const price = _billingAnnual ? el.dataset.annual : el.dataset.monthly;
+      el.textContent = '₹' + Number(price).toLocaleString('en-IN');
+    });
+    document.querySelectorAll('.annual-save-badge').forEach(el => {
+      el.classList.toggle('hidden', !_billingAnnual);
+    });
+  }
+
   async function handleUpgrade(plan, btn) {
     const token = localStorage.getItem('pg_token');
     if (!token) {
       window.location.href = '/signup';
       return;
     }
+
+    // Resolve actual plan ID based on billing toggle
+    const actualPlan = _billingAnnual ? (plan + '_annual') : plan;
 
     // Show loading state on clicked button
     const spinner = btn ? btn.querySelector('svg') : null;
@@ -3669,7 +4006,7 @@
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ' + token,
         },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan: actualPlan }),
       });
 
       if (!orderRes.ok) {
@@ -3681,12 +4018,13 @@
       const order = await orderRes.json();
 
       // 2. Open Razorpay Checkout popup
+      const billingLabel = _billingAnnual ? 'Annual' : 'Monthly';
       const options = {
         key: order.key_id,
         amount: order.amount,
         currency: order.currency,
         name: 'PlagiarismGuard',
-        description: plan.charAt(0).toUpperCase() + plan.slice(1) + ' Plan - Monthly',
+        description: plan.charAt(0).toUpperCase() + plan.slice(1) + ' Plan - ' + billingLabel,
         order_id: order.order_id,
         prefill: {
           name: order.user_name || '',
@@ -3706,22 +4044,23 @@
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
-                plan: plan,
+                plan: actualPlan,
               }),
             });
 
             if (verifyRes.ok) {
               const data = await verifyRes.json();
-              // Update local user object
+              // Update local user object — store the base plan type
+              const basePlan = actualPlan.replace('_annual', '');
               const userStr = localStorage.getItem('pg_user');
               if (userStr) {
                 const user = JSON.parse(userStr);
-                user.plan_type = plan;
+                user.plan_type = basePlan;
                 localStorage.setItem('pg_user', JSON.stringify(user));
               }
-              updatePlanUI(plan);
+              updatePlanUI(basePlan);
               await loadUsageFromAPI();
-              showPaymentModal('success', plan);
+              showPaymentModal('success', basePlan);
             } else {
               const err = await verifyRes.json();
               showPaymentModal('error', plan, 'Payment verification failed: ' + (err.detail || 'Unknown error'));

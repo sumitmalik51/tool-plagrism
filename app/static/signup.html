@@ -181,6 +181,21 @@
   <script>
     function $(id) { return document.getElementById(id); }
 
+    // Capture referral code from URL
+    const _referralCode = new URLSearchParams(window.location.search).get('ref') || '';
+    if (_referralCode) {
+      // Show a small referral badge (optional visual feedback)
+      document.addEventListener('DOMContentLoaded', () => {
+        const form = document.querySelector('form');
+        if (form) {
+          const badge = document.createElement('div');
+          badge.className = 'text-center text-xs text-ok mb-3 px-3 py-1.5 bg-ok/10 border border-ok/20 rounded-lg';
+          badge.textContent = '🎁 Referral bonus: 5 free scans on signup!';
+          form.prepend(badge);
+        }
+      });
+    }
+
     function showError(msg) {
       const el = $('errorMsg');
       el.textContent = msg;
@@ -268,7 +283,7 @@
           res = await fetch('/api/v1/auth/signup', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, email, password }),
+            body: JSON.stringify({ name, email, password, referral_code: _referralCode }),
           });
           data = await res.json();
           if (res.status === 503 && attempt < maxRetries) {
