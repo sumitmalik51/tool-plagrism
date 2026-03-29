@@ -39,7 +39,7 @@
         <a href="#features" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Features</a>
         <a href="#pricing" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Pricing</a>
         <a href="#faq" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">FAQ</a>
-        <button onclick="toggleTheme()" class="text-muted hover:text-txt transition-colors" title="Toggle theme">
+        <button onclick="toggleTheme()" class="text-muted hover:text-txt transition-colors" title="Toggle theme" aria-label="Toggle dark mode">
           <svg class="theme-icon-moon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
           <svg class="theme-icon-sun hidden" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
         </button>
@@ -67,7 +67,7 @@
 
       <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold leading-tight mb-6 fade-up fade-up-d1">
         Ensure Originality in<br>
-        <span class="gradient-text scan-line">Your Research</span>
+        <span class="gradient-text scan-line" id="heroRotate">Your Research</span>
       </h1>
       <p class="text-lg text-muted max-w-2xl mx-auto mb-2 fade-up fade-up-d1">
         with AI-Powered Plagiarism Detection
@@ -119,12 +119,12 @@
     <div class="max-w-3xl mx-auto">
       <div class="grid grid-cols-2 gap-6">
         <div class="bg-danger/5 border border-danger/20 rounded-2xl p-6 text-center">
-          <div class="text-4xl font-extrabold text-danger mb-2">42%</div>
+          <div class="text-4xl font-extrabold text-danger mb-2 count-up" data-target="42" data-suffix="%">0%</div>
           <div class="text-sm text-danger font-semibold">Before — Similarity Detected</div>
           <p class="text-xs text-muted mt-2">Matching phrases and overlapping sources identified</p>
         </div>
         <div class="bg-ok/5 border border-ok/20 rounded-2xl p-6 text-center">
-          <div class="text-4xl font-extrabold text-ok mb-2">5%</div>
+          <div class="text-4xl font-extrabold text-ok mb-2 count-up" data-target="5" data-suffix="%">0%</div>
           <div class="text-sm text-ok font-semibold">After — Original &amp; Verified</div>
           <p class="text-xs text-muted mt-2">Refined for clarity and originality while preserving meaning</p>
         </div>
@@ -135,10 +135,10 @@
   <!-- ════════════ STATS BAR ════════════ -->
   <section class="border-y border-border/50 bg-surface/50 backdrop-blur-sm">
     <div class="max-w-5xl mx-auto px-6 py-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
-      <div class="stat-card fade-up"><div class="text-2xl font-bold gradient-text">10K+</div><div class="text-xs text-muted mt-1">Documents Analyzed</div></div>
-      <div class="stat-card fade-up fade-up-d1"><div class="text-2xl font-bold gradient-text">95%</div><div class="text-xs text-muted mt-1">Originality Achieved</div></div>
-      <div class="stat-card fade-up fade-up-d2"><div class="text-2xl font-bold gradient-text">250M+</div><div class="text-xs text-muted mt-1">Scholarly Sources</div></div>
-      <div class="stat-card fade-up fade-up-d3"><div class="text-2xl font-bold gradient-text">&lt; 30s</div><div class="text-xs text-muted mt-1">Analysis Time</div></div>
+      <div class="stat-card fade-up"><div class="text-2xl font-bold gradient-text count-up" data-target="10" data-suffix="K+" data-prefix="">0</div><div class="text-xs text-muted mt-1">Documents Analyzed</div></div>
+      <div class="stat-card fade-up fade-up-d1"><div class="text-2xl font-bold gradient-text count-up" data-target="95" data-suffix="%">0%</div><div class="text-xs text-muted mt-1">Originality Achieved</div></div>
+      <div class="stat-card fade-up fade-up-d2"><div class="text-2xl font-bold gradient-text count-up" data-target="250" data-suffix="M+">0</div><div class="text-xs text-muted mt-1">Scholarly Sources</div></div>
+      <div class="stat-card fade-up fade-up-d3"><div class="text-2xl font-bold gradient-text" data-static="true">&lt; 30s</div><div class="text-xs text-muted mt-1">Analysis Time</div></div>
     </div>
   </section>
 
@@ -361,6 +361,59 @@
   </footer>
 
 <script>
+  // Count-up animation on scroll
+  (function() {
+    const counters = document.querySelectorAll('.count-up');
+    const animated = new Set();
+    function animateCount(el) {
+      if (animated.has(el)) return;
+      animated.add(el);
+      const target = parseInt(el.dataset.target, 10);
+      const suffix = el.dataset.suffix || '';
+      const prefix = el.dataset.prefix || '';
+      const duration = 1200;
+      const start = performance.now();
+      function tick(now) {
+        const t = Math.min((now - start) / duration, 1);
+        const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic
+        const val = Math.round(ease * target);
+        el.textContent = prefix + val + suffix;
+        if (t < 1) requestAnimationFrame(tick);
+        else el.classList.add('count-pop');
+      }
+      requestAnimationFrame(tick);
+    }
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) animateCount(e.target); });
+    }, { threshold: 0.3 });
+    counters.forEach(el => obs.observe(el));
+  })();
+
+  // Hero text rotation
+  (function() {
+    const phrases = [
+      'Your Research',
+      'Your Thesis',
+      'Your Dissertation',
+      'Every Citation',
+      'Academic Writing',
+    ];
+    const el = document.getElementById('heroRotate');
+    if (!el) return;
+    let idx = 0;
+    setInterval(() => {
+      idx = (idx + 1) % phrases.length;
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(12px)';
+      setTimeout(() => {
+        el.textContent = phrases[idx];
+        el.style.opacity = '1';
+        el.style.transform = 'translateY(0)';
+      }, 300);
+    }, 4000);
+    el.style.transition = 'opacity .3s ease, transform .3s ease';
+  })();
+
   // If already logged in, show Dashboard link instead of Sign In / Sign Up
   (function() {
     if (localStorage.getItem('pg_token')) {
@@ -374,7 +427,24 @@
   })();
 </script>
 
-<!-- JSON-LD Structured Data -->
+<!-- Scroll-to-top button -->
+<button id="scrollTopBtn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Scroll to top"
+  class="fixed bottom-6 right-6 z-50 w-11 h-11 rounded-full bg-accent text-white shadow-lg shadow-accent/25 flex items-center justify-center opacity-0 pointer-events-none translate-y-4 transition-all duration-300 hover:bg-[#5a4bd1] hover:-translate-y-1">
+  <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg>
+</button>
+<script>
+  (function() {
+    const btn = document.getElementById('scrollTopBtn');
+    if (!btn) return;
+    window.addEventListener('scroll', function() {
+      if (window.scrollY > 500) {
+        btn.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-4');
+      } else {
+        btn.classList.add('opacity-0', 'pointer-events-none', 'translate-y-4');
+      }
+    }, { passive: true });
+  })();
+</script>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",

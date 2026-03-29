@@ -71,10 +71,16 @@ function showToast(msg, type) {
 /* --- Theme toggle (dark / light) --- */
 function initTheme() {
   const saved = localStorage.getItem('pg_theme');
-  if (saved === 'light') {
+  let isLight;
+  if (saved) {
+    isLight = saved === 'light';
+  } else {
+    isLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+  }
+  if (isLight) {
     document.documentElement.classList.add('light');
   }
-  updateThemeIcons(saved === 'light');
+  updateThemeIcons(isLight);
 }
 
 function toggleTheme() {

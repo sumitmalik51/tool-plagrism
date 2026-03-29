@@ -115,6 +115,10 @@
 /* --- Glow input --- */
 .glow-input:focus { border-color: #6c5ce7; box-shadow: 0 0 0 3px rgba(108,92,231,.15); }
 
+/* --- Focus-visible accessibility outline --- */
+:focus-visible { outline: 2px solid #6c5ce7; outline-offset: 2px; border-radius: 4px; }
+:focus:not(:focus-visible) { outline: none; }
+
 /* --- Source highlight colors --- */
 .hl-1  { background: rgba(255,107,107,.25); border-bottom: 2px solid #FF6B6B; }
 .hl-2  { background: rgba(78,205,196,.25);  border-bottom: 2px solid #4ECDC4; }
@@ -166,6 +170,27 @@ html.light ::-webkit-scrollbar-thumb { background: #c0c0c0; }
 html.light .stat-card { background: rgba(255,255,255,.9) !important; border-color: #d8dce6 !important; }
 html.light .feature-card { background: rgba(255,255,255,.9) !important; border-color: #d8dce6 !important; }
 html.light .action-card { background: rgba(255,255,255,.9) !important; border-color: #d8dce6 !important; }
+
+/* Light mode — additional overrides */
+html.light .glow-input:focus { box-shadow: 0 0 0 3px rgba(108,92,231,.1); }
+html.light .orb { opacity: .04; }
+html.light .hl-1  { background: rgba(255,107,107,.12); }
+html.light .hl-2  { background: rgba(78,205,196,.12); }
+html.light .hl-3  { background: rgba(69,183,209,.12); }
+html.light .hl-4  { background: rgba(150,206,180,.12); }
+html.light .hl-5  { background: rgba(255,234,167,.15); }
+html.light .hl-6  { background: rgba(221,160,221,.12); }
+html.light .hl-7  { background: rgba(152,216,200,.12); }
+html.light .hl-8  { background: rgba(247,220,111,.15); }
+html.light .hl-9  { background: rgba(187,143,206,.12); }
+html.light .hl-10 { background: rgba(133,193,233,.12); }
+html.light .hl-internal { background: rgba(253,203,110,.1); }
+html.light .hl-ai { background: rgba(108,92,231,.08); }
+html.light .hl-active { outline-color: #1a1d27; }
+html.light .gradient-text { background: linear-gradient(135deg, #6c5ce7 0%, #5a4bd1 30%, #00a884 70%, #00b894 100%); -webkit-background-clip: text; background-clip: text; }
+html.light .usage-bar { background: #d8dce6; }
+html.light .src-badge { opacity: .9; }
+html.light [data-tooltip]::after { background: #fff; color: #1a1d27; border-color: #d8dce6; box-shadow: 0 4px 12px rgba(0,0,0,.08); }
 
 /* ═══════════════════════════════════════════════════════════
    Motion & Animation System (UUPM-inspired)

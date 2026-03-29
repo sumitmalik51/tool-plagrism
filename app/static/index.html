@@ -67,11 +67,11 @@
               <div class="w-7 h-7 rounded-full bg-accent/20 border border-accent/40 grid place-items-center text-accent text-xs font-bold" id="userAvatar"></div>
               <span class="text-sm font-medium hidden sm:block" id="userName"></span>
             </div>
-            <button onclick="toggleTheme()" class="text-muted hover:text-txt transition-colors" title="Toggle theme" id="themeToggle">
+            <button onclick="toggleTheme()" class="text-muted hover:text-txt transition-colors" title="Toggle theme" id="themeToggle" aria-label="Toggle dark mode">
               <svg class="theme-icon-moon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
               <svg class="theme-icon-sun hidden" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
             </button>
-            <button onclick="handleLogout()" class="text-sm text-muted hover:text-danger transition-colors" title="Sign out">
+            <button onclick="handleLogout()" class="text-sm text-muted hover:text-danger transition-colors" title="Sign out" aria-label="Sign out">
               <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             </button>
           </div>
@@ -863,9 +863,19 @@
 
           <!-- Full history list from DB -->
           <div id="historyList" class="space-y-2"></div>
-          <div id="historyEmpty" class="hidden text-center py-12 text-muted">
-            <div class="text-5xl mb-3">📋</div>
-            <p>No scans yet. Run your first analysis above!</p>
+          <div id="historyEmpty" class="hidden text-center py-16 text-muted">
+            <div class="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-accent/10 border border-accent/20 mb-4">
+              <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" class="text-accent">
+                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                <path d="M12 12v4m0 0l-2-2m2 2l2-2"/>
+              </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-txt mb-1">No scans yet</h3>
+            <p class="text-sm mb-4 max-w-xs mx-auto">Run your first analysis to see your plagiarism stats and scan history here.</p>
+            <button onclick="showSection('scanSection')" class="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              Start Your First Scan
+            </button>
           </div>
           <div class="flex items-center justify-between mt-4" id="historyActions">
             <span class="text-xs text-muted" id="historyCount">0 scans</span>
@@ -4119,6 +4129,25 @@
   })();
 
   initAuth();
+</script>
+
+<!-- Scroll-to-top button -->
+<button id="scrollTopBtn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Scroll to top"
+  class="fixed bottom-6 right-6 z-50 w-11 h-11 rounded-full bg-accent text-white shadow-lg shadow-accent/25 flex items-center justify-center opacity-0 pointer-events-none translate-y-4 transition-all duration-300 hover:bg-[#5a4bd1] hover:-translate-y-1">
+  <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg>
+</button>
+<script>
+  (function() {
+    const btn = document.getElementById('scrollTopBtn');
+    if (!btn) return;
+    window.addEventListener('scroll', function() {
+      if (window.scrollY > 500) {
+        btn.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-4');
+      } else {
+        btn.classList.add('opacity-0', 'pointer-events-none', 'translate-y-4');
+      }
+    }, { passive: true });
+  })();
 </script>
 
 </body>
