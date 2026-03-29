@@ -153,3 +153,148 @@ function safeParse(jsonStr, requiredKeys = []) {
     return null;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Onboarding Tour System
+   ═══════════════════════════════════════════════════════════ */
+var PG_TOUR_KEY = 'pg_tour_completed';
+
+function startOnboardingTour(steps) {
+  if (localStorage.getItem(PG_TOUR_KEY)) return;
+  if (!steps || !steps.length) return;
+  var idx = 0;
+
+  var overlay = document.createElement('div');
+  overlay.className = 'tour-overlay';
+  overlay.id = 'tourOverlay';
+  document.body.appendChild(overlay);
+
+  var spotlight = document.createElement('div');
+  spotlight.className = 'tour-spotlight';
+  document.body.appendChild(spotlight);
+
+  var card = document.createElement('div');
+  card.className = 'tour-card';
+  document.body.appendChild(card);
+
+  function show(i) {
+    var step = steps[i];
+    var target = document.querySelector(step.target);
+    if (!target) { finish(); return; }
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    setTimeout(function() {
+      var rect = target.getBoundingClientRect();
+      var pad = 8;
+      spotlight.style.top = (rect.top - pad + window.scrollY) + 'px';
+      spotlight.style.left = (rect.left - pad) + 'px';
+      spotlight.style.width = (rect.width + pad * 2) + 'px';
+      spotlight.style.height = (rect.height + pad * 2) + 'px';
+      card.style.top = (rect.bottom + window.scrollY + 16) + 'px';
+      card.style.left = Math.max(16, Math.min(rect.left, window.innerWidth - 360)) + 'px';
+
+      var dots = steps.map(function(_, di) {
+        return '<span class="tour-dot' + (di === i ? ' active' : '') + '"></span>';
+      }).join('');
+
+      card.innerHTML =
+        '<h3>' + step.title + '</h3><p>' + step.text + '</p>' +
+        '<div class="flex items-center justify-between mt-3"><div class="tour-dots">' + dots + '</div>' +
+        '<div class="flex gap-2">' +
+        (i > 0 ? '<button onclick="window._tourPrev()" class="text-xs text-muted hover:text-txt px-2 py-1">Back</button>' : '') +
+        '<button onclick="window._tourNext()" class="text-xs px-4 py-1.5 bg-accent text-white rounded-lg font-semibold hover:bg-[#5a4bd1]">' +
+        (i === steps.length - 1 ? 'Get Started!' : 'Next &rarr;') + '</button>' +
+        '<button onclick="window._tourSkip()" class="text-xs text-muted hover:text-danger px-2 py-1">Skip</button>' +
+        '</div></div>';
+    }, 300);
+  }
+
+  function finish() {
+    localStorage.setItem(PG_TOUR_KEY, '1');
+    overlay.remove(); spotlight.remove(); card.remove();
+  }
+
+  window._tourNext = function() { idx++; if (idx >= steps.length) finish(); else show(idx); };
+  window._tourPrev = function() { if (idx > 0) { idx--; show(idx); } };
+  window._tourSkip = finish;
+
+  show(0);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Success Celebration (confetti burst)
+   ═══════════════════════════════════════════════════════════ */
+function celebrate(cx, cy) {
+  var colors = ['#6c5ce7','#00b894','#fdcb6e','#e17055','#a29bfe','#4ECDC4','#fd79a8'];
+  for (var i = 0; i < 18; i++) {
+    var p = document.createElement('div');
+    p.className = 'celebration-particle';
+    p.style.left = cx + 'px';
+    p.style.top = cy + 'px';
+    p.style.background = colors[i % colors.length];
+    var sz = (6 + Math.random() * 8) + 'px';
+    p.style.width = sz; p.style.height = sz;
+    var angle = (Math.PI * 2 / 18) * i;
+    var dist = 60 + Math.random() * 80;
+    var tx = Math.cos(angle) * dist, ty = Math.sin(angle) * dist - 40;
+    p.animate([
+      { transform: 'scale(0) translate(0,0)', opacity: 1 },
+      { transform: 'scale(1.2) translate(' + (tx*.6) + 'px,' + (ty*.6) + 'px)', opacity: .8, offset: .5 },
+      { transform: 'scale(0) translate(' + tx + 'px,' + ty + 'px)', opacity: 0 }
+    ], { duration: 600 + Math.random() * 400, easing: 'cubic-bezier(.16,1,.3,1)' });
+    document.body.appendChild(p);
+    setTimeout(function() { p.remove(); }, 1200);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Keyboard Shortcuts Manager
+   ═══════════════════════════════════════════════════════════ */
+var _shortcuts = [];
+function registerShortcut(key, ctrl, description, handler) {
+  _shortcuts.push({ key: key.toLowerCase(), ctrl: ctrl, description: description, handler: handler });
+}
+
+document.addEventListener('keydown', function(e) {
+  var tag = e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+  var ctrl = e.ctrlKey || e.metaKey;
+  for (var i = 0; i < _shortcuts.length; i++) {
+    var s = _shortcuts[i];
+    if (s.key === e.key.toLowerCase() && s.ctrl === ctrl) {
+      e.preventDefault(); s.handler(); return;
+    }
+  }
+});
+
+function showShortcutsHelp() {
+  var modal = document.getElementById('shortcutsModal');
+  if (modal) { modal.remove(); return; }
+  modal = document.createElement('div');
+  modal.id = 'shortcutsModal';
+  modal.className = 'fixed inset-0 z-[10001] flex items-center justify-center bg-black/50 backdrop-blur-sm';
+  modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+  var rows = _shortcuts.map(function(s) {
+    return '<div class="flex items-center justify-between py-2 border-b border-border/30">' +
+      '<span class="text-sm">' + s.description + '</span>' +
+      '<span class="kbd text-xs">' + (s.ctrl ? 'Ctrl+' : '') + s.key.toUpperCase() + '</span></div>';
+  }).join('');
+  modal.innerHTML = '<div class="bg-surface border border-border rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">' +
+    '<div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold">Keyboard Shortcuts</h3>' +
+    '<button onclick="this.closest(\'#shortcutsModal\').remove()" class="text-muted hover:text-txt text-xl">&times;</button></div>' +
+    rows + '<p class="text-xs text-muted mt-3 text-center">Press <span class="kbd">?</span> to toggle</p></div>';
+  document.body.appendChild(modal);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Error with Retry Button Helper
+   ═══════════════════════════════════════════════════════════ */
+function showErrorWithRetry(containerId, message, retryFnName) {
+  var el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = '<div class="flex items-center justify-between gap-3">' +
+    '<span>\u26A0 ' + esc(message) + '</span>' +
+    (retryFnName ? '<button onclick="document.getElementById(\'' + containerId + '\').classList.add(\'hidden\');' + retryFnName + '()" class="shrink-0 px-3 py-1.5 bg-danger/20 hover:bg-danger/30 text-danger border border-danger/30 rounded-lg text-xs font-semibold transition-colors">Retry</button>' : '') +
+    '</div>';
+  el.classList.remove('hidden');
+}

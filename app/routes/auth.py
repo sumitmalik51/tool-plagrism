@@ -756,6 +756,112 @@ async def route_verify_payment(
     }
 
 
+# ---------------------------------------------------------------------------
+# Razorpay server-side webhook (catches payments even if client disconnects)
+# ---------------------------------------------------------------------------
+
+@router.post("/razorpay-webhook")
+async def route_razorpay_webhook(request: Request):
+    """Handle Razorpay webhook events (payment.captured, payment.failed).
+
+    Razorpay sends a POST with a JSON body and signs it with the webhook
+    secret (``PG_RAZORPAY_WEBHOOK_SECRET``).  We verify the signature,
+    then update the payment record and upgrade/flag the user's plan.
+
+    Configure the webhook URL in the Razorpay Dashboard →
+      ``https://<your-domain>/api/v1/auth/razorpay-webhook``
+    and set the same secret as ``PG_RAZORPAY_WEBHOOK_SECRET``.
+    """
+    # --- 1. Read raw body (needed for signature verification) ---------------
+    raw_body = await request.body()
+
+    # --- 2. Verify signature ------------------------------------------------
+    webhook_secret = settings.razorpay_webhook_secret or settings.razorpay_key_secret
+    if not webhook_secret:
+        logger.error("razorpay_webhook_secret_missing")
+        raise HTTPException(status_code=503, detail="Webhook not configured.")
+
+    sig_header = request.headers.get("X-Razorpay-Signature", "")
+    if not sig_header:
+        raise HTTPException(status_code=400, detail="Missing signature header.")
+
+    expected_sig = hmac.new(
+        webhook_secret.encode("utf-8"),
+        raw_body,
+        hashlib.sha256,
+    ).hexdigest()
+
+    if not hmac.compare_digest(expected_sig, sig_header):
+        logger.warning("razorpay_webhook_signature_invalid")
+        raise HTTPException(status_code=400, detail="Invalid signature.")
+
+    # --- 3. Parse payload ---------------------------------------------------
+    import json
+    try:
+        payload = json.loads(raw_body)
+    except (json.JSONDecodeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid JSON body.")
+
+    event = payload.get("event", "")
+    payment_entity = (payload.get("payload", {}).get("payment", {}).get("entity", {}))
+
+    order_id = payment_entity.get("order_id", "")
+    payment_id = payment_entity.get("id", "")
+    notes = payment_entity.get("notes", {})
+    user_id_str = notes.get("user_id", "")
+    plan = notes.get("plan", "")
+
+    logger.info(
+        "razorpay_webhook_received",
+        event=event,
+        order_id=order_id,
+        payment_id=payment_id,
+        user_id=user_id_str,
+    )
+
+    if not order_id:
+        # Not a payment event we care about — acknowledge anyway
+        return {"status": "ok"}
+
+    from app.services.database import get_db
+    db = get_db()
+
+    # --- 4. Handle events ---------------------------------------------------
+    if event == "payment.captured":
+        # Update payment record
+        try:
+            db.execute(
+                "UPDATE payments SET razorpay_payment_id = ?, status = ? "
+                "WHERE razorpay_order_id = ? AND status != ?",
+                (payment_id, "paid", order_id, "paid"),
+            )
+        except Exception as exc:
+            logger.error("webhook_payment_update_failed", error=str(exc), order_id=order_id)
+
+        # Upgrade the user's plan (only if we have the info from order notes)
+        if user_id_str and plan:
+            try:
+                uid = int(user_id_str)
+                update_user_plan(uid, plan)
+                logger.info("webhook_plan_upgraded", user_id=uid, plan=plan, order_id=order_id)
+            except (ValueError, AuthError) as exc:
+                logger.error("webhook_plan_upgrade_failed", error=str(exc), user_id=user_id_str)
+
+    elif event == "payment.failed":
+        try:
+            db.execute(
+                "UPDATE payments SET razorpay_payment_id = ?, status = ? "
+                "WHERE razorpay_order_id = ?",
+                (payment_id, "failed", order_id),
+            )
+        except Exception as exc:
+            logger.error("webhook_payment_fail_update_failed", error=str(exc), order_id=order_id)
+        logger.warning("razorpay_payment_failed", order_id=order_id, payment_id=payment_id)
+
+    # Always return 200 so Razorpay doesn't retry endlessly
+    return {"status": "ok"}
+
+
 # Keep legacy endpoints for backwards compatibility
 
 class CheckoutRequest(BaseModel):

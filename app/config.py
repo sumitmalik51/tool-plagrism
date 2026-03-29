@@ -85,6 +85,7 @@ class Settings(BaseSettings):
     # Razorpay payment gateway
     razorpay_key_id: str = ""       # Set PG_RAZORPAY_KEY_ID
     razorpay_key_secret: str = ""   # Set PG_RAZORPAY_KEY_SECRET
+    razorpay_webhook_secret: str = ""  # Set PG_RAZORPAY_WEBHOOK_SECRET (optional, falls back to key_secret)
 
     # Database — Azure SQL connection string.
     # When empty, falls back to SQLite for local dev.

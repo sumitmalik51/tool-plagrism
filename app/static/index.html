@@ -130,7 +130,7 @@
                 <span class="text-xs text-muted font-medium uppercase tracking-wider">Total Scans</span>
                 <span class="text-lg">🔍</span>
               </div>
-              <span class="text-3xl font-bold gradient-text" id="dashTotalAll">0</span>
+              <span class="text-3xl font-bold gradient-text" id="dashTotalAll"><span class="skeleton inline-block w-12 h-8"></span></span>
               <p class="text-xs text-muted mt-2">Lifetime analyses</p>
             </div>
 
@@ -140,7 +140,7 @@
                 <span class="text-xs text-muted font-medium uppercase tracking-wider">Avg Score</span>
                 <span class="text-lg">📈</span>
               </div>
-              <span class="text-3xl font-bold text-ok" id="dashAvgAll">0%</span>
+              <span class="text-3xl font-bold text-ok" id="dashAvgAll"><span class="skeleton inline-block w-14 h-8"></span></span>
               <p class="text-xs text-muted mt-2">Average plagiarism score</p>
             </div>
 
@@ -298,19 +298,20 @@
         </div>
 
         <!-- Mode selector -->
-        <div class="flex flex-wrap justify-center gap-2 mb-6" id="rw-modes">
-          <button onclick="setRwMode('paraphrase')" data-mode="paraphrase" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-accent text-white">Rephrase Safely</button>
-          <button onclick="setRwMode('simplify')" data-mode="simplify" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">Simplify</button>
-          <button onclick="setRwMode('expand')" data-mode="expand" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">Expand</button>
-          <button onclick="setRwMode('formal')" data-mode="formal" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">Improve Academic Tone</button>
-          <button onclick="setRwMode('academic')" data-mode="academic" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">Scholarly</button>
-          <button onclick="setRwMode('humanize')" data-mode="humanize" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">Refine Writing</button>
+        <div class="flex flex-wrap justify-center gap-2 mb-6" id="rw-modes" role="tablist" aria-label="Rewrite modes">
+          <button onclick="setRwMode('paraphrase')" data-mode="paraphrase" role="tab" aria-selected="true" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-accent text-white">Rephrase Safely</button>
+          <button onclick="setRwMode('simplify')" data-mode="simplify" role="tab" aria-selected="false" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">Simplify</button>
+          <button onclick="setRwMode('expand')" data-mode="expand" role="tab" aria-selected="false" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">Expand</button>
+          <button onclick="setRwMode('formal')" data-mode="formal" role="tab" aria-selected="false" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">Improve Academic Tone</button>
+          <button onclick="setRwMode('academic')" data-mode="academic" role="tab" aria-selected="false" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">Scholarly</button>
+          <button onclick="setRwMode('humanize')" data-mode="humanize" role="tab" aria-selected="false" class="rw-mode-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-surface2 border border-border text-muted hover:border-accent">Refine Writing</button>
         </div>
 
         <!-- Controls row: Tone + Strength -->
         <div class="flex flex-wrap items-center justify-center gap-6 mb-6">
           <div class="flex items-center gap-2">
             <label class="text-sm font-medium">Tone:</label>
+            <span class="text-muted cursor-help" data-tooltip="Sets the writing voice: Neutral keeps it balanced, Professional adds formality" data-tooltip-wrap>&#9432;</span>
             <select id="rwTone" class="bg-surface2 text-txt text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:border-accent">
               <option value="neutral">Neutral</option>
               <option value="friendly">Friendly</option>
@@ -321,6 +322,7 @@
           </div>
           <div class="flex items-center gap-3">
             <label class="text-sm font-medium">Strength:</label>
+            <span class="text-muted cursor-help" data-tooltip="Low: subtle changes. Medium: balanced. High: aggressive rewriting" data-tooltip-wrap>&#9432;</span>
             <div class="flex items-center gap-2">
               <span class="text-xs text-muted">Low</span>
               <input type="range" id="rwStrength" min="0" max="2" value="1" step="1"
@@ -441,6 +443,7 @@
             <input type="checkbox" id="gptAiToggle" class="w-4 h-4 rounded border-border text-accent focus:ring-accent bg-surface2">
             <span class="text-sm text-muted group-hover:text-txt transition-colors">
               🤖 GPT-Powered AI Detection <span class="text-[10px] bg-surface2 px-1.5 py-0.5 rounded ml-1">more accurate, uses API credits</span>
+              <span class="text-muted cursor-help ml-1" data-tooltip="Uses GPT-4o to detect AI-generated text in addition to pattern-based detection" data-tooltip-wrap>&#9432;</span>
             </span>
           </label>
         </div>
@@ -600,6 +603,7 @@
               Research Tool
             </div>
             <h2 class="text-xl font-bold">Section-by-Section Analysis</h2>
+            <span class="new-badge">New</span>
           </div>
           <span class="text-muted text-lg transition-transform" id="sectionArrow">▶</span>
         </button>
@@ -635,6 +639,7 @@
               Research Tool
             </div>
             <h2 class="text-xl font-bold">Reference &amp; DOI Validator</h2>
+            <span class="new-badge">New</span>
           </div>
           <span class="text-muted text-lg transition-transform" id="refArrow">▶</span>
         </button>
@@ -669,6 +674,7 @@
               Research Tool
             </div>
             <h2 class="text-xl font-bold">Cross-Document Comparison</h2>
+            <span class="new-badge">New</span>
           </div>
           <span class="text-muted text-lg transition-transform" id="crossArrow">▶</span>
         </button>
@@ -1485,8 +1491,7 @@
       if (typeof loadUsageFromAPI === 'function') loadUsageFromAPI();
       showReportView(data);
     } catch (err) {
-      $('errorBox').textContent = '⚠ ' + err.message;
-      $('errorBox').classList.remove('hidden');
+      showErrorWithRetry('errorBox', err.message, 'runAnalysis');
     } finally {
       clearTimeout(sseTimer);
       if (eventSource) try { eventSource.close(); } catch {}
@@ -3657,6 +3662,7 @@
         // Populate dashboard
         $('dashWelcomeName').textContent = displayName.split(' ')[0];
         loadDashboardData();
+        maybeStartTour();
       } catch {
         // Bad token/user data — redirect to login
         window.location.href = '/login?redirect=/app';
@@ -3678,8 +3684,10 @@
       if (statsRes.ok) {
         const stats = await statsRes.json();
         $('dashTotalAll').textContent = stats.total_scans || 0;
+        $('dashTotalAll').classList.add('count-pop');
         const avg = stats.average_score;
         $('dashAvgAll').textContent = avg != null ? Math.round(avg) + '%' : '0%';
+        $('dashAvgAll').classList.add('count-pop');
         if (avg != null) {
           $('dashAvgAll').className = avg > 60 ? 'text-3xl font-bold text-danger'
             : avg > 30 ? 'text-3xl font-bold text-warn'
@@ -4237,8 +4245,7 @@
       const data = await res.json();
       renderSectionResults(data);
     } catch (err) {
-      $('secError').textContent = '⚠ ' + err.message;
-      $('secError').classList.remove('hidden');
+      showErrorWithRetry('secError', err.message, 'doSectionAnalysis');
     } finally {
       $('secBtn').disabled = false;
       $('secBtnText').textContent = 'Analyze Sections';
@@ -4294,8 +4301,7 @@
       const data = await res.json();
       renderRefResults(data);
     } catch (err) {
-      $('refError').textContent = '⚠ ' + err.message;
-      $('refError').classList.remove('hidden');
+      showErrorWithRetry('refError', err.message, 'doRefValidation');
     } finally {
       $('refBtn').disabled = false;
       $('refBtnText').textContent = 'Validate References';
@@ -4352,8 +4358,7 @@
       const data = await res.json();
       renderCrossResults(data);
     } catch (err) {
-      $('crossError').textContent = '⚠ ' + err.message;
-      $('crossError').classList.remove('hidden');
+      showErrorWithRetry('crossError', err.message, 'doCrossCompare');
     } finally {
       $('crossBtn').disabled = false;
       $('crossBtnText').textContent = 'Compare Documents';
@@ -4410,8 +4415,7 @@
       const data = await res.json();
       renderRepoResults(data);
     } catch (err) {
-      $('repoError').textContent = '⚠ ' + err.message;
-      $('repoError').classList.remove('hidden');
+      showErrorWithRetry('repoError', err.message, 'doRepoCheck');
     } finally {
       $('repoBtn').disabled = false;
       $('repoBtnText').textContent = 'Check Repository';
@@ -4466,6 +4470,99 @@
     });
     mo.observe(document.body, { childList: true, subtree: true });
   })();
+
+  /* ═══════════════════════════════════════════════════════════
+     Keyboard Shortcuts Registration
+     ═══════════════════════════════════════════════════════════ */
+  registerShortcut('/', false, 'Focus search / text input', function() {
+    var el = document.getElementById('textInput') || document.getElementById('rwInput');
+    if (el) { el.focus(); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  });
+  registerShortcut('a', false, 'Go to Analyze section', function() {
+    window.location.hash = '#analyze';
+  });
+  registerShortcut('r', false, 'Go to Rewriter section', function() {
+    window.location.hash = '#rewriter';
+  });
+  registerShortcut('h', false, 'Go to Scan History', function() {
+    window.location.hash = '#history';
+  });
+  registerShortcut('d', false, 'Go to Dashboard', function() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+  registerShortcut('t', false, 'Toggle dark/light theme', function() {
+    toggleTheme();
+  });
+  registerShortcut('?', false, 'Show keyboard shortcuts', showShortcutsHelp);
+  registerShortcut('escape', false, 'Close modals', function() {
+    var modal = document.getElementById('shortcutsModal');
+    if (modal) modal.remove();
+    var overlay = document.getElementById('tourOverlay');
+    if (overlay && window._tourSkip) window._tourSkip();
+  });
+
+  /* ═══════════════════════════════════════════════════════════
+     Accessibility: role="alert" on error containers
+     ═══════════════════════════════════════════════════════════ */
+  ['errorBox','secError','refError','crossError','repoError','dashError'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.setAttribute('role', 'alert');
+  });
+
+  /* ═══════════════════════════════════════════════════════════
+     First-Scan Success Celebration
+     ═══════════════════════════════════════════════════════════ */
+  (function() {
+    var origShowReportView = showReportView;
+    showReportView = function(data) {
+      origShowReportView(data);
+      // Celebrate on first ever scan
+      if (!localStorage.getItem('pg_first_scan_done')) {
+        localStorage.setItem('pg_first_scan_done', '1');
+        setTimeout(function() {
+          celebrate(window.innerWidth / 2, window.innerHeight / 3);
+          showToast('🎉 First scan complete! Great job!', 'success');
+        }, 600);
+      }
+    };
+  })();
+
+  /* ═══════════════════════════════════════════════════════════
+     Onboarding Tour (first-time users)
+     ═══════════════════════════════════════════════════════════ */
+  function maybeStartTour() {
+    if (localStorage.getItem(PG_TOUR_KEY)) return;
+    // Delay to let dashboard render
+    setTimeout(function() {
+      startOnboardingTour([
+        {
+          target: '#dashboardView .grid.sm\\:grid-cols-2',
+          title: '⚡ Quick Actions',
+          text: 'Jump into any tool from here — plagiarism check, writing refinement, grammar analysis, and more.'
+        },
+        {
+          target: '#analyze',
+          title: '🔍 Plagiarism Detection',
+          text: 'Paste text or upload a document. Our multi-agent AI scans for similarity across the web and academic sources.'
+        },
+        {
+          target: '#rewriter',
+          title: '✏️ Writing Refinement',
+          text: 'Rephrase, simplify, or improve academic tone. Choose your style, strength, and get 3 variations instantly.'
+        },
+        {
+          target: '#readability',
+          title: '📊 Advanced Tools',
+          text: 'Explore readability analysis, grammar checking, section analysis, reference validation, and more. Click any header to expand.'
+        },
+        {
+          target: '#pricingSection',
+          title: '💎 Upgrade Anytime',
+          text: 'Free plan gives you 3 scans/day. Upgrade for unlimited access, batch uploads, and API tools.'
+        }
+      ]);
+    }, 1500);
+  }
 
   initAuth();
 </script>

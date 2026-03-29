@@ -407,3 +407,76 @@ html.light .skeleton {
   .orb { animation: none !important; }
   .particle { display: none !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Onboarding Tour Overlay
+   ═══════════════════════════════════════════════════════════ */
+.tour-overlay {
+  position: fixed; inset: 0; z-index: 9998;
+  background: rgba(0,0,0,.65);
+  transition: opacity .3s ease;
+}
+.tour-spotlight {
+  position: absolute; border-radius: 16px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,.6);
+  transition: all .4s cubic-bezier(.16,1,.3,1);
+  z-index: 9999;
+}
+.tour-card {
+  position: absolute; z-index: 10000;
+  background: #1a1d27; border: 1px solid #6c5ce7;
+  border-radius: 16px; padding: 20px 24px; max-width: 340px;
+  box-shadow: 0 20px 60px rgba(108,92,231,.3);
+  animation: fadeUp .3s ease-out both;
+}
+html.light .tour-card { background: #fff; border-color: #6c5ce7; color: #1a1d27; }
+.tour-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.tour-card p { font-size: 13px; color: #8b8fa3; line-height: 1.5; }
+html.light .tour-card p { color: #6b7280; }
+.tour-dots { display: flex; gap: 6px; margin-top: 12px; }
+.tour-dot { width: 8px; height: 8px; border-radius: 50%; background: #2e3348; transition: background .2s; }
+.tour-dot.active { background: #6c5ce7; }
+
+/* ═══════════════════════════════════════════════════════════
+   Feature Discovery "New" Badges
+   ═══════════════════════════════════════════════════════════ */
+.new-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+  background: linear-gradient(135deg, #e17055, #fd79a8); color: #fff;
+  padding: 2px 7px; border-radius: 6px; margin-left: 8px;
+  animation: floatBadge 3s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Success Celebration (confetti-like burst)
+   ═══════════════════════════════════════════════════════════ */
+@keyframes celebratePop {
+  0% { transform: scale(0) rotate(0); opacity: 1; }
+  60% { transform: scale(1.3) rotate(180deg); opacity: .8; }
+  100% { transform: scale(0) rotate(360deg) translateY(-80px); opacity: 0; }
+}
+.celebration-particle {
+  position: fixed; width: 10px; height: 10px; border-radius: 50%;
+  pointer-events: none; z-index: 10001;
+  animation: celebratePop .8s cubic-bezier(.16,1,.3,1) both;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Tooltip (enhanced — wrapping support)
+   ═══════════════════════════════════════════════════════════ */
+[data-tooltip-wrap]::after {
+  white-space: normal; max-width: 220px; text-align: center;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Keyboard Shortcut Hint Badge
+   ═══════════════════════════════════════════════════════════ */
+.kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-family: monospace; font-weight: 600;
+  background: #242836; border: 1px solid #2e3348; border-radius: 4px;
+  padding: 1px 5px; margin-left: 6px; color: #8b8fa3;
+  line-height: 1.4;
+}
+html.light .kbd { background: #eef0f5; border-color: #d8dce6; color: #6b7280; }
