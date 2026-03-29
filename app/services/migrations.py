@@ -155,7 +155,7 @@ def run_migrations(db: Any) -> int:
 
     Returns the number of newly applied migrations.
     """
-    is_mssql = hasattr(db, "_conn_str")  # AzureSQLDatabase has _conn_str
+    is_mssql = hasattr(db, "_connection_string")  # AzureSQLDatabase has _connection_string
     _ensure_migrations_table(db, is_mssql)
 
     applied = _get_applied_versions(db)

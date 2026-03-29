@@ -56,17 +56,18 @@ _JWT_ALGORITHM = "HS256"
 def _get_jwt_secret() -> str:
     """Return the JWT signing secret.
 
-    In debug/dev mode, auto-generates a runtime secret. In production
-    (debug=False), requires PG_JWT_SECRET to be explicitly configured.
+    When PG_JWT_SECRET is not set, auto-generates a runtime secret and logs
+    a warning. Tokens signed with the auto-generated secret will not survive
+    a server restart — users will need to log in again.
     """
     secret = settings.jwt_secret
     if not secret:
         if not settings.debug:
-            raise RuntimeError(
-                "PG_JWT_SECRET must be set in production. "
-                "Set PG_DEBUG=true for development auto-generation."
+            logger.warning(
+                "jwt_secret_not_configured",
+                hint="Set PG_JWT_SECRET for persistent sessions. "
+                     "Auto-generating a temporary secret — tokens will not survive restart.",
             )
-        # Dev-only: auto-generate (tokens won't survive restart)
         secret = os.environ.setdefault("PG_JWT_SECRET", secrets.token_hex(32))
     return secret
 
@@ -360,7 +361,7 @@ def reset_password(token: str, new_password: str) -> bool:
 
 def _is_mssql(db) -> bool:
     """Return True if the db instance is Azure SQL (MSSQL)."""
-    return hasattr(db, "_conn_str")
+    return hasattr(db, "_connection_string")
 
 
 def _ensure_password_resets_table(db) -> None:

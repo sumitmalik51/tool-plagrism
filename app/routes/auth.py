@@ -45,12 +45,12 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 class _AuthRateLimiter:
     """In-memory sliding-window rate limiter for auth endpoints.
 
-    Limits: 5 attempts per IP per 15-minute window.
+    Limits: 10 attempts per IP per 5-minute window.
     Thread-safe via a simple lock.
     """
 
-    _MAX_ATTEMPTS = 5
-    _WINDOW_SECONDS = 900  # 15 minutes
+    _MAX_ATTEMPTS = 10
+    _WINDOW_SECONDS = 300  # 5 minutes
 
     def __init__(self) -> None:
         self._attempts: dict[str, list[float]] = {}
@@ -66,7 +66,7 @@ class _AuthRateLimiter:
             if len(timestamps) >= self._MAX_ATTEMPTS:
                 raise HTTPException(
                     status_code=429,
-                    detail="Too many attempts. Please try again in 15 minutes.",
+                    detail="Too many attempts. Please try again in a few minutes.",
                 )
             timestamps.append(now)
             self._attempts[ip] = timestamps
