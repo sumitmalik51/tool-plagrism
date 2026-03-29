@@ -63,7 +63,7 @@ _allowed_origins = [
     "http://127.0.0.1:8000",
 ]
 if settings.debug:
-    _allowed_origins = ["*"]  # wide-open in dev mode
+    _allowed_origins.extend(["http://localhost:3000", "http://127.0.0.1:3000"])
 
 app.add_middleware(
     CORSMiddleware,

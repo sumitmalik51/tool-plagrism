@@ -96,3 +96,60 @@ function updateThemeIcons(isLight) {
 
 // Auto-init theme on load
 initTheme();
+
+/* --- Authenticated API helper with auto-refresh --- */
+async function apiFetch(url, options = {}) {
+  const token = localStorage.getItem('pg_token');
+  if (!options.headers) options.headers = {};
+  if (token) options.headers['Authorization'] = 'Bearer ' + token;
+
+  let res = await fetch(url, options);
+
+  // If 401, try refreshing the token
+  if (res.status === 401) {
+    const refreshToken = localStorage.getItem('pg_refresh_token');
+    if (refreshToken) {
+      try {
+        const rr = await fetch('/api/v1/auth/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+        if (rr.ok) {
+          const rd = await rr.json();
+          if (rd.token) {
+            localStorage.setItem('pg_token', rd.token);
+            options.headers['Authorization'] = 'Bearer ' + rd.token;
+            res = await fetch(url, options);
+          }
+        } else {
+          // Refresh failed — clear tokens and redirect to login
+          localStorage.removeItem('pg_token');
+          localStorage.removeItem('pg_refresh_token');
+          localStorage.removeItem('pg_user');
+          window.location.href = '/login';
+          return res;
+        }
+      } catch (_) {
+        // Network error on refresh — surface the original 401
+      }
+    }
+  }
+  return res;
+}
+
+/** Safely parse a JSON string with basic shape validation.
+ *  Returns null if parsing fails or required keys are missing.
+ */
+function safeParse(jsonStr, requiredKeys = []) {
+  try {
+    const obj = JSON.parse(jsonStr);
+    if (typeof obj !== 'object' || obj === null) return null;
+    for (const k of requiredKeys) {
+      if (!(k in obj)) return null;
+    }
+    return obj;
+  } catch(_) {
+    return null;
+  }
+}

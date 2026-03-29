@@ -532,6 +532,9 @@ def get_db() -> Database:
             db = SQLiteDatabase(db_path)
 
         db.init_schema()
+        # Run any outstanding migrations
+        from app.services.migrations import run_migrations
+        run_migrations(db)
         _db_instance = db
         return _db_instance
 

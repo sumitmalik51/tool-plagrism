@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import threading
+import time
 import structlog
 
 from pydantic import BaseModel, Field
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Request
 
 from app.config import settings
 from app.services.auth_service import (
@@ -18,6 +20,8 @@ from app.services.auth_service import (
     get_user_by_id,
     update_user_plan,
     verify_access_token,
+    create_access_token,
+    verify_refresh_token,
     create_password_reset_token,
     reset_password,
     verify_email,
@@ -31,6 +35,60 @@ from app.services.rate_limiter import PLAN_TO_TIER, UserTier, limiter
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+
+# ---------------------------------------------------------------------------
+# Auth endpoint rate limiting (brute-force protection)
+# ---------------------------------------------------------------------------
+
+class _AuthRateLimiter:
+    """In-memory sliding-window rate limiter for auth endpoints.
+
+    Limits: 5 attempts per IP per 15-minute window.
+    Thread-safe via a simple lock.
+    """
+
+    _MAX_ATTEMPTS = 5
+    _WINDOW_SECONDS = 900  # 15 minutes
+
+    def __init__(self) -> None:
+        self._attempts: dict[str, list[float]] = {}
+        self._lock = threading.Lock()
+
+    def check(self, ip: str) -> None:
+        """Raise HTTPException(429) if the IP has exceeded the limit."""
+        now = time.time()
+        cutoff = now - self._WINDOW_SECONDS
+        with self._lock:
+            timestamps = self._attempts.get(ip, [])
+            timestamps = [t for t in timestamps if t > cutoff]
+            if len(timestamps) >= self._MAX_ATTEMPTS:
+                raise HTTPException(
+                    status_code=429,
+                    detail="Too many attempts. Please try again in 15 minutes.",
+                )
+            timestamps.append(now)
+            self._attempts[ip] = timestamps
+
+    def cleanup(self) -> None:
+        """Periodic cleanup of stale entries (called lazily)."""
+        now = time.time()
+        cutoff = now - self._WINDOW_SECONDS
+        with self._lock:
+            stale = [k for k, v in self._attempts.items() if all(t <= cutoff for t in v)]
+            for k in stale:
+                del self._attempts[k]
+
+
+_auth_limiter = _AuthRateLimiter()
+
+
+def _client_ip(request: Request) -> str:
+    """Best-effort client IP (handles X-Forwarded-For behind proxies)."""
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
 
 
 # ---------------------------------------------------------------------------
@@ -57,6 +115,10 @@ class ResetPasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=6, max_length=128)
 
 
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str = Field(..., min_length=1)
+
+
 class UserResponse(BaseModel):
     id: int
     name: str
@@ -75,8 +137,9 @@ class AuthResponse(BaseModel):
 
 
 @router.post("/signup", response_model=AuthResponse, status_code=201)
-async def route_signup(body: SignupRequest):
+async def route_signup(body: SignupRequest, request: Request):
     """Register a new account and send a verification email."""
+    _auth_limiter.check(_client_ip(request))
     try:
         result = signup(name=body.name, email=body.email, password=body.password)
         # Send verification email via ACS
@@ -87,41 +150,53 @@ async def route_signup(body: SignupRequest):
     except AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        logger.error("signup_db_error", error=str(exc)[:200])
+        logger.error("signup_db_error", error_type=type(exc).__name__)
         raise HTTPException(status_code=503, detail="Service temporarily unavailable. Please try again in a few seconds.")
 
 
 @router.post("/login", response_model=AuthResponse)
-async def route_login(body: LoginRequest):
+async def route_login(body: LoginRequest, request: Request):
     """Authenticate with email + password and receive a JWT."""
+    _auth_limiter.check(_client_ip(request))
     try:
         result = login(email=body.email, password=body.password)
         return result
     except AuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
     except Exception as exc:
-        logger.error("login_db_error", error=str(exc)[:200])
+        logger.error("login_db_error", error_type=type(exc).__name__)
         raise HTTPException(status_code=503, detail="Service temporarily unavailable. Please try again in a few seconds.")
 
 
+@router.post("/refresh")
+async def route_refresh_token(body: RefreshTokenRequest):
+    """Exchange a valid refresh token for a new access token."""
+    payload = verify_refresh_token(body.refresh_token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token.")
+    user_id = int(payload["sub"])
+    email = payload.get("email", "")
+    new_token = create_access_token(user_id, email)
+    return {"token": new_token}
+
+
 @router.post("/forgot-password")
-async def route_forgot_password(body: ForgotPasswordRequest):
+async def route_forgot_password(body: ForgotPasswordRequest, request: Request):
     """Request a password reset token.
 
     Always returns 200 to avoid email enumeration.
     Sends a reset link via Azure Communication Services Email.
     """
+    _auth_limiter.check(_client_ip(request))
     token = create_password_reset_token(body.email)
-    email_sent = False
     if token:
-        email_sent = send_password_reset_email(body.email, token)
-        logger.info("password_reset_requested", email=body.email, has_user=True, email_sent=email_sent)
+        send_password_reset_email(body.email, token)
+        logger.info("password_reset_requested", has_user=True)
     else:
-        logger.info("password_reset_requested", email=body.email, has_user=False)
+        logger.info("password_reset_requested", has_user=False)
 
     return {
         "message": "If an account with this email exists, a password reset link has been sent.",
-        "email_sent": email_sent,
     }
 
 
@@ -226,6 +301,7 @@ def _get_user_id(authorization: str) -> int:
 async def route_user_scans(
     authorization: str = Header(default=""),
     limit: int = 50,
+    offset: int = 0,
     risk_level: str | None = None,
     sort_by: str = "created_at",
     sort_order: str = "desc",
@@ -233,9 +309,13 @@ async def route_user_scans(
 ):
     """Return the authenticated user's scan history with filtering and sorting."""
     user_id = _get_user_id(authorization)
+    # Clamp limit to prevent abuse
+    limit = min(max(limit, 1), 100)
+    offset = max(offset, 0)
     scans = get_user_scans(
         user_id,
         limit=limit,
+        offset=offset,
         risk_level=risk_level,
         sort_by=sort_by,
         sort_order=sort_order,
@@ -449,7 +529,6 @@ async def route_create_order(
         "order_id": order["id"],
         "amount": amount,
         "currency": "INR",
-        "key_id": settings.razorpay_key_id,
         "plan": body.plan,
         "user_name": user.get("name", ""),
         "user_email": user.get("email", ""),

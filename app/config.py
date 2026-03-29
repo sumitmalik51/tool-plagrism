@@ -1,5 +1,6 @@
 """Application configuration settings."""
 
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -74,7 +75,8 @@ class Settings(BaseSettings):
 
     # JWT settings (for user login/signup flow)
     jwt_secret: str = ""         # Set PG_JWT_SECRET in prod; auto-generated in dev
-    jwt_expiry_seconds: int = 86400  # 24 hours
+    jwt_expiry_seconds: int = 7200   # 2 hours (short-lived access tokens)
+    jwt_refresh_expiry_seconds: int = 604800  # 7 days (refresh token)
 
     # Scan rate limits (per day)
     scan_limit_anonymous: int = 3   # max scans/day for anonymous (by IP)
@@ -100,7 +102,7 @@ class Settings(BaseSettings):
 
     # Admin panel — comma-separated list of admin email addresses.
     # Set PG_ADMIN_EMAILS in production.
-    admin_emails: str = "sumitmalik51@gmail.com"
+    admin_emails: str = ""
 
     @model_validator(mode="after")
     def _parse_api_keys(self) -> "Settings":
@@ -109,6 +111,26 @@ class Settings(BaseSettings):
             self.api_keys = [
                 k.strip() for k in self.api_keys_raw.split(",") if k.strip()
             ]
+        return self
+
+    @model_validator(mode="after")
+    def _validate_production_secrets(self) -> "Settings":
+        """Ensure critical secrets are set when not in debug mode."""
+        if self.debug:
+            return self
+        missing: list[str] = []
+        if not self.jwt_secret:
+            missing.append("PG_JWT_SECRET")
+        if not self.sql_connection_string:
+            missing.append("PG_SQL_CONNECTION_STRING")
+        if not self.azure_openai_api_key:
+            missing.append("PG_AZURE_OPENAI_API_KEY")
+        if missing:
+            msg = (
+                f"Production mode requires these environment variables: "
+                f"{', '.join(missing)}. Set PG_DEBUG=true to bypass."
+            )
+            warnings.warn(msg, stacklevel=2)
         return self
 
     model_config = {"env_prefix": "PG_", "env_file": ".env"}

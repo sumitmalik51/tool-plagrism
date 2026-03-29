@@ -310,7 +310,10 @@
 
       // Save token + user info
       localStorage.setItem('pg_token', data.token);
-      localStorage.setItem('pg_user', JSON.stringify(data.user));
+      if (data.refresh_token) localStorage.setItem('pg_refresh_token', data.refresh_token);
+      if (data.user && typeof data.user === 'object' && data.user.id && data.user.email) {
+        localStorage.setItem('pg_user', JSON.stringify(data.user));
+      }
 
       await new Promise(r => setTimeout(r, 600));
       window.location.href = '/app';

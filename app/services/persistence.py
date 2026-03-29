@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.config import settings
 from app.services.database import get_db
 from app.utils.logger import get_logger
 
@@ -120,6 +121,7 @@ def get_scan(document_id: str) -> dict[str, Any] | None:
 def get_user_scans(
     user_id: int,
     limit: int = 50,
+    offset: int = 0,
     risk_level: str | None = None,
     sort_by: str = "created_at",
     sort_order: str = "desc",
@@ -158,7 +160,17 @@ def get_user_scans(
         f"WHERE {where_clause} ORDER BY s.{sort_by} {sort_order}"
     )
 
-    return db.fetch_all(query, tuple(params))[:limit]
+    # Apply OFFSET/LIMIT via SQL for proper pagination
+    limit = min(max(limit, 1), 100)
+    offset = max(offset, 0)
+    if settings.sql_connection_string:
+        # MSSQL syntax
+        query += f" OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY"
+    else:
+        # SQLite syntax
+        query += f" LIMIT {limit} OFFSET {offset}"
+
+    return db.fetch_all(query, tuple(params))
 
 
 def get_user_stats(user_id: int) -> dict[str, Any]:

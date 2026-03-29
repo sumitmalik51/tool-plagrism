@@ -54,10 +54,19 @@ _JWT_ALGORITHM = "HS256"
 
 
 def _get_jwt_secret() -> str:
-    """Return the JWT signing secret (create one automatically if missing)."""
+    """Return the JWT signing secret.
+
+    In debug/dev mode, auto-generates a runtime secret. In production
+    (debug=False), requires PG_JWT_SECRET to be explicitly configured.
+    """
     secret = settings.jwt_secret
     if not secret:
-        # Fall back to a runtime-generated secret (tokens won't survive restart)
+        if not settings.debug:
+            raise RuntimeError(
+                "PG_JWT_SECRET must be set in production. "
+                "Set PG_DEBUG=true for development auto-generation."
+            )
+        # Dev-only: auto-generate (tokens won't survive restart)
         secret = os.environ.setdefault("PG_JWT_SECRET", secrets.token_hex(32))
     return secret
 
@@ -68,10 +77,41 @@ def create_access_token(user_id: int, email: str) -> str:
     payload = {
         "sub": str(user_id),
         "email": email,
+        "type": "access",
         "iat": int(now),
         "exp": int(now + settings.jwt_expiry_seconds),
     }
     return jwt.encode(payload, _get_jwt_secret(), algorithm=_JWT_ALGORITHM)
+
+
+def create_refresh_token(user_id: int, email: str) -> str:
+    """Create a long-lived refresh token for the given user."""
+    now = time.time()
+    payload = {
+        "sub": str(user_id),
+        "email": email,
+        "type": "refresh",
+        "iat": int(now),
+        "exp": int(now + settings.jwt_refresh_expiry_seconds),
+    }
+    return jwt.encode(payload, _get_jwt_secret(), algorithm=_JWT_ALGORITHM)
+
+
+def verify_refresh_token(token: str) -> dict[str, Any] | None:
+    """Decode and verify a refresh JWT. Returns payload or None."""
+    try:
+        payload = jwt.decode(
+            token, _get_jwt_secret(), algorithms=[_JWT_ALGORITHM]
+        )
+        if payload.get("type") != "refresh":
+            return None
+        return payload
+    except jwt.ExpiredSignatureError:
+        logger.info("refresh_token_expired")
+        return None
+    except jwt.InvalidTokenError as exc:
+        logger.warning("refresh_token_invalid", error=str(exc))
+        return None
 
 
 def verify_access_token(token: str) -> dict[str, Any] | None:
@@ -142,11 +182,13 @@ def signup(name: str, email: str, password: str) -> dict[str, Any]:
         logger.warning("email_verification_insert_failed", error=str(exc))
 
     token = create_access_token(user_id, email)
+    refresh = create_refresh_token(user_id, email)
     logger.info("user_created", user_id=user_id, email=email)
 
     return {
         "user": {"id": user_id, "name": name, "email": email, "plan_type": "pro", "trial_ends_at": trial_ends_at},
         "token": token,
+        "refresh_token": refresh,
         "verification_token": verification_token,
     }
 
@@ -170,6 +212,7 @@ def login(email: str, password: str) -> dict[str, Any]:
         raise AuthError("Invalid email or password.")
 
     token = create_access_token(row["id"], row["email"])
+    refresh = create_refresh_token(row["id"], row["email"])
     logger.info("user_login", user_id=row["id"], email=row["email"])
 
     # Fetch plan_type and trial info for the user
@@ -192,6 +235,7 @@ def login(email: str, password: str) -> dict[str, Any]:
             "trial_ends_at": trial_ends_at,
         },
         "token": token,
+        "refresh_token": refresh,
     }
 
 

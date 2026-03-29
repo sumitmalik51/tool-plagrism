@@ -14,8 +14,11 @@ Public paths (health, docs, static assets, auth endpoints) bypass auth entirely.
 from __future__ import annotations
 
 import hmac
+import secrets
 import time
 from typing import Callable
+
+import structlog
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -122,18 +125,84 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Add security headers to every response."""
+    """Add security headers, request IDs, CSP, and cache-control to every response.
+
+    Also enforces a lightweight CSRF check on non-public POST/PUT/DELETE
+    requests: requires either an ``Authorization`` header (Bearer/API key)
+    or ``X-Requested-With`` header to prove the request was sent from JS,
+    not a cross-origin form submission.
+    """
+
+    _CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+    _CSRF_EXEMPT_PREFIXES = ("/api/v1/auth/signup", "/api/v1/auth/login",
+                             "/api/v1/auth/reset-password", "/api/v1/auth/verify-email",
+                             "/api/v1/auth/forgot-password", "/api/v1/auth/refresh")
+
+    # Static file extensions that get long cache headers
+    _CACHEABLE_SUFFIXES = (".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff2", ".woff")
 
     async def dispatch(
         self, request: Request, call_next: Callable
     ) -> Response:
+        # Generate a unique request ID for correlation
+        request_id = secrets.token_hex(8)
+        structlog.contextvars.bind_contextvars(request_id=request_id)
+
+        # CSRF check: state-changing requests must have auth or X-Requested-With
+        if (
+            request.method not in self._CSRF_SAFE_METHODS
+            and not _is_public_path(request.url.path)
+            and not any(request.url.path.startswith(p) for p in self._CSRF_EXEMPT_PREFIXES)
+        ):
+            has_auth = request.headers.get("Authorization", "") or request.headers.get("X-API-Key", "")
+            has_xhr = request.headers.get("X-Requested-With", "")
+            if not has_auth and not has_xhr:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Forbidden — missing authentication or X-Requested-With header."},
+                )
+
         response = await call_next(request)
+
+        # Request ID
+        response.headers["X-Request-ID"] = request_id
+
+        # Security headers
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+
+        # Content Security Policy
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://checkout.razorpay.com; "
+            "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data:; "
+            "connect-src 'self' https://api.razorpay.com; "
+            "frame-src https://api.razorpay.com; "
+            "object-src 'none'; "
+            "base-uri 'self'"
+        )
+
+        # HSTS
         if request.url.scheme == "https":
             response.headers["Strict-Transport-Security"] = (
                 "max-age=31536000; includeSubDomains"
             )
+
+        # Cache-Control: long cache for static assets, no-cache for API/HTML
+        path = request.url.path
+        if path.startswith("/static/") and any(path.endswith(s) for s in self._CACHEABLE_SUFFIXES):
+            response.headers["Cache-Control"] = "public, max-age=86400, immutable"
+        elif path.startswith("/static/"):
+            # HTML files in static — short cache
+            response.headers["Cache-Control"] = "public, max-age=300"
+        elif path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
+
+        # Clean up structlog context
+        structlog.contextvars.unbind_contextvars("request_id")
+
         return response
