@@ -358,33 +358,35 @@ def reset_password(token: str, new_password: str) -> bool:
     return True
 
 
+def _is_mssql(db) -> bool:
+    """Return True if the db instance is Azure SQL (MSSQL)."""
+    return hasattr(db, "_conn_str")
+
+
 def _ensure_password_resets_table(db) -> None:
     """Create the password_resets table if it doesn't exist."""
     try:
-        db.execute(
-            """CREATE TABLE IF NOT EXISTS password_resets (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id     INTEGER NOT NULL,
-                token       TEXT NOT NULL,
-                expires_at  INTEGER NOT NULL,
-                created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-            )"""
-        )
-    except Exception:
-        # MSSQL syntax
-        try:
+        if _is_mssql(db):
             db.execute(
-                """IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'password_resets')
-                CREATE TABLE password_resets (
-                    id          INT IDENTITY(1,1) PRIMARY KEY,
-                    user_id     INT NOT NULL,
-                    token       NVARCHAR(255) NOT NULL,
-                    expires_at  INT NOT NULL,
-                    created_at  DATETIME2 NOT NULL DEFAULT GETUTCDATE()
-                )"""
+                "IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'password_resets') "
+                "CREATE TABLE password_resets ("
+                "  id INT IDENTITY(1,1) PRIMARY KEY,"
+                "  user_id INT NOT NULL,"
+                "  token NVARCHAR(255) NOT NULL,"
+                "  expires_at INT NOT NULL,"
+                "  created_at DATETIME2 NOT NULL DEFAULT GETUTCDATE())"
             )
-        except Exception:
-            pass  # Table likely already exists
+        else:
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS password_resets ("
+                "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "  user_id INTEGER NOT NULL,"
+                "  token TEXT NOT NULL,"
+                "  expires_at INTEGER NOT NULL,"
+                "  created_at TEXT NOT NULL DEFAULT (datetime('now')))"
+            )
+    except Exception:
+        pass  # Table likely already exists
 
 
 # ---------------------------------------------------------------------------
@@ -448,90 +450,89 @@ def resend_verification_token(user_id: int) -> str:
 def _ensure_email_verifications_table(db) -> None:
     """Create the email_verifications table if it doesn't exist."""
     try:
-        db.execute(
-            """CREATE TABLE IF NOT EXISTS email_verifications (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id     INTEGER NOT NULL,
-                token       TEXT NOT NULL,
-                created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-            )"""
-        )
-    except Exception:
-        try:
+        if _is_mssql(db):
             db.execute(
-                """IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'email_verifications')
-                CREATE TABLE email_verifications (
-                    id          INT IDENTITY(1,1) PRIMARY KEY,
-                    user_id     INT NOT NULL,
-                    token       NVARCHAR(255) NOT NULL,
-                    created_at  DATETIME2 NOT NULL DEFAULT GETUTCDATE()
-                )"""
+                "IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'email_verifications') "
+                "CREATE TABLE email_verifications ("
+                "  id INT IDENTITY(1,1) PRIMARY KEY,"
+                "  user_id INT NOT NULL,"
+                "  token NVARCHAR(255) NOT NULL,"
+                "  created_at DATETIME2 NOT NULL DEFAULT GETUTCDATE())"
             )
-        except Exception:
-            pass
+        else:
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS email_verifications ("
+                "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "  user_id INTEGER NOT NULL,"
+                "  token TEXT NOT NULL,"
+                "  created_at TEXT NOT NULL DEFAULT (datetime('now')))"
+            )
+    except Exception:
+        pass
 
 
 def _ensure_email_verified_column(db) -> None:
     """Add email_verified column to users table if not present."""
     try:
-        db.execute("ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0")
-    except Exception:
-        try:
+        if _is_mssql(db):
             db.execute(
                 "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('users') AND name = 'email_verified') "
                 "ALTER TABLE users ADD email_verified BIT NOT NULL DEFAULT 0"
             )
-        except Exception:
-            pass  # Column already exists
+        else:
+            db.execute("ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0")
+    except Exception:
+        pass  # Column already exists
 
 
 def _ensure_referral_tables(db) -> None:
     """Ensure referral-related columns and table exist."""
+    mssql = _is_mssql(db)
     # Add referral_code column to users
     try:
-        db.execute("ALTER TABLE users ADD COLUMN referral_code TEXT NULL")
-    except Exception:
-        try:
+        if mssql:
             db.execute(
                 "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('users') AND name = 'referral_code') "
                 "ALTER TABLE users ADD referral_code NVARCHAR(50) NULL"
             )
-        except Exception:
-            pass
+        else:
+            db.execute("ALTER TABLE users ADD COLUMN referral_code TEXT NULL")
+    except Exception:
+        pass
     # Add bonus_scans column to users
     try:
-        db.execute("ALTER TABLE users ADD COLUMN bonus_scans INTEGER DEFAULT 0")
-    except Exception:
-        try:
+        if mssql:
             db.execute(
                 "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('users') AND name = 'bonus_scans') "
                 "ALTER TABLE users ADD bonus_scans INT DEFAULT 0"
             )
-        except Exception:
-            pass
+        else:
+            db.execute("ALTER TABLE users ADD COLUMN bonus_scans INTEGER DEFAULT 0")
+    except Exception:
+        pass
     # Create referrals table
     try:
-        db.execute(
-            "CREATE TABLE IF NOT EXISTS referrals ("
-            "  id INTEGER PRIMARY KEY AUTOINCREMENT, "
-            "  referrer_id INTEGER NOT NULL, "
-            "  referee_id INTEGER NOT NULL, "
-            "  reward_given INTEGER DEFAULT 0, "
-            "  created_at TEXT DEFAULT CURRENT_TIMESTAMP)"
-        )
-    except Exception:
-        try:
+        if mssql:
             db.execute(
                 "IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID('referrals')) "
                 "CREATE TABLE referrals ("
-                "  id INT IDENTITY(1,1) PRIMARY KEY, "
-                "  referrer_id INT NOT NULL, "
-                "  referee_id INT NOT NULL, "
-                "  reward_given INT DEFAULT 0, "
+                "  id INT IDENTITY(1,1) PRIMARY KEY,"
+                "  referrer_id INT NOT NULL,"
+                "  referee_id INT NOT NULL,"
+                "  reward_given INT DEFAULT 0,"
                 "  created_at DATETIME2 DEFAULT GETUTCDATE())"
             )
-        except Exception:
-            pass
+        else:
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS referrals ("
+                "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "  referrer_id INTEGER NOT NULL,"
+                "  referee_id INTEGER NOT NULL,"
+                "  reward_given INTEGER DEFAULT 0,"
+                "  created_at TEXT DEFAULT CURRENT_TIMESTAMP)"
+            )
+    except Exception:
+        pass
 
 
 _REFERRAL_BONUS_SCANS = 5  # Both referrer and referee get 5 bonus scans
@@ -593,15 +594,15 @@ def get_referral_info(user_id: int) -> dict[str, Any]:
 def _ensure_trial_ends_at_column(db) -> None:
     """Add trial_ends_at column to users table if not present."""
     try:
-        db.execute("ALTER TABLE users ADD COLUMN trial_ends_at TEXT NULL")
-    except Exception:
-        try:
+        if _is_mssql(db):
             db.execute(
                 "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('users') AND name = 'trial_ends_at') "
                 "ALTER TABLE users ADD trial_ends_at DATETIME2 NULL"
             )
-        except Exception:
-            pass  # Column already exists
+        else:
+            db.execute("ALTER TABLE users ADD COLUMN trial_ends_at TEXT NULL")
+    except Exception:
+        pass  # Column already exists
 
 
 def _check_trial_expiry(db, user_id: int, plan_type: str, trial_ends_at) -> tuple[str, str | None]:

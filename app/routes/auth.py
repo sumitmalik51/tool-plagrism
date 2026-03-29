@@ -439,12 +439,22 @@ def _check_trial_emails(user: dict) -> None:
         db = get_db()
 
         # Ensure tracking table exists
+        _is_mssql = hasattr(db, "_conn_str")
         try:
-            db.execute(
-                "CREATE TABLE IF NOT EXISTS trial_emails ("
-                "  user_id INTEGER NOT NULL, email_type TEXT NOT NULL, sent_at TEXT DEFAULT CURRENT_TIMESTAMP, "
-                "  PRIMARY KEY (user_id, email_type))"
-            )
+            if _is_mssql:
+                db.execute(
+                    "IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'trial_emails') "
+                    "CREATE TABLE trial_emails ("
+                    "  user_id INT NOT NULL, email_type NVARCHAR(50) NOT NULL, "
+                    "  sent_at DATETIME2 DEFAULT GETUTCDATE(), "
+                    "  PRIMARY KEY (user_id, email_type))"
+                )
+            else:
+                db.execute(
+                    "CREATE TABLE IF NOT EXISTS trial_emails ("
+                    "  user_id INTEGER NOT NULL, email_type TEXT NOT NULL, sent_at TEXT DEFAULT CURRENT_TIMESTAMP, "
+                    "  PRIMARY KEY (user_id, email_type))"
+                )
         except Exception:
             pass  # Table may already exist
 

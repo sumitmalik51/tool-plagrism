@@ -206,7 +206,10 @@ class AzureSQLDatabase(Database):
             conn = self._conn()
             cursor = conn.cursor()
             try:
-                cursor.execute(sql, params)
+                if params:
+                    cursor.execute(sql, params)
+                else:
+                    cursor.execute(sql)
                 conn.commit()
                 if sql.strip().upper().startswith("INSERT"):
                     cursor.execute("SELECT SCOPE_IDENTITY()")
@@ -235,7 +238,10 @@ class AzureSQLDatabase(Database):
             conn = self._conn()
             cursor = conn.cursor()
             try:
-                cursor.execute(sql, params)
+                if params:
+                    cursor.execute(sql, params)
+                else:
+                    cursor.execute(sql)
                 row = cursor.fetchone()
                 if not row:
                     return None
@@ -259,7 +265,10 @@ class AzureSQLDatabase(Database):
             conn = self._conn()
             cursor = conn.cursor()
             try:
-                cursor.execute(sql, params)
+                if params:
+                    cursor.execute(sql, params)
+                else:
+                    cursor.execute(sql)
                 columns = [desc[0] for desc in cursor.description]
                 return [dict(zip(columns, row)) for row in cursor.fetchall()]
             except Exception as exc:
