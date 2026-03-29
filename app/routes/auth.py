@@ -29,6 +29,11 @@ from app.services.auth_service import (
     resend_verification_token,
     get_referral_info,
 )
+from app.services.api_key_service import (
+    create_api_key,
+    list_api_keys,
+    revoke_api_key,
+)
 from app.services.email_service import send_password_reset_email, send_verification_email, send_welcome_email
 from app.services.persistence import get_scan, get_user_scans, get_user_stats
 from app.services.rate_limiter import PLAN_TO_TIER, UserTier, limiter
@@ -947,3 +952,68 @@ async def route_change_plan(
         "previous_plan": current,
         "message": f"Plan changed from {current} to {target}.",
     }
+
+
+# ---------------------------------------------------------------------------
+# API Key Management (Pro/Premium only)
+# ---------------------------------------------------------------------------
+
+class CreateApiKeyRequest(BaseModel):
+    name: str = Field(default="Default", max_length=100, description="Friendly name for the key")
+
+
+@router.post("/api-keys")
+async def route_create_api_key(
+    body: CreateApiKeyRequest,
+    authorization: str = Header(default=""),
+):
+    """Generate a new API key. Pro/Premium plans only. Max 5 active keys."""
+    user_id = _get_user_id(authorization)
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    plan = user.get("plan_type", "free")
+    if plan == "free":
+        raise HTTPException(status_code=403, detail="API keys require a Pro or Premium plan. Upgrade to get started.")
+
+    try:
+        result = create_api_key(user_id, body.name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    return {
+        "id": result["id"],
+        "key": result["key"],
+        "prefix": result["prefix"],
+        "name": result["name"],
+        "message": "Store this key securely — it won't be shown again.",
+    }
+
+
+@router.get("/api-keys")
+async def route_list_api_keys(
+    authorization: str = Header(default=""),
+):
+    """List all API keys for the authenticated user."""
+    user_id = _get_user_id(authorization)
+    keys = list_api_keys(user_id)
+    return {"keys": keys}
+
+
+@router.post("/api-keys/revoke")
+async def route_revoke_api_key(
+    body: dict,
+    authorization: str = Header(default=""),
+):
+    """Revoke an API key by its ID."""
+    user_id = _get_user_id(authorization)
+    key_id = body.get("key_id")
+    if not key_id:
+        raise HTTPException(status_code=400, detail="key_id is required.")
+
+    revoked = revoke_api_key(user_id, int(key_id))
+    if not revoked:
+        raise HTTPException(status_code=404, detail="API key not found or already revoked.")
+
+    return {"success": True, "message": "API key revoked."}

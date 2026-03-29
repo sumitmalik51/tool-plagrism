@@ -106,12 +106,21 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if request.headers.get("X-MS-CLIENT-PRINCIPAL"):
             return await call_next(request)
 
-        # 5. API Key check
+        # 5. API Key check (static admin keys from env)
         api_key = request.headers.get("X-API-Key", "")
         if api_key and _validate_api_key(api_key):
             return await call_next(request)
 
-        # 6. Unauthorized
+        # 6. User-generated API keys (pg_xxx tokens from DB)
+        if api_key and api_key.startswith("pg_"):
+            from app.services.api_key_service import validate_api_key
+            key_info = validate_api_key(api_key)
+            if key_info:
+                request.state.user_id = key_info["user_id"]
+                request.state.user_email = key_info.get("email", "")
+                return await call_next(request)
+
+        # 7. Unauthorized
         logger.warning(
             "auth_rejected",
             path=path,

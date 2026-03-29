@@ -387,6 +387,19 @@ CREATE TABLE IF NOT EXISTS document_fingerprints (
     created_at  TEXT          NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_doc_fps_user ON document_fingerprints(user_id);
+
+CREATE TABLE IF NOT EXISTS user_api_keys (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER       NOT NULL REFERENCES users(id),
+    key_prefix  TEXT          NOT NULL,
+    key_hash    TEXT          NOT NULL,
+    name        TEXT          NOT NULL DEFAULT 'Default',
+    is_active   INTEGER       NOT NULL DEFAULT 1,
+    last_used_at TEXT         NULL,
+    created_at  TEXT          NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_api_keys_user ON user_api_keys(user_id);
+CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON user_api_keys(key_hash);
 """
 
 _MSSQL_SCHEMA = """
@@ -492,6 +505,24 @@ CREATE TABLE document_fingerprints (
 ---
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_doc_fps_user')
 CREATE INDEX idx_doc_fps_user ON document_fingerprints(user_id);
+---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'user_api_keys')
+CREATE TABLE user_api_keys (
+    id           INT IDENTITY(1,1) PRIMARY KEY,
+    user_id      INT               NOT NULL REFERENCES users(id),
+    key_prefix   NVARCHAR(20)      NOT NULL,
+    key_hash     NVARCHAR(128)     NOT NULL,
+    name         NVARCHAR(100)     NOT NULL DEFAULT 'Default',
+    is_active    BIT               NOT NULL DEFAULT 1,
+    last_used_at DATETIME2         NULL,
+    created_at   DATETIME2         NOT NULL DEFAULT GETUTCDATE()
+);
+---
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_api_keys_user')
+CREATE INDEX idx_api_keys_user ON user_api_keys(user_id);
+---
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_api_keys_hash')
+CREATE INDEX idx_api_keys_hash ON user_api_keys(key_hash);
 """
 
 

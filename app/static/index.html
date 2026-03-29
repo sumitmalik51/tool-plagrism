@@ -247,6 +247,30 @@
         </div>
       </section>
 
+      <!-- API Key Management (Pro/Premium) -->
+      <section class="px-6 pb-8" id="apiKeysSection" style="display:none;">
+        <div class="max-w-5xl mx-auto">
+          <div class="bg-surface/80 border border-border rounded-2xl p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-bold flex items-center gap-2">🔑 API Keys</h3>
+              <button onclick="createApiKey()" class="px-4 py-2 bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-semibold rounded-lg hover:shadow-lg hover:shadow-accent/25 transition-all">+ New Key</button>
+            </div>
+            <p class="text-sm text-muted mb-4">Use API keys for programmatic access. Include as <code class="text-accent-l text-xs bg-surface2 px-1.5 py-0.5 rounded">X-API-Key</code> header in requests.</p>
+            <div id="apiKeysList" class="space-y-2">
+              <p class="text-sm text-muted py-4 text-center">Loading...</p>
+            </div>
+            <!-- New key reveal (shown once after creation) -->
+            <div id="newKeyReveal" class="hidden mt-4 p-4 bg-ok/10 border border-ok/25 rounded-xl">
+              <p class="text-sm font-semibold text-ok mb-2">🔐 New API Key Created — copy it now, it won't be shown again!</p>
+              <div class="flex items-center gap-2">
+                <input type="text" id="newKeyValue" readonly class="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-txt font-mono flex-1 outline-none">
+                <button onclick="copyNewApiKey()" class="px-3 py-2 bg-ok text-white text-sm font-semibold rounded-lg hover:opacity-85 transition-opacity">Copy</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Recent Scans -->
       <section class="px-6 pb-12">
         <div class="max-w-5xl mx-auto">
@@ -390,6 +414,10 @@
             class="tab-btn px-5 py-2.5 rounded-lg text-sm font-medium transition-all">
             📄 Upload File
           </button>
+          <button id="tabGdoc" onclick="switchTab('gdoc')"
+            class="tab-btn px-5 py-2.5 rounded-lg text-sm font-medium transition-all">
+            📝 Google Docs
+          </button>
         </div>
 
         <!-- Text input -->
@@ -398,6 +426,25 @@
             <textarea id="textInput" rows="10" placeholder="Paste your text here and click Analyze…"
               class="glow-input w-full bg-surface border border-border rounded-xl p-5 text-sm leading-relaxed text-txt placeholder-muted resize-y focus:outline-none transition-all"></textarea>
             <div class="absolute bottom-3 right-4 text-xs text-muted" id="charCount">0 characters</div>
+          </div>
+        </div>
+
+        <!-- Google Docs import -->
+        <div id="gdocPanel" class="hidden">
+          <div class="bg-surface border border-border rounded-xl p-6 text-center">
+            <div class="text-4xl mb-3">📝</div>
+            <h3 class="font-semibold text-sm mb-2">Import from Google Docs</h3>
+            <p class="text-xs text-muted mb-4">Paste a Google Docs sharing link. The document must be set to <strong>"Anyone with the link can view"</strong>.</p>
+            <div class="flex items-center gap-2 max-w-lg mx-auto">
+              <input id="gdocUrl" type="url" placeholder="https://docs.google.com/document/d/..." class="glow-input flex-1 bg-surface2 border border-border rounded-lg px-4 py-2.5 text-sm text-txt placeholder-muted focus:outline-none">
+              <button id="gdocImportBtn" onclick="importGoogleDoc()" class="px-5 py-2.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-semibold rounded-lg hover:shadow-lg hover:shadow-accent/25 transition-all whitespace-nowrap">Import</button>
+            </div>
+            <div id="gdocLoader" class="hidden mt-4">
+              <div class="w-6 h-6 border-2 border-border border-t-accent rounded-full spinner mx-auto"></div>
+              <p class="text-xs text-muted mt-2">Fetching document from Google...</p>
+            </div>
+            <div id="gdocError" class="hidden mt-3 text-sm text-danger" role="alert"></div>
+            <div id="gdocSuccess" class="hidden mt-3 text-sm text-ok"></div>
           </div>
         </div>
 
@@ -1315,8 +1362,10 @@
     const passive = 'bg-surface2 text-muted hover:text-txt';
     $('tabText').className = `tab-btn px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${mode === 'text' ? active : passive}`;
     $('tabFile').className = `tab-btn px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${mode === 'file' ? active : passive}`;
+    $('tabGdoc').className = `tab-btn px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${mode === 'gdoc' ? active : passive}`;
     $('textPanel').classList.toggle('hidden', mode !== 'text');
     $('filePanel').classList.toggle('hidden', mode !== 'file');
+    $('gdocPanel').classList.toggle('hidden', mode !== 'gdoc');
     updateAnalyzeBtn();
   }
   switchTab('text');
@@ -1395,10 +1444,46 @@
 
   // fmtBytes() is defined in common.js
 
+  /* ═══════════════════════════════════════════════════════════
+     Google Docs Import
+     ═══════════════════════════════════════════════════════════ */
+  async function importGoogleDoc() {
+    const url = $('gdocUrl').value.trim();
+    if (!url) { $('gdocError').textContent = 'Please paste a Google Docs URL.'; $('gdocError').classList.remove('hidden'); return; }
+    $('gdocError').classList.add('hidden');
+    $('gdocSuccess').classList.add('hidden');
+    $('gdocLoader').classList.remove('hidden');
+    $('gdocImportBtn').disabled = true;
+
+    try {
+      const res = await fetch('/api/v1/import-google-doc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('pg_token') || '') },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Import failed');
+      $('textInput').value = data.text;
+      $('charCount').textContent = data.char_count.toLocaleString() + ' characters';
+      $('gdocSuccess').textContent = `✅ Imported ${data.char_count.toLocaleString()} characters from Google Docs.`;
+      $('gdocSuccess').classList.remove('hidden');
+      switchTab('text');
+      updateAnalyzeBtn();
+    } catch (err) {
+      $('gdocError').textContent = err.message;
+      $('gdocError').classList.remove('hidden');
+    } finally {
+      $('gdocLoader').classList.add('hidden');
+      $('gdocImportBtn').disabled = false;
+    }
+  }
+
   function updateAnalyzeBtn() {
     const ready = currentMode === 'text'
       ? $('textInput').value.trim().length > 0
-      : (currentFile !== null || currentFiles.length > 0);
+      : currentMode === 'gdoc'
+        ? $('textInput').value.trim().length > 0
+        : (currentFile !== null || currentFiles.length > 0);
     $('analyzeBtn').disabled = !ready;
   }
 
@@ -2482,9 +2567,13 @@
       <div class="flex gap-2 mb-2">
         <button onclick="showDocTab('original')" id="docTabOriginal" class="text-xs px-3 py-1.5 bg-danger/10 text-danger rounded font-semibold">Original</button>
         <button onclick="showDocTab('rewritten')" id="docTabRewritten" class="text-xs px-3 py-1.5 bg-ok text-white rounded font-semibold">Rewritten</button>
+        <button onclick="exportDocx()" class="text-xs px-3 py-1.5 bg-accent/10 text-accent-l rounded font-semibold hover:bg-accent/20 transition-colors" title="Download as Word document">📄 Export .docx</button>
       </div>
       <div id="docOriginalPane" class="text-sm leading-relaxed p-4 bg-danger/[.04] border border-danger/20 rounded-md max-h-96 overflow-y-auto whitespace-pre-wrap hidden">${esc(data.original)}</div>
       <div id="docRewriteOutput" class="text-sm leading-relaxed p-4 bg-ok/[.04] border border-ok/20 rounded-md max-h-96 overflow-y-auto whitespace-pre-wrap">${esc(data.rewritten)}</div>`;
+    // Store data for export
+    card.dataset.original = data.original;
+    card.dataset.rewritten = data.rewritten;
     return card;
   }
 
@@ -2493,6 +2582,34 @@
     const rewr = document.getElementById('docRewriteOutput');
     if (tab === 'original') { orig?.classList.remove('hidden'); rewr?.classList.add('hidden'); }
     else { orig?.classList.add('hidden'); rewr?.classList.remove('hidden'); }
+  }
+
+  async function exportDocx() {
+    const container = $('rewriteResults');
+    const card = container?.querySelector('[data-original]');
+    if (!card) { showToast('No rewrite to export.'); return; }
+    const original = card.dataset.original;
+    const rewritten = card.dataset.rewritten;
+    try {
+      const res = await fetch('/api/v1/rewrite/export-docx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('pg_token') || '') },
+        body: JSON.stringify({ original, rewritten, title: 'Rewritten Document', show_changes: true })
+      });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.detail || 'Export failed'); }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'rewritten-document.docx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast('Word document downloaded!');
+    } catch (err) {
+      alert('⚠ ' + err.message);
+    }
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -3874,6 +3991,17 @@
 
     // Update pricing buttons based on current plan
     updatePricingButtons(plan);
+
+    // Show API Keys section for Pro/Premium users
+    const apiKeysEl = $('apiKeysSection');
+    if (apiKeysEl) {
+      if (plan === 'pro' || plan === 'premium') {
+        apiKeysEl.style.display = '';
+        loadApiKeys();
+      } else {
+        apiKeysEl.style.display = 'none';
+      }
+    }
   }
 
   function updatePricingButtons(currentPlan) {
@@ -3954,6 +4082,87 @@
     } catch (err) {
       alert('⚠ ' + err.message);
     }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     API Key Management (Pro / Premium)
+     ═══════════════════════════════════════════════════════════ */
+  async function loadApiKeys() {
+    const token = localStorage.getItem('pg_token');
+    if (!token) return;
+    const list = $('apiKeysList');
+    try {
+      const res = await fetch('/api/v1/auth/api-keys', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (!res.ok) { list.innerHTML = '<p class="text-sm text-danger py-2">Failed to load keys.</p>'; return; }
+      const data = await res.json();
+      const keys = data.keys || data;
+      if (!keys.length) {
+        list.innerHTML = '<p class="text-sm text-muted py-4 text-center">No API keys yet. Click "+ New Key" to create one.</p>';
+        return;
+      }
+      list.innerHTML = keys.map(k => `
+        <div class="flex items-center justify-between p-3 bg-surface2 rounded-lg">
+          <div class="flex items-center gap-3">
+            <span class="font-mono text-sm text-accent-l">${esc(k.prefix || k.key_prefix)}…</span>
+            <span class="text-sm text-txt">${esc(k.name)}</span>
+            <span class="text-xs text-muted">${k.last_used_at ? 'Last used ' + new Date(k.last_used_at).toLocaleDateString() : 'Never used'}</span>
+          </div>
+          <button onclick="revokeApiKey(${k.id})" class="text-xs px-3 py-1.5 bg-danger/10 text-danger rounded-lg hover:bg-danger/20 transition-colors font-semibold">Revoke</button>
+        </div>`).join('');
+    } catch { list.innerHTML = '<p class="text-sm text-danger py-2">Error loading keys.</p>'; }
+  }
+
+  async function createApiKey() {
+    const name = prompt('Name for this API key (e.g. "CI Pipeline"):');
+    if (!name || !name.trim()) return;
+    const token = localStorage.getItem('pg_token');
+    if (!token) { window.location.href = '/login'; return; }
+    try {
+      const res = await fetch('/api/v1/auth/api-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ name: name.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to create key');
+      $('newKeyValue').value = data.key;
+      $('newKeyReveal').classList.remove('hidden');
+      showToast('API key created!');
+      loadApiKeys();
+    } catch (err) {
+      alert('⚠ ' + err.message);
+    }
+  }
+
+  async function revokeApiKey(keyId) {
+    if (!confirm('Revoke this API key? Any integrations using it will stop working.')) return;
+    const token = localStorage.getItem('pg_token');
+    if (!token) return;
+    try {
+      const res = await fetch('/api/v1/auth/api-keys/revoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ key_id: keyId })
+      });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.detail || 'Failed'); }
+      showToast('API key revoked.');
+      $('newKeyReveal').classList.add('hidden');
+      loadApiKeys();
+    } catch (err) {
+      alert('⚠ ' + err.message);
+    }
+  }
+
+  function copyNewApiKey() {
+    const val = $('newKeyValue').value;
+    if (!val) return;
+    navigator.clipboard.writeText(val).then(() => showToast('API key copied!')).catch(() => {
+      $('newKeyValue').select();
+      document.execCommand('copy');
+      showToast('API key copied!');
+    });
   }
 
   let _billingAnnual = false;
