@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import os
 import tempfile
 from pathlib import Path
+
+# Enable debug mode before any app code is imported so the JWT secret
+# auto-generates and the production-secret validator is skipped.
+os.environ.setdefault("PG_DEBUG", "true")
 
 import pytest
 
@@ -27,4 +32,8 @@ def _reset_usage_limiter():
     rate-limit interference."""
     from app.services.rate_limiter import limiter
     limiter.reset()
+    # Also reset the auth endpoint rate limiter
+    from app.routes.auth import _auth_limiter
+    with _auth_limiter._lock:
+        _auth_limiter._attempts.clear()
     yield
