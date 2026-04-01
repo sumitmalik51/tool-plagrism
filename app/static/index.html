@@ -31,6 +31,8 @@
     .source-card { transition: background .15s; cursor: pointer; }
     .source-card:hover { background: rgba(108,92,231,.1); }
     .source-card.active { background: rgba(108,92,231,.15); border-left: 3px solid #6c5ce7; }
+    .feature-card, .action-card, .stat-card { transition: transform .25s ease, box-shadow .25s ease, border-color .3s; }
+    .feature-card:active, .action-card:active { transform: scale(.97); }
   </style>
 </head>
 <body class="bg-bg text-txt min-h-screen">
@@ -495,10 +497,27 @@
           </label>
         </div>
 
-        <!-- Analyze button -->
-        <div class="text-center mt-6">
+        <!-- Language selector + Analyze button -->
+        <div class="flex items-center justify-center gap-4 mt-6">
+          <div class="flex items-center gap-2">
+            <label for="langSelect" class="text-xs text-muted whitespace-nowrap">🌐 Language:</label>
+            <select id="langSelect" class="bg-surface2 border border-border rounded-lg px-3 py-2 text-sm text-txt focus:outline-none focus:border-accent transition-colors">
+              <option value="">Auto-detect</option>
+              <option value="en">English</option>
+              <option value="es">Español</option>
+              <option value="fr">Français</option>
+              <option value="de">Deutsch</option>
+              <option value="pt">Português</option>
+              <option value="it">Italiano</option>
+              <option value="hi">हिन्दी</option>
+              <option value="zh">中文</option>
+              <option value="ja">日本語</option>
+              <option value="ko">한국어</option>
+              <option value="ar">العربية</option>
+            </select>
+          </div>
           <button id="analyzeBtn" disabled
-            class="pulse-btn inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl text-[15px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all">
+            class="ripple-btn press-scale pulse-btn inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl text-[15px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all">
             <span id="btnIcon">🔍</span>
             <span id="btnText">Analyze</span>
           </button>
@@ -1041,6 +1060,12 @@
         <button onclick="exportPDF()" class="text-xs px-2 sm:px-3 py-1 sm:py-1.5 bg-accent text-white rounded hover:opacity-85 transition-colors">
           📄 <span class="hidden sm:inline">PDF</span>
         </button>
+        <button onclick="shareReport()" class="text-xs px-2 sm:px-3 py-1 sm:py-1.5 bg-surface2 border border-border rounded hover:border-accent text-muted hover:text-txt transition-colors" title="Get shareable link">
+          🔗 <span class="hidden sm:inline">Share</span>
+        </button>
+        <button onclick="downloadCertificate()" class="text-xs px-2 sm:px-3 py-1 sm:py-1.5 bg-emerald-600 text-white rounded hover:opacity-85 transition-colors" title="Originality Certificate">
+          🎓 <span class="hidden sm:inline">Certificate</span>
+        </button>
       </div>
     </header>
 
@@ -1200,12 +1225,29 @@
 
         <!-- Overall Similarity -->
         <div class="p-4 border-b border-border">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-lg font-bold"><span id="sidebarScore">0</span>% Overall Similarity</span>
-            <span id="sidebarRisk" class="px-2 py-0.5 rounded text-[10px] font-bold">LOW</span>
-          </div>
-          <div class="w-full h-2 bg-surface2 rounded-full overflow-hidden">
-            <div id="sidebarBar" class="h-full rounded-full transition-all duration-700" style="width:0%; background:#00b894;"></div>
+          <!-- Animated Score Gauge -->
+          <div class="flex items-center gap-4 mb-2">
+            <div class="score-gauge" style="width:90px;height:90px;">
+              <svg width="90" height="90" viewBox="0 0 100 100">
+                <circle class="ring-bg" cx="50" cy="50" r="45" fill="none" stroke-width="8"/>
+                <circle id="scoreRing" class="ring-fg" cx="50" cy="50" r="45" fill="none" stroke-width="8"
+                  stroke="#00b894" stroke-linecap="round"
+                  stroke-dasharray="283" stroke-dashoffset="283"/>
+              </svg>
+              <div class="gauge-label">
+                <span class="gauge-pct text-txt" id="gaugePercent">0</span>
+                <span class="gauge-sub">similarity</span>
+              </div>
+            </div>
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-lg font-bold"><span id="sidebarScore">0</span>% Overall Similarity</span>
+                <span id="sidebarRisk" class="px-2 py-0.5 rounded text-[10px] font-bold">LOW</span>
+              </div>
+              <div class="w-full h-2 bg-surface2 rounded-full overflow-hidden">
+                <div id="sidebarBar" class="h-full rounded-full transition-all duration-700" style="width:0%; background:#00b894;"></div>
+              </div>
+            </div>
           </div>
           <div class="flex items-center gap-4 mt-3 text-xs text-muted">
             <span>Confidence: <strong class="text-txt" id="sidebarConfidence">—</strong></span>
@@ -1270,6 +1312,19 @@
           <!-- Match Groups panel -->
           <div id="sideGroups" class="p-4 space-y-1">
             <div class="text-xs text-muted mb-3" id="matchSummary">0 matches found</div>
+            <!-- Donut Chart -->
+            <div id="donutChartWrap" class="hidden flex justify-center mb-4">
+              <div class="donut-chart relative" style="width:140px;height:140px;">
+                <svg width="140" height="140" viewBox="0 0 140 140">
+                  <circle cx="70" cy="70" r="52" fill="none" stroke="#2e3348" stroke-width="24"/>
+                  <g id="donutSegments"></g>
+                </svg>
+                <div class="donut-center">
+                  <span id="donutTotal" class="text-xl font-bold text-txt">0</span>
+                  <span class="text-[10px] text-muted">matches</span>
+                </div>
+              </div>
+            </div>
             <div id="matchGroupList"></div>
           </div>
 
@@ -1285,10 +1340,7 @@
 
   </div>
 
-  <!-- Toast -->
-  <div id="toast" class="fixed bottom-6 right-6 px-5 py-3 rounded-lg text-sm font-medium shadow-lg transition-all duration-300 translate-y-20 opacity-0 pointer-events-none z-50 bg-accent text-white max-w-sm">
-    Copied to clipboard!
-  </div>
+  <!-- Toast stack is now created dynamically by common.js -->
 
   <!-- Payment Success Modal -->
   <div id="paymentModal" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300">
@@ -1549,6 +1601,8 @@
         const body = { text: $('textInput').value, document_id: docId };
         if (excludedDomains.length > 0) body.excluded_domains = excludedDomains;
         if ($('gptAiToggle') && $('gptAiToggle').checked) body.use_gpt_ai_detection = true;
+        const selectedLang = $('langSelect') ? $('langSelect').value : '';
+        if (selectedLang) body.language = selectedLang;
         res = await fetch('/api/v1/analyze-agent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1595,16 +1649,28 @@
      View switching
      ═══════════════════════════════════════════════════════════ */
   function showReportView(data) {
-    $('inputView').classList.add('hidden');
-    $('reportView').classList.remove('hidden');
-    $('reportView').style.display = 'flex';
-    renderReport(data);
+    $('inputView').classList.add('view-exit');
+    setTimeout(() => {
+      $('inputView').classList.add('hidden');
+      $('inputView').classList.remove('view-exit');
+      $('reportView').classList.remove('hidden');
+      $('reportView').style.display = 'flex';
+      $('reportView').classList.add('view-enter');
+      setTimeout(() => $('reportView').classList.remove('view-enter'), 400);
+      renderReport(data);
+    }, 250);
   }
 
   function backToInput() {
-    $('reportView').style.display = 'none';
-    $('reportView').classList.add('hidden');
-    $('inputView').classList.remove('hidden');
+    $('reportView').classList.add('view-exit');
+    setTimeout(() => {
+      $('reportView').style.display = 'none';
+      $('reportView').classList.add('hidden');
+      $('reportView').classList.remove('view-exit');
+      $('inputView').classList.remove('hidden');
+      $('inputView').classList.add('view-enter');
+      setTimeout(() => $('inputView').classList.remove('view-enter'), 400);
+    }, 250);
   }
 
   function toggleReportSidebar() {
@@ -1646,7 +1712,14 @@
     const tabs = { similarity: 'panelSimilarity', details: 'panelDetails', citations: 'panelCitations', rewrite: 'panelRewrite' };
     const btns = { similarity: 'tabSimilarity', details: 'tabDetails', citations: 'tabCitations', rewrite: 'tabRewrite' };
     for (const [key, panelId] of Object.entries(tabs)) {
-      $(panelId).classList.toggle('hidden', key !== tab);
+      const panel = $(panelId);
+      if (key === tab) {
+        panel.classList.remove('hidden');
+        panel.classList.add('panel-transition');
+        setTimeout(() => panel.classList.remove('panel-transition'), 350);
+      } else {
+        panel.classList.add('hidden');
+      }
       $(btns[key]).className = key === tab
         ? 'text-sm font-medium px-3 py-1.5 rounded transition-colors bg-accent text-white'
         : 'text-sm font-medium px-3 py-1.5 rounded transition-colors bg-surface2 text-muted hover:text-txt';
@@ -1688,6 +1761,31 @@
     $('sidebarConfidence').textContent = (data.confidence_score * 100).toFixed(0) + '%';
     $('sidebarAgents').textContent = agents.length;
     $('sidebarFlagged').textContent = passages.length;
+
+    // Animated score gauge ring
+    const ring = document.getElementById('scoreRing');
+    if (ring) {
+      const circumference = 283; // 2 * π * 45
+      const offset = circumference - (score / 100) * circumference;
+      ring.style.stroke = scoreColor(score);
+      ring.style.strokeDashoffset = circumference;
+      ring.classList.remove('animate');
+      void ring.offsetWidth; // force reflow
+      ring.style.strokeDashoffset = offset;
+      ring.classList.add('animate');
+    }
+    const gaugePct = document.getElementById('gaugePercent');
+    if (gaugePct) {
+      // Count-up animation
+      let current = 0;
+      const step = Math.max(1, Math.ceil(score / 40));
+      const counter = setInterval(() => {
+        current = Math.min(current + step, score);
+        gaugePct.textContent = current;
+        gaugePct.style.color = scoreColor(current);
+        if (current >= score) clearInterval(counter);
+      }, 30);
+    }
 
     // Show language badge if detected
     const langBadge = document.getElementById('sidebarLang');
@@ -1740,8 +1838,25 @@
     // --- Flagged passages (Details tab) ---
     renderPassages(passages);
 
-    // --- Explanation ---
-    $('explanationText').textContent = data.explanation || '';
+    // --- Explanation (typewriter effect) ---
+    const explanationEl = $('explanationText');
+    const explanationStr = data.explanation || '';
+    if (explanationStr && explanationEl) {
+      explanationEl.textContent = '';
+      explanationEl.classList.add('typewriter-cursor');
+      let charIdx = 0;
+      const typeSpeed = Math.max(8, Math.min(25, 2000 / explanationStr.length));
+      const typeTimer = setInterval(() => {
+        explanationEl.textContent += explanationStr[charIdx];
+        charIdx++;
+        if (charIdx >= explanationStr.length) {
+          clearInterval(typeTimer);
+          explanationEl.classList.remove('typewriter-cursor');
+        }
+      }, typeSpeed);
+    } else if (explanationEl) {
+      explanationEl.textContent = explanationStr;
+    }
 
     // --- Raw JSON ---
     $('jsonPre').textContent = JSON.stringify(data, null, 2);
@@ -2064,6 +2179,45 @@
       'Internal Duplication': 'bg-yellow-500/10',
       'AI Generated': 'bg-purple-500/10'
     };
+    const donutColors = {
+      'Web Match': '#e17055',
+      'Academic Match': '#6c9ce7',
+      'Internal Duplication': '#fdcb6e',
+      'AI Generated': '#a29bfe'
+    };
+
+    // Donut chart
+    const donutWrap = document.getElementById('donutChartWrap');
+    const donutSegs = document.getElementById('donutSegments');
+    const donutTotal = document.getElementById('donutTotal');
+    if (donutWrap && donutSegs && groups.length > 0) {
+      donutWrap.classList.remove('hidden');
+      donutTotal.textContent = total;
+      donutSegs.innerHTML = '';
+      const circumference = 2 * Math.PI * 52; // ~327
+      let offset = 0;
+      const totalPct = groups.reduce((sum, g) => sum + (g.percentage || 0), 0) || 1;
+      groups.forEach((g, i) => {
+        const pct = g.percentage || 0;
+        const dash = (pct / 100) * circumference;
+        const color = donutColors[g.category] || '#6c5ce7';
+        const seg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        seg.setAttribute('cx', '70');
+        seg.setAttribute('cy', '70');
+        seg.setAttribute('r', '52');
+        seg.setAttribute('fill', 'none');
+        seg.setAttribute('stroke', color);
+        seg.setAttribute('stroke-width', '24');
+        seg.setAttribute('stroke-dasharray', dash + ' ' + (circumference - dash));
+        seg.setAttribute('stroke-dashoffset', -offset);
+        seg.setAttribute('class', 'donut-segment');
+        seg.style.animationDelay = (i * 0.15) + 's';
+        donutSegs.appendChild(seg);
+        offset += dash;
+      });
+    } else if (donutWrap) {
+      donutWrap.classList.add('hidden');
+    }
 
     let html = '';
     for (const g of groups) {
@@ -3280,6 +3434,165 @@
     }
 
     doc.save(`plagiarism-report-${d.document_id}.pdf`);
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Share Report Link
+     ═══════════════════════════════════════════════════════════ */
+  async function shareReport() {
+    if (!lastReport) return;
+    try {
+      const res = await apiFetch('/api/v1/share-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document_id: lastReport.document_id }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || 'Failed to create share link', 'error');
+        return;
+      }
+      const data = await res.json();
+      const shareUrl = `${location.origin}/app?shared=${data.share_id}`;
+      await navigator.clipboard.writeText(shareUrl).catch(() => {});
+      showToast('Share link copied to clipboard!', 'success');
+    } catch (e) {
+      showToast('Failed to create share link', 'error');
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Plagiarism Certificate PDF
+     ═══════════════════════════════════════════════════════════ */
+  async function downloadCertificate() {
+    if (!lastReport) return;
+    try {
+      await _loadJsPDF();
+    } catch {
+      showToast('Failed to load PDF library', 'error');
+      return;
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const d = lastReport;
+    const score = Math.round(d.plagiarism_score);
+    const originalityScore = 100 - score;
+    const w = doc.internal.pageSize.getWidth();
+    const h = doc.internal.pageSize.getHeight();
+    const cx = w / 2;
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const certId = (d.document_id || '').substring(0, 8).toUpperCase() + '-' + now.getFullYear();
+
+    // --- Decorative border ---
+    doc.setDrawColor(108, 92, 231); // accent purple
+    doc.setLineWidth(1.5);
+    doc.rect(8, 8, w - 16, h - 16);
+    doc.setLineWidth(0.5);
+    doc.rect(12, 12, w - 24, h - 24);
+
+    // --- Corner ornaments ---
+    const ornSize = 12;
+    doc.setDrawColor(108, 92, 231);
+    doc.setLineWidth(0.8);
+    // Top-left
+    doc.line(14, 14, 14 + ornSize, 14); doc.line(14, 14, 14, 14 + ornSize);
+    // Top-right
+    doc.line(w - 14, 14, w - 14 - ornSize, 14); doc.line(w - 14, 14, w - 14, 14 + ornSize);
+    // Bottom-left
+    doc.line(14, h - 14, 14 + ornSize, h - 14); doc.line(14, h - 14, 14, h - 14 - ornSize);
+    // Bottom-right
+    doc.line(w - 14, h - 14, w - 14 - ornSize, h - 14); doc.line(w - 14, h - 14, w - 14, h - 14 - ornSize);
+
+    // --- Shield / seal icon (simple circle seal) ---
+    doc.setDrawColor(108, 92, 231);
+    doc.setLineWidth(0.6);
+    doc.circle(cx, 38, 10);
+    doc.circle(cx, 38, 8);
+    doc.setFontSize(14);
+    doc.setTextColor(108, 92, 231);
+    doc.text('✓', cx, 42, { align: 'center' });
+
+    // --- Title ---
+    doc.setFontSize(28);
+    doc.setTextColor(15, 17, 23);
+    doc.setFont(undefined, 'bold');
+    doc.text('Certificate of Originality', cx, 60, { align: 'center' });
+
+    // --- Subtitle ---
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text('This document has been verified by PlagiarismGuard AI Detection System', cx, 70, { align: 'center' });
+
+    // --- Decorative line ---
+    doc.setDrawColor(108, 92, 231);
+    doc.setLineWidth(0.5);
+    doc.line(cx - 60, 76, cx + 60, 76);
+
+    // --- Originality Score (large) ---
+    const scoreColor = originalityScore >= 80 ? [34, 197, 94] : originalityScore >= 50 ? [234, 179, 8] : [239, 68, 68];
+    doc.setFontSize(48);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...scoreColor);
+    doc.text(originalityScore + '%', cx, 100, { align: 'center' });
+
+    doc.setFontSize(14);
+    doc.setTextColor(60, 60, 60);
+    doc.text('Originality Score', cx, 108, { align: 'center' });
+
+    // --- Risk level badge ---
+    const risk = (d.risk_level || 'LOW').toUpperCase();
+    const riskColors = { LOW: [34, 197, 94], MEDIUM: [234, 179, 8], HIGH: [239, 68, 68] };
+    const rc = riskColors[risk] || [100, 100, 100];
+    doc.setFontSize(11);
+    doc.setTextColor(...rc);
+    doc.text(`Risk Level: ${risk}`, cx, 116, { align: 'center' });
+
+    // --- Details grid ---
+    const detailY = 128;
+    doc.setFontSize(10);
+    doc.setTextColor(80, 80, 80);
+    doc.setFont(undefined, 'normal');
+
+    const details = [
+      ['Document ID', d.document_id || 'N/A'],
+      ['Date Verified', dateStr],
+      ['Certificate ID', certId],
+      ['Sources Checked', String((d.detected_sources || []).length)],
+      ['Flagged Passages', String((d.flagged_passages || []).length)],
+      ['Confidence', ((d.confidence_score || 0) * 100).toFixed(0) + '%'],
+    ];
+
+    const colW = 80;
+    const startX = cx - (colW * 1.5);
+    details.forEach((pair, i) => {
+      const col = i % 3;
+      const row = Math.floor(i / 3);
+      const x = startX + col * colW;
+      const y = detailY + row * 14;
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(60, 60, 60);
+      doc.text(pair[0] + ':', x, y);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(30, 30, 30);
+      doc.text(pair[1], x + 38, y);
+    });
+
+    // --- Bottom decorative line ---
+    doc.setDrawColor(108, 92, 231);
+    doc.setLineWidth(0.5);
+    doc.line(cx - 60, h - 38, cx + 60, h - 38);
+
+    // --- Footer ---
+    doc.setFontSize(9);
+    doc.setTextColor(139, 143, 163);
+    doc.text('Verified by PlagiarismGuard — AI-Powered Multi-Agent Plagiarism Detection', cx, h - 30, { align: 'center' });
+    doc.text('This certificate confirms the document was scanned and the above originality score was recorded.', cx, h - 24, { align: 'center' });
+    doc.text('plagiarismguard-jl6yu5wij5mu4.azurewebsites.net', cx, h - 18, { align: 'center' });
+
+    doc.save(`originality-certificate-${certId}.pdf`);
+    showToast('Originality certificate downloaded!', 'success');
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -4774,6 +5087,28 @@
   }
 
   initAuth();
+
+  // Load shared report if ?shared= param present
+  (async function loadSharedReport() {
+    const shareId = new URLSearchParams(location.search).get('shared');
+    if (!shareId) return;
+    try {
+      const res = await fetch(`/api/v1/shared/${encodeURIComponent(shareId)}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || 'Shared report not found', 'error');
+        return;
+      }
+      const data = await res.json();
+      if (data.report) {
+        lastReport = data.report;
+        showReportView(data.report);
+        showToast('Viewing shared report', 'info');
+      }
+    } catch {
+      showToast('Failed to load shared report', 'error');
+    }
+  })();
 </script>
 
 <!-- Scroll-to-top button -->

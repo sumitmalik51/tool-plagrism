@@ -53,6 +53,7 @@ class AgentInput(BaseModel):
     document_id: str = Field(..., description="Document identifier")
     text: str = Field(..., min_length=1, description="Full extracted text")
     chunks: list[str] = Field(default_factory=list, description="Text chunks for analysis")
+    language: str = Field(default="en", description="Detected language ISO code (e.g. en, es, fr, hi, zh)")
     max_queries: int | None = Field(default=None, description="Override for max search queries (set by adaptive scaling)")
     use_gpt_ai_detection: bool = Field(default=False, description="Enable GPT-powered AI detection (more accurate, uses API credits)")
 

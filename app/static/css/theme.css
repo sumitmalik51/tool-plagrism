@@ -480,3 +480,162 @@ html.light .tour-card p { color: #6b7280; }
   line-height: 1.4;
 }
 html.light .kbd { background: #eef0f5; border-color: #d8dce6; color: #6b7280; }
+
+/* ═══════════════════════════════════════════════════════════
+   #2 — Animated Score Gauge (SVG Ring)
+   ═══════════════════════════════════════════════════════════ */
+@keyframes scoreRingDraw {
+  from { stroke-dashoffset: 283; }
+}
+.score-gauge { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+.score-gauge svg { transform: rotate(-90deg); }
+.score-gauge .ring-bg { stroke: #2e3348; }
+html.light .score-gauge .ring-bg { stroke: #e0e3ea; }
+.score-gauge .ring-fg { transition: stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1), stroke .4s; }
+.score-gauge .ring-fg.animate { animation: scoreRingDraw 1.2s cubic-bezier(.4,0,.2,1) both; }
+.score-gauge .gauge-label {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center;
+}
+.score-gauge .gauge-pct { font-size: 28px; font-weight: 800; line-height: 1; }
+.score-gauge .gauge-sub { font-size: 11px; color: #8b8fa3; margin-top: 2px; }
+
+/* ═══════════════════════════════════════════════════════════
+   #3 — Smooth Section / View Transitions
+   ═══════════════════════════════════════════════════════════ */
+@keyframes viewFadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes viewFadeOut {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-12px); }
+}
+.view-enter { animation: viewFadeIn .35s ease-out both; }
+.view-exit  { animation: viewFadeOut .25s ease-in both; }
+
+/* Smooth panel transitions for report tabs */
+.panel-transition {
+  animation: viewFadeIn .3s ease-out both;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   #4 — Dark / Light Theme Toggle Animation
+   ═══════════════════════════════════════════════════════════ */
+@keyframes themeFlip {
+  0%   { transform: rotateY(0); }
+  50%  { transform: rotateY(90deg); opacity: .5; }
+  100% { transform: rotateY(0); opacity: 1; }
+}
+.theme-flip { animation: themeFlip .4s ease-in-out; }
+
+/* Smooth colour transitions on theme change */
+html { transition: background-color .35s ease, color .35s ease; }
+html body { transition: background-color .35s ease, color .35s ease; }
+html .bg-surface, html .bg-surface2, html .bg-bg {
+  transition: background-color .35s ease;
+}
+html .border-border { transition: border-color .35s ease; }
+
+/* ═══════════════════════════════════════════════════════════
+   #5 — Micro-interactions
+   ═══════════════════════════════════════════════════════════ */
+/* Ripple effect on buttons */
+.ripple-btn { position: relative; overflow: hidden; }
+.ripple-btn .ripple-circle {
+  position: absolute; border-radius: 50%; background: rgba(255,255,255,.25);
+  transform: scale(0); animation: rippleSpread .5s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes rippleSpread {
+  to { transform: scale(4); opacity: 0; }
+}
+
+/* Card hover lift */
+.hover-lift { transition: transform .25s ease, box-shadow .25s ease; }
+.hover-lift:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,.15); }
+
+/* Button press scale */
+.press-scale:active { transform: scale(.96); transition: transform .1s; }
+
+/* Glow pulse on focus inputs */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(108,92,231,.15); }
+  50%      { box-shadow: 0 0 0 6px rgba(108,92,231,.08); }
+}
+.glow-input:focus { animation: glowPulse 2s ease-in-out infinite; }
+
+/* ═══════════════════════════════════════════════════════════
+   #6 — Animated Toast Notifications (slide + stack)
+   ═══════════════════════════════════════════════════════════ */
+@keyframes toastSlideIn {
+  from { transform: translateX(120%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+@keyframes toastSlideOut {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(120%); opacity: 0; }
+}
+.toast-stack {
+  position: fixed; bottom: 24px; right: 24px; z-index: 10002;
+  display: flex; flex-direction: column-reverse; gap: 8px;
+  pointer-events: none;
+}
+.toast-item {
+  pointer-events: auto;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 18px; border-radius: 12px;
+  font-size: 14px; font-weight: 500;
+  box-shadow: 0 8px 32px rgba(0,0,0,.25);
+  animation: toastSlideIn .35s cubic-bezier(.16,1,.3,1) both;
+  max-width: 360px;
+  backdrop-filter: blur(8px);
+}
+.toast-item.closing { animation: toastSlideOut .3s ease-in both; }
+.toast-item .toast-icon { font-size: 18px; flex-shrink: 0; }
+.toast-item .toast-close {
+  margin-left: auto; background: none; border: none; color: inherit; opacity: .5;
+  cursor: pointer; font-size: 16px; padding: 0 0 0 10px; line-height: 1;
+}
+.toast-item .toast-close:hover { opacity: 1; }
+.toast-item .toast-progress {
+  position: absolute; bottom: 0; left: 0; height: 3px; background: rgba(255,255,255,.3);
+  border-radius: 0 0 12px 12px; animation: toastCountdown var(--toast-dur, 3s) linear both;
+}
+@keyframes toastCountdown { from { width: 100%; } to { width: 0; } }
+
+/* Toast colour variants */
+.toast-success { background: rgba(0,184,148,.9); color: #fff; }
+.toast-error   { background: rgba(225,112,85,.9); color: #fff; }
+.toast-warning { background: rgba(253,203,110,.9); color: #1a1d27; }
+.toast-info    { background: rgba(108,92,231,.9); color: #fff; }
+
+/* ═══════════════════════════════════════════════════════════
+   #7 — Source Match Donut Chart (SVG)
+   ═══════════════════════════════════════════════════════════ */
+@keyframes donutDraw {
+  from { stroke-dashoffset: 283; opacity: 0; }
+  to   { opacity: 1; }
+}
+.donut-chart svg { transform: rotate(-90deg); }
+.donut-segment {
+  fill: none; stroke-width: 24;
+  animation: donutDraw .8s cubic-bezier(.4,0,.2,1) both;
+}
+.donut-center {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   #8 — Typewriter Effect
+   ═══════════════════════════════════════════════════════════ */
+@keyframes blinkCaret {
+  0%, 100% { border-color: transparent; }
+  50%      { border-color: #6c5ce7; }
+}
+.typewriter-cursor {
+  border-right: 2px solid #6c5ce7;
+  animation: blinkCaret 1s step-end infinite;
+  padding-right: 2px;
+}

@@ -146,6 +146,7 @@ class WebSearchAgent(BaseAgent):
         )
         search_result = await search_multiple(
             queries, count_per_query=settings.web_search_results_per_query,
+            language=agent_input.language,
         )
 
         web_results = search_result.get("results", [])

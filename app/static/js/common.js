@@ -48,24 +48,46 @@ function fmtBytes(b) {
   return (b / 1048576).toFixed(1) + ' MB';
 }
 
-/* --- Toast notification --- */
+/* --- Toast notification (animated slide-in + stacking) --- */
+var _toastStack = null;
 function showToast(msg, type) {
-  let t = document.getElementById('toast');
-  if (!t) {
-    t = document.createElement('div');
-    t.id = 'toast';
-    t.className = 'fixed bottom-6 right-6 px-5 py-3 rounded-lg text-sm font-medium shadow-lg transition-all duration-300 z-50 max-w-sm translate-y-20 opacity-0 pointer-events-none';
-    document.body.appendChild(t);
+  // Create stack container once
+  if (!_toastStack) {
+    _toastStack = document.createElement('div');
+    _toastStack.className = 'toast-stack';
+    document.body.appendChild(_toastStack);
   }
-  t.textContent = msg || 'Done!';
-  t.className = 'fixed bottom-6 right-6 px-5 py-3 rounded-lg text-sm font-medium shadow-lg transition-all duration-300 z-50 max-w-sm';
-  if (type === 'error')        t.classList.add('bg-danger', 'text-white');
-  else if (type === 'warning') t.classList.add('bg-warn', 'text-gray-900');
-  else if (type === 'success') t.classList.add('bg-ok', 'text-white');
-  else                         t.classList.add('bg-accent', 'text-white');
-  t.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none'), 3000);
+  var icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+  var classes = { success: 'toast-success', error: 'toast-error', warning: 'toast-warning', info: 'toast-info' };
+  var cls = classes[type] || 'toast-info';
+  var icon = icons[type] || '💬';
+  var dur = type === 'error' ? 5000 : 3000;
+
+  var item = document.createElement('div');
+  item.className = 'toast-item ' + cls;
+  item.style.setProperty('--toast-dur', dur + 'ms');
+  item.innerHTML = '<span class="toast-icon">' + icon + '</span>' +
+    '<span>' + esc(msg || 'Done!') + '</span>' +
+    '<button class="toast-close" aria-label="Close">&times;</button>' +
+    '<div class="toast-progress"></div>';
+
+  item.querySelector('.toast-close').onclick = function() { dismissToast(item); };
+  _toastStack.appendChild(item);
+
+  // Max 4 visible
+  while (_toastStack.children.length > 4) {
+    dismissToast(_toastStack.children[0]);
+  }
+
+  // Auto dismiss
+  item._timer = setTimeout(function() { dismissToast(item); }, dur);
+}
+
+function dismissToast(item) {
+  if (!item || !item.parentNode) return;
+  clearTimeout(item._timer);
+  item.classList.add('closing');
+  setTimeout(function() { if (item.parentNode) item.remove(); }, 300);
 }
 
 /* --- Theme toggle (dark / light) --- */
@@ -87,6 +109,9 @@ function toggleTheme() {
   const isLight = document.documentElement.classList.toggle('light');
   localStorage.setItem('pg_theme', isLight ? 'light' : 'dark');
   updateThemeIcons(isLight);
+  // Flip animation on toggle button
+  const btn = document.getElementById('themeToggle');
+  if (btn) { btn.classList.add('theme-flip'); setTimeout(() => btn.classList.remove('theme-flip'), 450); }
 }
 
 function updateThemeIcons(isLight) {
@@ -96,6 +121,21 @@ function updateThemeIcons(isLight) {
 
 // Auto-init theme on load
 initTheme();
+
+/* --- Ripple effect for buttons --- */
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('.ripple-btn');
+  if (!btn) return;
+  var circle = document.createElement('span');
+  circle.className = 'ripple-circle';
+  var rect = btn.getBoundingClientRect();
+  var size = Math.max(rect.width, rect.height) * 2;
+  circle.style.width = circle.style.height = size + 'px';
+  circle.style.left = (e.clientX - rect.left - size / 2) + 'px';
+  circle.style.top = (e.clientY - rect.top - size / 2) + 'px';
+  btn.appendChild(circle);
+  setTimeout(function() { circle.remove(); }, 500);
+});
 
 /* --- Authenticated API helper with auto-refresh --- */
 async function apiFetch(url, options = {}) {

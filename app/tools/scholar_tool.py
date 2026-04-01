@@ -131,12 +131,24 @@ def _parse_results(html_text: str, query: str) -> list[dict[str, Any]]:
 # HTTP fetch
 # ---------------------------------------------------------------------------
 
-async def _fetch_scholar(query: str, max_results: int) -> list[dict[str, Any]]:
+async def _fetch_scholar(query: str, max_results: int, language: str = "en") -> list[dict[str, Any]]:
     """Fetch and parse Google Scholar results via HTTP."""
+    hl = language if language in ("en", "es", "fr", "de", "pt", "it", "ja", "ko", "zh-CN", "ar") else "en"
+    if language == "zh":
+        hl = "zh-CN"
     params = {
         "q": query,
-        "hl": "en",
+        "hl": hl,
         "num": min(max_results, 20),
+    }
+    # Match Accept-Language to detected language
+    _ACCEPT_LANG = {
+        "en": "en-US,en;q=0.9", "es": "es-ES,es;q=0.9,en;q=0.5",
+        "fr": "fr-FR,fr;q=0.9,en;q=0.5", "de": "de-DE,de;q=0.9,en;q=0.5",
+        "pt": "pt-BR,pt;q=0.9,en;q=0.5", "it": "it-IT,it;q=0.9,en;q=0.5",
+        "hi": "hi-IN,hi;q=0.9,en;q=0.5", "zh": "zh-CN,zh;q=0.9,en;q=0.5",
+        "ja": "ja-JP,ja;q=0.9,en;q=0.5", "ar": "ar-SA,ar;q=0.9,en;q=0.5",
+        "ko": "ko-KR,ko;q=0.9,en;q=0.5",
     }
     headers = {
         "User-Agent": (
@@ -144,7 +156,7 @@ async def _fetch_scholar(query: str, max_results: int) -> list[dict[str, Any]]:
             "AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/120.0.0.0 Safari/537.36"
         ),
-        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Language": _ACCEPT_LANG.get(language, "en-US,en;q=0.9"),
     }
 
     try:
@@ -205,14 +217,14 @@ async def _fetch_scholar(query: str, max_results: int) -> list[dict[str, Any]]:
 # Public async API
 # ---------------------------------------------------------------------------
 
-async def search_scholar(query: str, max_results: int = 10) -> dict[str, Any]:
+async def search_scholar(query: str, max_results: int = 10, language: str = "en") -> dict[str, Any]:
     """Search Google Scholar for academic papers matching *query*.
 
     Returns:
         Dict with ``query``, ``results`` list, ``result_count``, ``elapsed_s``.
     """
     start = time.perf_counter()
-    results = await _fetch_scholar(query, max_results)
+    results = await _fetch_scholar(query, max_results, language=language)
     elapsed = round(time.perf_counter() - start, 3)
 
     logger.info(
@@ -231,7 +243,7 @@ async def search_scholar(query: str, max_results: int = 10) -> dict[str, Any]:
 
 
 async def search_scholar_multi(
-    queries: list[str], max_per_query: int = 3
+    queries: list[str], max_per_query: int = 3, language: str = "en",
 ) -> dict[str, Any]:
     """Search Google Scholar for multiple queries and deduplicate results.
 
@@ -253,7 +265,7 @@ async def search_scholar_multi(
     for i, q in enumerate(queries):
         if i > 0:
             await asyncio.sleep(1.0)  # polite delay between requests
-        r = await search_scholar(q, max_results=max_per_query)
+        r = await search_scholar(q, max_results=max_per_query, language=language)
         query_results = r.get("results", [])
 
         if not query_results:

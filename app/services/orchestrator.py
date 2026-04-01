@@ -56,6 +56,7 @@ async def run_pipeline(
     *,
     excluded_domains: list[str] | None = None,
     use_gpt_ai_detection: bool = False,
+    language_override: str | None = None,
 ) -> PlagiarismReport:
     """Execute the full plagiarism detection pipeline.
 
@@ -74,14 +75,27 @@ async def run_pipeline(
 
     # --- 0a. Detect document language -----------------------------------------
     tracker.emit("language", "Detecting document language...", 5)
-    lang_info = detect_language(text)
-    logger.info(
-        "language_detected",
-        document_id=document_id,
-        language=lang_info["language"],
-        language_name=lang_info["language_name"],
-        confidence=lang_info["confidence"],
-    )
+    if language_override:
+        from app.tools.language_detector import LANGUAGE_NAMES
+        lang_info = {
+            "language": language_override,
+            "language_name": LANGUAGE_NAMES.get(language_override, language_override.upper()),
+            "confidence": 1.0,
+        }
+        logger.info(
+            "language_override_used",
+            document_id=document_id,
+            language=language_override,
+        )
+    else:
+        lang_info = detect_language(text)
+        logger.info(
+            "language_detected",
+            document_id=document_id,
+            language=lang_info["language"],
+            language_name=lang_info["language_name"],
+            confidence=lang_info["confidence"],
+        )
 
     # --- 0b. Citation-aware preprocessing — strip references & inline cites ---
     tracker.emit("preprocessing", "Stripping citations and references...", 10)
@@ -114,6 +128,7 @@ async def run_pipeline(
         document_id=document_id,
         text=scan_text,
         chunks=chunks,
+        language=lang_info.get("language", "en"),
         max_queries=web_q,
         use_gpt_ai_detection=use_gpt_ai_detection,
     )

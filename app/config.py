@@ -30,8 +30,8 @@ class Settings(BaseSettings):
     weight_academic: float = 0.35
     weight_ai_detection: float = 0.30
 
-    # Semantic agent
-    embedding_model: str = "all-MiniLM-L6-v2"
+    # Semantic agent (multilingual model — supports 50+ languages)
+    embedding_model: str = "paraphrase-multilingual-MiniLM-L12-v2"
     embedding_executor_workers: int = 3  # Concurrent embedding requests
     chunk_size: int = 800
     chunk_overlap: int = 150

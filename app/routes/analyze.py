@@ -42,6 +42,10 @@ class AnalyzeTextRequest(BaseModel):
         default=False,
         description="Enable GPT-powered AI detection (more accurate, uses API credits)",
     )
+    language: str | None = Field(
+        default=None,
+        description="Override auto-detected language (ISO code: en, es, fr, de, hi, zh, ja, ko, ar, pt, it). Auto-detects if omitted.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +164,7 @@ async def analyze_text(
         text=body.text,
         excluded_domains=body.excluded_domains or None,
         use_gpt_ai_detection=body.use_gpt_ai_detection,
+        language_override=body.language,
     )
 
     # --- Save scan result to DB -----------------------------------------------
@@ -228,3 +233,92 @@ def _persist_scan(report: PlagiarismReport, user_id: int | None) -> None:
         )
     except Exception as exc:
         logger.warning("scan_save_failed", error=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Shareable report links
+# ---------------------------------------------------------------------------
+
+class ShareReportRequest(BaseModel):
+    document_id: str = Field(..., description="Document ID of the scan to share")
+    expires_in_days: int | None = Field(default=7, ge=1, le=90, description="Days until link expires (null = never)")
+
+
+@router.post("/share-report", summary="Create a shareable link for a scan report")
+async def share_report(body: ShareReportRequest, request: Request) -> JSONResponse:
+    """Generate a unique share URL for an existing scan report."""
+    from app.services.database import get_db
+
+    user_id = getattr(request.state, "user_id", None)
+    if user_id is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+
+    db = get_db()
+    # Verify the scan exists and belongs to this user
+    scan = db.fetch_one(
+        "SELECT id FROM scans WHERE document_id = ? AND user_id = ?",
+        (body.document_id, user_id),
+    )
+    if not scan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found")
+
+    share_id = uuid.uuid4().hex
+
+    if body.expires_in_days is not None:
+        if db._is_mssql:
+            expires_clause = f"DATEADD(day, {int(body.expires_in_days)}, GETUTCDATE())"
+        else:
+            expires_clause = f"datetime('now', '+{int(body.expires_in_days)} days')"
+    else:
+        expires_clause = "NULL"
+
+    db.execute(
+        f"INSERT INTO shared_reports (share_id, scan_id, user_id, expires_at) "
+        f"VALUES (?, ?, ?, {expires_clause})",
+        (share_id, scan["id"], user_id),
+    )
+
+    logger.info("report_shared", document_id=body.document_id, share_id=share_id)
+    return JSONResponse({"share_id": share_id})
+
+
+@router.get("/shared/{share_id}", summary="Retrieve a shared report (public)")
+async def get_shared_report(share_id: str) -> JSONResponse:
+    """Return a shared report's JSON data. No authentication required."""
+    from app.services.database import get_db
+
+    if not share_id or len(share_id) > 64:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid share ID")
+
+    db = get_db()
+    row = db.fetch_one(
+        "SELECT sr.share_id, sr.expires_at, s.report_json, s.document_id, s.plagiarism_score, "
+        "s.risk_level, s.created_at AS scanned_at "
+        "FROM shared_reports sr JOIN scans s ON sr.scan_id = s.id "
+        "WHERE sr.share_id = ?",
+        (share_id,),
+    )
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shared report not found or expired")
+
+    # Check expiration
+    if row.get("expires_at"):
+        from datetime import datetime, timezone
+        try:
+            exp = datetime.fromisoformat(str(row["expires_at"]).replace("Z", "+00:00"))
+            if exp.tzinfo is None:
+                exp = exp.replace(tzinfo=timezone.utc)
+            if exp < datetime.now(timezone.utc):
+                raise HTTPException(status_code=status.HTTP_410_GONE, detail="This shared link has expired")
+        except (ValueError, TypeError):
+            pass  # If we can't parse, allow access
+
+    report_data = json.loads(row["report_json"]) if row.get("report_json") else {}
+    return JSONResponse({
+        "share_id": row["share_id"],
+        "document_id": row.get("document_id"),
+        "plagiarism_score": row.get("plagiarism_score"),
+        "risk_level": row.get("risk_level"),
+        "scanned_at": str(row.get("scanned_at", "")),
+        "report": report_data,
+    })

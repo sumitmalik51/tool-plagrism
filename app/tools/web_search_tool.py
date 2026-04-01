@@ -21,12 +21,25 @@ logger = get_logger(__name__)
 
 BING_SEARCH_URL = "https://api.bing.microsoft.com/v7.0/search"
 
+# ISO language code → Bing market / DDG region
+_LANG_TO_MARKET: dict[str, str] = {
+    "en": "en-US", "es": "es-ES", "fr": "fr-FR", "de": "de-DE",
+    "pt": "pt-BR", "it": "it-IT", "hi": "hi-IN", "zh": "zh-CN",
+    "ja": "ja-JP", "ar": "ar-SA", "ko": "ko-KR",
+}
+
+_LANG_TO_DDG_REGION: dict[str, str] = {
+    "en": "us-en", "es": "es-es", "fr": "fr-fr", "de": "de-de",
+    "pt": "br-pt", "it": "it-it", "hi": "in-en", "zh": "cn-zh",
+    "ja": "jp-jp", "ar": "xa-ar", "ko": "kr-kr",
+}
+
 
 # ---------------------------------------------------------------------------
 # Bing backend
 # ---------------------------------------------------------------------------
 
-async def _search_bing(query: str, count: int) -> dict | None:
+async def _search_bing(query: str, count: int, language: str = "en") -> dict | None:
     """Try Bing Search API.  Returns *None* on auth failure so caller can
     fall through to the next backend."""
     api_key = settings.bing_api_key
@@ -34,7 +47,8 @@ async def _search_bing(query: str, count: int) -> dict | None:
         return None
 
     headers = {"Ocp-Apim-Subscription-Key": api_key}
-    params = {"q": query, "count": min(count, 50), "mkt": "en-US"}
+    mkt = _LANG_TO_MARKET.get(language, "en-US")
+    params = {"q": query, "count": min(count, 50), "mkt": mkt}
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -62,14 +76,15 @@ async def _search_bing(query: str, count: int) -> dict | None:
 # DuckDuckGo backend (free, no key)
 # ---------------------------------------------------------------------------
 
-def _search_ddg_sync(query: str, count: int) -> list[dict]:
+def _search_ddg_sync(query: str, count: int, language: str = "en") -> list[dict]:
     """Run DuckDuckGo search synchronously (the library is sync-only)."""
     results: list[dict] = []
     try:
         from ddgs import DDGS  # lazy import
 
+        region = _LANG_TO_DDG_REGION.get(language, "us-en")
         with DDGS() as ddgs:
-            for r in ddgs.text(query, max_results=count):
+            for r in ddgs.text(query, region=region, max_results=count):
                 results.append({
                     "url": r.get("href", ""),
                     "title": r.get("title", ""),
@@ -82,10 +97,10 @@ def _search_ddg_sync(query: str, count: int) -> list[dict]:
     return results
 
 
-async def _search_ddg(query: str, count: int) -> dict:
+async def _search_ddg(query: str, count: int, language: str = "en") -> dict:
     """Async wrapper around the sync DuckDuckGo library."""
     loop = asyncio.get_running_loop()
-    results = await loop.run_in_executor(None, _search_ddg_sync, query, count)
+    results = await loop.run_in_executor(None, _search_ddg_sync, query, count, language)
     return {"results": results}
 
 
@@ -93,10 +108,11 @@ async def _search_ddg(query: str, count: int) -> dict:
 # Public API
 # ---------------------------------------------------------------------------
 
-async def search_web(query: str, count: int = 10) -> dict:
+async def search_web(query: str, count: int = 10, language: str = "en") -> dict:
     """Search the web for *query*, returning up to *count* results.
 
     Tries Bing first (if key configured & valid), then DuckDuckGo.
+    The *language* code (e.g. ``"es"``, ``"fr"``) localises results.
 
     Returns:
         Dict with ``query``, ``results`` (list of dicts with url, title, snippet),
@@ -105,7 +121,7 @@ async def search_web(query: str, count: int = 10) -> dict:
     start = time.perf_counter()
 
     # 1. Try Bing
-    bing = await _search_bing(query, count)
+    bing = await _search_bing(query, count, language)
     if bing is not None:
         elapsed = round(time.perf_counter() - start, 3)
         logger.info("web_search_complete", backend="bing", query=query[:80],
@@ -114,7 +130,7 @@ async def search_web(query: str, count: int = 10) -> dict:
                 "result_count": len(bing["results"]), "elapsed_s": elapsed}
 
     # 2. Fallback to DuckDuckGo
-    ddg = await _search_ddg(query, count)
+    ddg = await _search_ddg(query, count, language)
     elapsed = round(time.perf_counter() - start, 3)
     logger.info("web_search_complete", backend="duckduckgo", query=query[:80],
                  result_count=len(ddg["results"]), elapsed_s=elapsed)
@@ -122,7 +138,7 @@ async def search_web(query: str, count: int = 10) -> dict:
             "result_count": len(ddg["results"]), "elapsed_s": elapsed}
 
 
-async def search_multiple(queries: list[str], count_per_query: int = 3) -> dict:
+async def search_multiple(queries: list[str], count_per_query: int = 3, language: str = "en") -> dict:
     """Run multiple web searches and aggregate results.
 
     Returns:
@@ -133,7 +149,7 @@ async def search_multiple(queries: list[str], count_per_query: int = 3) -> dict:
 
     start = time.perf_counter()
 
-    tasks = [search_web(q, count=count_per_query) for q in queries]
+    tasks = [search_web(q, count=count_per_query, language=language) for q in queries]
     raw_results = await asyncio.gather(*tasks)
 
     seen_urls: set[str] = set()

@@ -400,6 +400,16 @@ CREATE TABLE IF NOT EXISTS user_api_keys (
 );
 CREATE INDEX IF NOT EXISTS idx_api_keys_user ON user_api_keys(user_id);
 CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON user_api_keys(key_hash);
+
+CREATE TABLE IF NOT EXISTS shared_reports (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    share_id    TEXT          NOT NULL UNIQUE,
+    scan_id     INTEGER       NOT NULL REFERENCES scans(id),
+    user_id     INTEGER       REFERENCES users(id),
+    expires_at  TEXT          NULL,
+    created_at  TEXT          NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_shared_reports_share ON shared_reports(share_id);
 """
 
 _MSSQL_SCHEMA = """
@@ -523,6 +533,19 @@ CREATE INDEX idx_api_keys_user ON user_api_keys(user_id);
 ---
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_api_keys_hash')
 CREATE INDEX idx_api_keys_hash ON user_api_keys(key_hash);
+---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'shared_reports')
+CREATE TABLE shared_reports (
+    id          INT IDENTITY(1,1) PRIMARY KEY,
+    share_id    NVARCHAR(64)      NOT NULL UNIQUE,
+    scan_id     INT               NOT NULL REFERENCES scans(id),
+    user_id     INT               NULL REFERENCES users(id),
+    expires_at  DATETIME2         NULL,
+    created_at  DATETIME2         NOT NULL DEFAULT GETUTCDATE()
+);
+---
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_shared_reports_share')
+CREATE INDEX idx_shared_reports_share ON shared_reports(share_id);
 """
 
 

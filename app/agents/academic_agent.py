@@ -127,6 +127,7 @@ class AcademicAgent(BaseAgent):
             )
             scholar_result = await search_scholar_multi(
                 queries, max_per_query=settings.scholar_results_per_query,
+                language=agent_input.language,
             )
             papers = scholar_result.get("results", [])
 
