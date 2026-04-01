@@ -9,12 +9,32 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services.auth_service import create_access_token, signup
 from app.services.database import get_db
 
 client = TestClient(app)
 
 
-def _seed_scan(user_id: int = 1, document_id: str = "doc-share-test") -> int:
+@pytest.fixture(autouse=True)
+def _clean_db():
+    db = get_db()
+    db.execute("DELETE FROM shared_reports")
+    db.execute("DELETE FROM payments")
+    db.execute("DELETE FROM document_fingerprints")
+    db.execute("DELETE FROM scans")
+    db.execute("DELETE FROM documents")
+    db.execute("DELETE FROM user_api_keys")
+    db.execute("DELETE FROM users")
+    yield
+
+
+def _create_user(email: str = "share@test.com") -> int:
+    """Create a test user and return the user_id."""
+    result = signup("Test User", email, "secret123")
+    return result["user"]["id"]
+
+
+def _seed_scan(user_id: int, document_id: str = "doc-share-test") -> int:
     """Insert a minimal scan row and return its id."""
     db = get_db()
     return db.execute(
@@ -26,10 +46,9 @@ def _seed_scan(user_id: int = 1, document_id: str = "doc-share-test") -> int:
     )
 
 
-def _auth_headers(user_id: int = 1) -> dict:
+def _auth_headers(user_id: int, email: str = "share@test.com") -> dict:
     """Return headers that simulate an authenticated user via JWT."""
-    from app.services.auth_service import create_access_token
-    token = create_access_token({"sub": str(user_id), "email": "test@example.com"})
+    token = create_access_token(user_id, email)
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -37,12 +56,13 @@ def _auth_headers(user_id: int = 1) -> dict:
 
 
 def test_share_report_success():
+    uid = _create_user()
     doc_id = "doc-share-1"
-    _seed_scan(user_id=1, document_id=doc_id)
+    _seed_scan(user_id=uid, document_id=doc_id)
     resp = client.post(
         "/api/v1/share-report",
         json={"document_id": doc_id},
-        headers=_auth_headers(1),
+        headers=_auth_headers(uid),
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -59,10 +79,11 @@ def test_share_report_unauthenticated():
 
 
 def test_share_report_not_found():
+    uid = _create_user()
     resp = client.post(
         "/api/v1/share-report",
         json={"document_id": "nonexistent-doc-xyz"},
-        headers=_auth_headers(1),
+        headers=_auth_headers(uid),
     )
     assert resp.status_code == 404
 
@@ -71,13 +92,14 @@ def test_share_report_not_found():
 
 
 def test_get_shared_report_success():
+    uid = _create_user()
     doc_id = "doc-share-2"
-    _seed_scan(user_id=1, document_id=doc_id)
+    _seed_scan(user_id=uid, document_id=doc_id)
     # Create share link
     resp = client.post(
         "/api/v1/share-report",
         json={"document_id": doc_id},
-        headers=_auth_headers(1),
+        headers=_auth_headers(uid),
     )
     share_id = resp.json()["share_id"]
     # Fetch shared report (no auth required)
@@ -95,12 +117,13 @@ def test_get_shared_report_not_found():
 
 
 def test_get_shared_report_expired():
+    uid = _create_user()
     doc_id = "doc-share-expired"
-    _seed_scan(user_id=1, document_id=doc_id)
+    _seed_scan(user_id=uid, document_id=doc_id)
     resp = client.post(
         "/api/v1/share-report",
         json={"document_id": doc_id, "expires_in_days": 1},
-        headers=_auth_headers(1),
+        headers=_auth_headers(uid),
     )
     share_id = resp.json()["share_id"]
     # Manually set expires_at to the past
@@ -119,12 +142,13 @@ def test_share_report_invalid_share_id():
 
 
 def test_share_report_with_custom_expiry():
+    uid = _create_user()
     doc_id = "doc-share-custom"
-    _seed_scan(user_id=1, document_id=doc_id)
+    _seed_scan(user_id=uid, document_id=doc_id)
     resp = client.post(
         "/api/v1/share-report",
         json={"document_id": doc_id, "expires_in_days": 30},
-        headers=_auth_headers(1),
+        headers=_auth_headers(uid),
     )
     assert resp.status_code == 200
     share_id = resp.json()["share_id"]

@@ -26,9 +26,12 @@ WEBHOOK_URL = "/api/v1/auth/razorpay-webhook"
 @pytest.fixture(autouse=True)
 def _clean_db():
     db = get_db()
+    db.execute("DELETE FROM shared_reports")
+    db.execute("DELETE FROM payments")
     db.execute("DELETE FROM document_fingerprints")
     db.execute("DELETE FROM scans")
     db.execute("DELETE FROM documents")
+    db.execute("DELETE FROM user_api_keys")
     db.execute("DELETE FROM users")
     yield
 

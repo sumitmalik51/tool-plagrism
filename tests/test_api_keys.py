@@ -26,7 +26,11 @@ client = TestClient(app, raise_server_exceptions=False)
 @pytest.fixture(autouse=True)
 def _clean_db():
     db = get_db()
+    db.execute("DELETE FROM shared_reports")
+    db.execute("DELETE FROM payments")
     db.execute("DELETE FROM user_api_keys")
+    db.execute("DELETE FROM scans")
+    db.execute("DELETE FROM documents")
     db.execute("DELETE FROM users")
     yield
 
@@ -37,7 +41,7 @@ def _create_user(plan: str = "pro") -> tuple[int, str]:
     uid = result["user"]["id"]
     db = get_db()
     db.execute("UPDATE users SET plan_type = ? WHERE id = ?", (plan, uid))
-    token = create_access_token(uid)
+    token = create_access_token(uid, f"apitest_{plan}@example.com")
     return uid, token
 
 

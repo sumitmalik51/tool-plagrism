@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+import httpx
 from fastapi import APIRouter, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 
@@ -93,8 +94,6 @@ async def import_google_doc(body: GoogleDocsImportRequest):
 
     doc_id = match.group(1)
     export_url = f"https://docs.google.com/document/d/{doc_id}/export?format=txt"
-
-    import httpx
 
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:

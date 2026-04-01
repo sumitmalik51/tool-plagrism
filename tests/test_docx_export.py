@@ -54,7 +54,7 @@ class TestExportDocx:
             },
         )
         assert res.status_code == 200
-        assert "rewritten_document.docx" in res.headers.get("content-disposition", "")
+        assert "rewritten_document.docx" in res.headers.get("content-disposition", "").lower()
 
     def test_export_empty_original_rejected(self):
         """Empty original text should be rejected by validation."""

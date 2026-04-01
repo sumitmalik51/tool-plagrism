@@ -818,7 +818,7 @@ async def route_razorpay_webhook(request: Request):
 
     logger.info(
         "razorpay_webhook_received",
-        event=event,
+        webhook_event=event,
         order_id=order_id,
         payment_id=payment_id,
         user_id=user_id_str,
