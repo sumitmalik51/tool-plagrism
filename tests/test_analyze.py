@@ -13,10 +13,15 @@ from app.main import app
 client = TestClient(app)
 
 
+@patch("app.tools.embedding_tool.generate_embeddings", new_callable=AsyncMock)
+@patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
+@patch("app.agents.web_search_agent.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.semantic_agent.generate_embeddings", new_callable=AsyncMock)
-def test_analyze_txt_file(mock_embed: AsyncMock) -> None:
+def test_analyze_txt_file(mock_sem: AsyncMock, mock_web: AsyncMock, mock_acad: AsyncMock, mock_tool: AsyncMock) -> None:
     """POST /api/v1/analyze should return a structured report."""
-    mock_embed.return_value = np.random.default_rng(0).random((6, 384)).astype(np.float32)
+    _emb = np.random.default_rng(0).random((6, 384)).astype(np.float32)
+    for m in (mock_sem, mock_web, mock_acad, mock_tool):
+        m.return_value = _emb
 
     content = b"This is a reasonably sized test document for analysis. " * 30
     response = client.post(
@@ -36,8 +41,11 @@ def test_analyze_txt_file(mock_embed: AsyncMock) -> None:
     assert "Report generated at" in data["explanation"]
 
 
+@patch("app.tools.embedding_tool.generate_embeddings", new_callable=AsyncMock)
+@patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
+@patch("app.agents.web_search_agent.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.semantic_agent.generate_embeddings", new_callable=AsyncMock)
-def test_analyze_unsupported_type(mock_embed: AsyncMock) -> None:
+def test_analyze_unsupported_type(mock_sem: AsyncMock, mock_web: AsyncMock, mock_acad: AsyncMock, mock_tool: AsyncMock) -> None:
     """Unsupported file type should return 422."""
     response = client.post(
         "/api/v1/analyze",
@@ -51,10 +59,15 @@ def test_analyze_unsupported_type(mock_embed: AsyncMock) -> None:
 # ---------------------------------------------------------------------------
 
 
+@patch("app.tools.embedding_tool.generate_embeddings", new_callable=AsyncMock)
+@patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
+@patch("app.agents.web_search_agent.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.semantic_agent.generate_embeddings", new_callable=AsyncMock)
-def test_analyze_agent_text(mock_embed: AsyncMock) -> None:
+def test_analyze_agent_text(mock_sem: AsyncMock, mock_web: AsyncMock, mock_acad: AsyncMock, mock_tool: AsyncMock) -> None:
     """POST /api/v1/analyze-agent with text should return a structured report."""
-    mock_embed.return_value = np.random.default_rng(0).random((6, 384)).astype(np.float32)
+    _emb = np.random.default_rng(0).random((6, 384)).astype(np.float32)
+    for m in (mock_sem, mock_web, mock_acad, mock_tool):
+        m.return_value = _emb
 
     text = "This is a reasonably sized test document for analysis. " * 30
     response = client.post(

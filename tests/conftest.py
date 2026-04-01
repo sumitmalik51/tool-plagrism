@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 # Enable debug mode before any app code is imported so the JWT secret
 # auto-generates and the production-secret validator is skipped.
@@ -13,6 +14,14 @@ os.environ.setdefault("PG_DEBUG", "true")
 import pytest
 
 from app.services.database import SQLiteDatabase, reset_db, get_db
+
+# ---------------------------------------------------------------------------
+# Prevent download / loading of the real embedding model in CI.
+# Individual tests that need embeddings mock generate_embeddings directly.
+# ---------------------------------------------------------------------------
+_model_mock = MagicMock()
+_model_patcher = patch("app.tools.embedding_tool._load_model", return_value=_model_mock)
+_model_patcher.start()
 
 # ---------------------------------------------------------------------------
 # Create a single temp DB shared by all test modules.

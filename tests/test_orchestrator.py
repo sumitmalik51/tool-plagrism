@@ -11,13 +11,18 @@ from app.services.orchestrator import run_pipeline
 
 
 @pytest.mark.asyncio
+@patch("app.tools.embedding_tool.generate_embeddings", new_callable=AsyncMock)
+@patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
+@patch("app.agents.web_search_agent.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.semantic_agent.generate_embeddings", new_callable=AsyncMock)
-async def test_pipeline_returns_report(mock_embed: AsyncMock) -> None:
+async def test_pipeline_returns_report(mock_sem: AsyncMock, mock_web: AsyncMock, mock_acad: AsyncMock, mock_tool: AsyncMock) -> None:
     """The full pipeline should return a PlagiarismReport even with stub agents."""
     import numpy as np
 
-    # Provide fake embeddings so the semantic agent doesn't try to load model
-    mock_embed.return_value = np.random.default_rng(0).random((6, 384)).astype(np.float32)
+    # Provide fake embeddings so no agent tries to load the real model
+    _emb = np.random.default_rng(0).random((6, 384)).astype(np.float32)
+    for m in (mock_sem, mock_web, mock_acad, mock_tool):
+        m.return_value = _emb
 
     text = "This is a test document with enough content to chunk. " * 20
     report = await run_pipeline("doc-pipeline-1", text)
@@ -32,12 +37,17 @@ async def test_pipeline_returns_report(mock_embed: AsyncMock) -> None:
 
 
 @pytest.mark.asyncio
+@patch("app.tools.embedding_tool.generate_embeddings", new_callable=AsyncMock)
+@patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
+@patch("app.agents.web_search_agent.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.semantic_agent.generate_embeddings", new_callable=AsyncMock)
-async def test_pipeline_short_text(mock_embed: AsyncMock) -> None:
+async def test_pipeline_short_text(mock_sem: AsyncMock, mock_web: AsyncMock, mock_acad: AsyncMock, mock_tool: AsyncMock) -> None:
     """Very short text should still produce a valid report (not crash)."""
     import numpy as np
 
-    mock_embed.return_value = np.empty((0, 384), dtype=np.float32)
+    _emb = np.empty((0, 384), dtype=np.float32)
+    for m in (mock_sem, mock_web, mock_acad, mock_tool):
+        m.return_value = _emb
 
     report = await run_pipeline("doc-short", "Short.")
 
