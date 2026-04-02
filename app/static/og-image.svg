@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f1117"/>
+      <stop offset="100%" style="stop-color:#1a1d27"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#a29bfe"/>
+      <stop offset="30%" style="stop-color:#6c5ce7"/>
+      <stop offset="70%" style="stop-color:#00b894"/>
+      <stop offset="100%" style="stop-color:#4ECDC4"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <!-- Decorative circles -->
+  <circle cx="150" cy="100" r="200" fill="#6c5ce7" opacity="0.08"/>
+  <circle cx="1050" cy="530" r="250" fill="#00b894" opacity="0.08"/>
+  <!-- Logo -->
+  <rect x="80" y="80" width="64" height="64" rx="16" fill="#6c5ce7"/>
+  <text x="112" y="125" text-anchor="middle" fill="white" font-family="Arial,sans-serif" font-weight="bold" font-size="36">P</text>
+  <text x="160" y="120" fill="#e1e4ed" font-family="Arial,sans-serif" font-weight="bold" font-size="28">PlagiarismGuard</text>
+  <!-- Main heading -->
+  <text x="80" y="260" fill="url(#accent)" font-family="Arial,sans-serif" font-weight="bold" font-size="56">AI-Powered Plagiarism</text>
+  <text x="80" y="330" fill="url(#accent)" font-family="Arial,sans-serif" font-weight="bold" font-size="56">Detection for Academics</text>
+  <!-- Subheading -->
+  <text x="80" y="400" fill="#8b8fa3" font-family="Arial,sans-serif" font-size="24">Detect similarity · Check grammar · Analyze readability · Rewrite with AI</text>
+  <!-- Stats bar -->
+  <rect x="80" y="470" width="250" height="80" rx="12" fill="#1a1d27" stroke="#2e3348" stroke-width="1"/>
+  <text x="205" y="505" text-anchor="middle" fill="#6c5ce7" font-family="Arial,sans-serif" font-weight="bold" font-size="24">250M+</text>
+  <text x="205" y="535" text-anchor="middle" fill="#8b8fa3" font-family="Arial,sans-serif" font-size="14">Scholarly Sources</text>
+  <rect x="360" y="470" width="250" height="80" rx="12" fill="#1a1d27" stroke="#2e3348" stroke-width="1"/>
+  <text x="485" y="505" text-anchor="middle" fill="#00b894" font-family="Arial,sans-serif" font-weight="bold" font-size="24">&lt; 30s</text>
+  <text x="485" y="535" text-anchor="middle" fill="#8b8fa3" font-family="Arial,sans-serif" font-size="14">Analysis Time</text>
+  <rect x="640" y="470" width="250" height="80" rx="12" fill="#1a1d27" stroke="#2e3348" stroke-width="1"/>
+  <text x="765" y="505" text-anchor="middle" fill="#a29bfe" font-family="Arial,sans-serif" font-weight="bold" font-size="24">Free Plan</text>
+  <text x="765" y="535" text-anchor="middle" fill="#8b8fa3" font-family="Arial,sans-serif" font-size="14">No Credit Card</text>
+  <!-- URL -->
+  <text x="80" y="600" fill="#6c5ce7" font-family="Arial,sans-serif" font-size="18">plagiarismguard.com</text>
+</svg>
