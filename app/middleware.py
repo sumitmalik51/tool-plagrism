@@ -84,7 +84,17 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 2. If no API keys are configured, auth is disabled (dev mode)
+        #    But still parse JWT so user context is available downstream.
         if not settings.api_keys:
+            auth_header = request.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer "):
+                from app.services.auth_service import verify_access_token
+
+                token = auth_header.removeprefix("Bearer ").strip()
+                payload = verify_access_token(token)
+                if payload:
+                    request.state.user_id = int(payload["sub"])
+                    request.state.user_email = payload.get("email", "")
             return await call_next(request)
 
         # 3. JWT Bearer token (issued by /api/v1/auth/login & /signup)

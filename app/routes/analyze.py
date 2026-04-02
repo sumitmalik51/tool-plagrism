@@ -265,7 +265,8 @@ async def share_report(body: ShareReportRequest, request: Request) -> JSONRespon
     share_id = uuid.uuid4().hex
 
     if body.expires_in_days is not None:
-        if db._is_mssql:
+        is_mssql = isinstance(db, type) and hasattr(db, '_conn_str') or hasattr(db, '_connection_string')
+        if is_mssql:
             expires_clause = f"DATEADD(day, {int(body.expires_in_days)}, GETUTCDATE())"
         else:
             expires_clause = f"datetime('now', '+{int(body.expires_in_days)} days')"

@@ -35,8 +35,13 @@ def _create_user(email: str = "share@test.com") -> int:
 
 
 def _seed_scan(user_id: int, document_id: str = "doc-share-test") -> int:
-    """Insert a minimal scan row and return its id."""
+    """Insert a minimal document + scan row and return the scan id."""
     db = get_db()
+    db.execute(
+        "INSERT OR IGNORE INTO documents (document_id, user_id, filename, file_type, char_count) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (document_id, user_id, "test.txt", "txt", 100),
+    )
     return db.execute(
         "INSERT INTO scans (document_id, user_id, plagiarism_score, confidence_score, "
         "risk_level, sources_count, flagged_count, report_json) "

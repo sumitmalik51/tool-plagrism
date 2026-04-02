@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.main import app
-from app.services.auth_service import signup
+from app.services.auth_service import get_user_by_id, signup
 from app.services.database import get_db
 
 client = TestClient(app, raise_server_exceptions=False)
@@ -199,6 +199,8 @@ class TestWebhookPaymentFailed:
         user_id = result["user"]["id"]
 
         db = get_db()
+        # Ensure user starts on 'free' plan for this test
+        db.execute("UPDATE users SET plan_type = 'free' WHERE id = ?", (user_id,))
         db.execute(
             "INSERT INTO payments (user_id, razorpay_order_id, plan_name, amount, currency, status) "
             "VALUES (?, ?, ?, ?, ?, ?)",

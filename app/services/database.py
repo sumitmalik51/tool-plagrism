@@ -82,7 +82,10 @@ class SQLiteDatabase(Database):
         conn = self._conn()
         cursor = conn.execute(sql, params)
         conn.commit()
-        return cursor.lastrowid or cursor.rowcount  # type: ignore[return-value]
+        trimmed = sql.strip().upper()
+        if trimmed.startswith(("INSERT",)):
+            return cursor.lastrowid  # type: ignore[return-value]
+        return cursor.rowcount  # type: ignore[return-value]
 
     def fetch_one(self, sql: str, params: tuple = ()) -> dict[str, Any] | None:
         row = self._conn().execute(sql, params).fetchone()
