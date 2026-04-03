@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # File upload
     max_upload_size_mb: int = 50
-    allowed_extensions: list[str] = [".pdf", ".docx", ".txt", ".tex"]
+    allowed_extensions: list[str] = [".pdf", ".docx", ".txt", ".tex", ".pptx"]
     upload_dir: Path = Path("uploads")
 
     # Agent weights (used by aggregation_agent)
@@ -81,6 +81,11 @@ class Settings(BaseSettings):
     # Scan rate limits (per day)
     scan_limit_anonymous: int = 3   # max scans/day for anonymous (by IP)
     scan_limit_free: int = 3        # max scans/day for free registered users
+
+    # Word-count quotas (per month, 0 = unlimited)
+    word_quota_free: int = 5000           # Free users: 5K words/month
+    word_quota_pro: int = 200000          # Pro users: 200K words/month
+    word_quota_premium: int = 500000      # Premium users: 500K words/month
 
     # Tier-based feature limits
     max_upload_size_mb_pro: int = 50       # Pro file size limit

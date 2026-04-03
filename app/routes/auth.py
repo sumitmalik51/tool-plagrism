@@ -403,11 +403,19 @@ async def route_usage(authorization: str = Header(default="")):
     from app.config import settings as _s
     limit = "unlimited" if tier in (UserTier.PRO, UserTier.PREMIUM) else _s.scan_limit_free
 
+    # Word quota (monthly)
+    word_quota = limiter.check_word_quota(user_id, tier)
+
     return {
         "plan_type": plan,
         "used_today": used,
         "remaining": remaining if remaining >= 0 else "unlimited",
         "limit": limit,
+        "word_quota": {
+            "used": word_quota["used"],
+            "limit": word_quota["limit"] or "unlimited",
+            "remaining": word_quota["remaining"] if word_quota["remaining"] >= 0 else "unlimited",
+        },
     }
 
 

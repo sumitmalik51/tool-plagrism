@@ -116,7 +116,7 @@ async def enforce_usage_limit(request: Request) -> None:
 enforce_scan_limit = enforce_usage_limit
 
 
-def record_usage(request: Request, tool_type: str = "scan") -> int:
+def record_usage(request: Request, tool_type: str = "scan", word_count: int = 0) -> int:
     """Record a tool usage after a successful operation.
 
     Returns the new remaining count (or -1 for unlimited).
@@ -136,6 +136,7 @@ def record_usage(request: Request, tool_type: str = "scan") -> int:
         tool_type,
         user_id=user_id,
         ip_address=ip_address,
+        word_count=word_count,
     )
     return limiter.get_remaining(identifier, tier)
 

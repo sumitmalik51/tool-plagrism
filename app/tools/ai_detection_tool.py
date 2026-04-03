@@ -33,6 +33,8 @@ Analyze each text passage and classify it as HUMAN or AI-GENERATED.
 For each passage, return a JSON object with:
 - "label": "human" or "ai"
 - "confidence": 0.0 to 1.0
+- "suspected_model": one of "chatgpt", "claude", "gemini", "copilot", "unknown", or "human" (your best guess of the source model, or "human" if human-written)
+- "reason": brief explanation (max 30 words)
 - "reason": brief explanation (max 30 words)
 
 Look for these AI signals:
@@ -49,6 +51,12 @@ Look for these HUMAN signals:
 - Stylistic quirks, informal asides, or strong opinions
 - Imperfect but natural phrasing
 - Complex reasoning chains with original analogies
+
+Model fingerprinting hints:
+- ChatGPT: "It's important to note", "Delve", "Additionally", numbered lists, balanced pros/cons
+- Claude: "I'd be happy to", cautious hedging, explicit ethical caveats, structured with headers
+- Gemini: "Here's", concise bullet points, Google product references, markdown-heavy formatting
+- Copilot: Code-adjacent phrasing, "Here's how", step-by-step instructions, Microsoft-style prose
 
 Return ONLY a JSON array, one object per passage. No markdown, no explanation outside JSON."""
 
@@ -229,13 +237,23 @@ async def detect_ai_text(
             # Add GPT-flagged chunks
             for i, r in enumerate(gpt_results):
                 if r.get("label") == "ai" and r.get("confidence", 0) >= 0.6 and i < len(sample):
+                    model_tag = r.get("suspected_model", "unknown")
                     flagged_chunks.append({
                         "chunk_index": i,
                         "text": sample[i][:500],
+                        "suspected_model": model_tag,
                         "reason": f"GPT classifier: {r.get('reason', 'AI-generated')} (confidence: {r.get('confidence', 0):.0%})",
                     })
 
     elapsed = round(time.perf_counter() - start, 3)
+
+    # --- Model attribution summary (from GPT results) -------------------------
+    model_attribution: dict[str, int] = {}
+    if gpt_results:
+        for r in gpt_results:
+            if r.get("label") == "ai":
+                model = r.get("suspected_model", "unknown")
+                model_attribution[model] = model_attribution.get(model, 0) + 1
 
     indicators = {
         "type_token_ratio": round(ttr, 4),
@@ -247,6 +265,7 @@ async def detect_ai_text(
         "word_count": len(words),
         "gpt_enabled": use_gpt,
         "gpt_score": gpt_score,
+        "model_attribution": model_attribution if model_attribution else None,
     }
 
     logger.info(

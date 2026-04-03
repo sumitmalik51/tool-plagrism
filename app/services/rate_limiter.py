@@ -154,6 +154,7 @@ class UsageRateLimiter:
         *,
         user_id: int | None = None,
         ip_address: str | None = None,
+        word_count: int = 0,
     ) -> int:
         """Insert a usage_log row and return the new daily count.
         
@@ -164,8 +165,8 @@ class UsageRateLimiter:
         db = get_db()
 
         db.execute(
-            "INSERT INTO usage_logs (user_id, ip_address, tool_type) VALUES (?, ?, ?)",
-            (user_id, ip_address, tool_type),
+            "INSERT INTO usage_logs (user_id, ip_address, tool_type, word_count) VALUES (?, ?, ?, ?)",
+            (user_id, ip_address, tool_type, word_count),
         )
 
         # Invalidate cache for this identifier so next query is fresh
@@ -213,6 +214,33 @@ class UsageRateLimiter:
         limit = self._limit_for_tier(tier)
         used = self.get_count(identifier)
         return max(limit - used, 0)
+
+    def get_monthly_word_count(self, user_id: int) -> int:
+        """Return total words scanned by a user in the current calendar month."""
+        from app.services.database import get_db
+        db = get_db()
+        first_of_month = datetime.now(timezone.utc).strftime("%Y-%m-01")
+        first_of_next = (datetime.now(timezone.utc).replace(day=28) + timedelta(days=4))
+        first_of_next = first_of_next.replace(day=1).strftime("%Y-%m-%d")
+        row = db.fetch_one(
+            "SELECT COALESCE(SUM(word_count), 0) AS total FROM usage_logs "
+            "WHERE user_id = ? AND created_at >= ? AND created_at < ?",
+            (user_id, first_of_month, first_of_next),
+        )
+        return row["total"] if row else 0
+
+    def check_word_quota(self, user_id: int, tier: UserTier, word_count: int = 0) -> dict:
+        """Check if user has enough word quota remaining this month.
+
+        Returns dict with ``allowed``, ``used``, ``limit``, ``remaining``.
+        """
+        quota = self._word_quota_for_tier(tier)
+        if quota == 0:
+            return {"allowed": True, "used": 0, "limit": 0, "remaining": -1}
+        used = self.get_monthly_word_count(user_id)
+        remaining = max(quota - used, 0)
+        allowed = remaining >= word_count
+        return {"allowed": allowed, "used": used, "limit": quota, "remaining": remaining}
 
     def check(self, identifier: str, tier: UserTier) -> int:
         """Check whether *identifier* can still use tools today.
@@ -274,6 +302,17 @@ class UsageRateLimiter:
         if tier == UserTier.FREE:
             return settings.scan_limit_free
         return 0  # PRO/PREMIUM — never called
+
+    @staticmethod
+    def _word_quota_for_tier(tier: UserTier) -> int:
+        """Return the monthly word quota for a tier (0 = unlimited)."""
+        if tier == UserTier.PREMIUM:
+            return settings.word_quota_premium
+        if tier == UserTier.PRO:
+            return settings.word_quota_pro
+        if tier == UserTier.FREE:
+            return settings.word_quota_free
+        return settings.word_quota_free  # anonymous uses free quota
 
 
 # Backwards-compatible alias

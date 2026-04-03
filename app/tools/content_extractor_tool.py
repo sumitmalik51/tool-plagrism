@@ -12,6 +12,7 @@ from io import BytesIO
 from pathlib import Path
 
 from docx import Document as DocxDocument
+from pptx import Presentation
 from PyPDF2 import PdfReader
 
 from app.config import settings
@@ -41,6 +42,7 @@ async def extract_text(file_bytes: bytes, filename: str) -> dict:
         ".docx": _extract_from_docx,
         ".txt": _extract_from_txt,
         ".tex": _extract_from_latex,
+        ".pptx": _extract_from_pptx,
     }
 
     extractor = extractors.get(ext)
@@ -172,6 +174,29 @@ def _extract_from_docx(file_bytes: bytes) -> str:
 
 def _extract_from_txt(file_bytes: bytes) -> str:
     return file_bytes.decode("utf-8", errors="replace")
+
+
+def _extract_from_pptx(file_bytes: bytes) -> str:
+    """Extract text from a PowerPoint (.pptx) file."""
+    prs = Presentation(BytesIO(file_bytes))
+    slides_text: list[str] = []
+    for slide in prs.slides:
+        parts: list[str] = []
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                for paragraph in shape.text_frame.paragraphs:
+                    text = paragraph.text.strip()
+                    if text:
+                        parts.append(text)
+            if shape.has_table:
+                for row in shape.table.rows:
+                    for cell in row.cells:
+                        text = cell.text.strip()
+                        if text:
+                            parts.append(text)
+        if parts:
+            slides_text.append("\n".join(parts))
+    return "\n\n".join(slides_text)
 
 
 def _extract_from_latex(file_bytes: bytes) -> str:

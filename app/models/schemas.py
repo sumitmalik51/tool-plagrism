@@ -27,6 +27,7 @@ class FileType(str, Enum):
     DOCX = "docx"
     TXT = "txt"
     TEX = "tex"
+    PPTX = "pptx"
 
 
 # ---------------------------------------------------------------------------

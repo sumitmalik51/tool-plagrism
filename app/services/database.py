@@ -98,6 +98,11 @@ class SQLiteDatabase(Database):
     def init_schema(self) -> None:
         conn = self._conn()
         conn.executescript(_SQLITE_SCHEMA)
+        # Migration: add word_count column if missing (existing databases)
+        try:
+            conn.execute("SELECT word_count FROM usage_logs LIMIT 1")
+        except Exception:
+            conn.execute("ALTER TABLE usage_logs ADD COLUMN word_count INTEGER NOT NULL DEFAULT 0")
         conn.commit()
         logger.info("db_schema_initialized", backend="sqlite")
 
@@ -355,6 +360,7 @@ CREATE TABLE IF NOT EXISTS usage_logs (
     user_id     INTEGER,
     ip_address  TEXT,
     tool_type   TEXT          NOT NULL,
+    word_count  INTEGER       NOT NULL DEFAULT 0,
     created_at  TEXT          NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -462,6 +468,7 @@ CREATE TABLE usage_logs (
     user_id     INT               NULL,
     ip_address  NVARCHAR(45)      NULL,
     tool_type   NVARCHAR(30)      NOT NULL,
+    word_count  INT               NOT NULL DEFAULT 0,
     created_at  DATETIME2         NOT NULL DEFAULT GETUTCDATE()
 );
 ---
@@ -549,6 +556,9 @@ CREATE TABLE shared_reports (
 ---
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_shared_reports_share')
 CREATE INDEX idx_shared_reports_share ON shared_reports(share_id);
+---
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('usage_logs') AND name = 'word_count')
+ALTER TABLE usage_logs ADD word_count INT NOT NULL DEFAULT 0;
 """
 
 
