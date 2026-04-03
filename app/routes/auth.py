@@ -512,6 +512,8 @@ PLANS = [
             "AI rewriter",
             "Readability analyzer",
             "Grammar checker",
+            "50 MB file upload limit",
+            "Watermarked DOCX export",
         ],
         "cta": "Current Plan",
     },
@@ -525,7 +527,10 @@ PLANS = [
         "features": [
             "Unlimited tool uses",
             "Everything in Free",
-            "Priority processing",
+            "50 MB file upload limit",
+            "Batch analysis (up to 5 files)",
+            "Up to 5 API keys",
+            "Clean DOCX export (no watermark)",
             "Detailed source reports",
             "Scan history & analytics",
         ],
@@ -543,7 +548,10 @@ PLANS = [
         "features": [
             "Unlimited tool uses",
             "Everything in Free",
-            "Priority processing",
+            "50 MB file upload limit",
+            "Batch analysis (up to 5 files)",
+            "Up to 5 API keys",
+            "Clean DOCX export (no watermark)",
             "Detailed source reports",
             "Scan history & analytics",
         ],
@@ -557,9 +565,10 @@ PLANS = [
         "period": "month",
         "features": [
             "Everything in Pro",
-            "API access",
-            "Batch file analysis",
-            "Custom integrations",
+            "100 MB file upload limit",
+            "Batch analysis (up to 10 files)",
+            "Up to 20 API keys",
+            "Enhanced search depth (15+ queries)",
             "Priority support",
         ],
         "cta": "Upgrade to Premium",
@@ -574,9 +583,10 @@ PLANS = [
         "save_percent": 16,
         "features": [
             "Everything in Pro",
-            "API access",
-            "Batch file analysis",
-            "Custom integrations",
+            "100 MB file upload limit",
+            "Batch analysis (up to 10 files)",
+            "Up to 20 API keys",
+            "Enhanced search depth (15+ queries)",
             "Priority support",
         ],
         "cta": "Upgrade to Premium",
@@ -967,7 +977,7 @@ async def route_create_api_key(
     body: CreateApiKeyRequest,
     authorization: str = Header(default=""),
 ):
-    """Generate a new API key. Pro/Premium plans only. Max 5 active keys."""
+    """Generate a new API key. Pro/Premium plans only. Max keys depend on plan."""
     user_id = _get_user_id(authorization)
     user = get_user_by_id(user_id)
     if not user:
@@ -978,7 +988,7 @@ async def route_create_api_key(
         raise HTTPException(status_code=403, detail="API keys require a Pro or Premium plan. Upgrade to get started.")
 
     try:
-        result = create_api_key(user_id, body.name)
+        result = create_api_key(user_id, body.name, plan_type=plan)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

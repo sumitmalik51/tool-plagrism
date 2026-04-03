@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.services.auth_service import create_access_token, signup
 from app.services.api_key_service import (
-    _MAX_KEYS_PER_USER,
+    _max_keys_for_plan,
     create_api_key,
     list_api_keys,
     revoke_api_key,
@@ -60,7 +60,7 @@ class TestCreateApiKey:
 
     def test_max_keys_enforced(self):
         uid, _ = _create_user()
-        for i in range(_MAX_KEYS_PER_USER):
+        for i in range(_max_keys_for_plan("pro")):
             create_api_key(uid, f"Key {i}")
         with pytest.raises(ValueError, match="Maximum"):
             create_api_key(uid, "One too many")

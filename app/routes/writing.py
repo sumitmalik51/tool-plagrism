@@ -12,7 +12,9 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel, Field
 
+from app.config import settings
 from app.dependencies.rate_limit import enforce_usage_limit, record_usage
+from app.services.rate_limiter import PLAN_TO_TIER, UserTier
 from app.tools.citation_tool import (
     generate_citations_from_sources,
     generate_citation,
@@ -150,22 +152,49 @@ async def grammar_check_endpoint(request: GrammarRequest, http_request: Request 
     "/analyze-batch",
     status_code=status.HTTP_200_OK,
     summary="Analyze multiple files for plagiarism in batch",
+    dependencies=[Depends(enforce_usage_limit)],
 )
-async def analyze_batch_endpoint(files: list[UploadFile]) -> dict:
+async def analyze_batch_endpoint(
+    files: list[UploadFile],
+    request: Request,
+) -> dict:
     """Accept multiple files and run plagiarism analysis on each.
 
+    Premium only. Pro users get up to 5 files, Premium up to 10.
     Returns a summary table with scores per document.
     """
+    # --- Tier gate: require Pro or Premium ------------------------------------
+    from app.services.auth_service import get_user_by_id
+
+    user_id: int | None = getattr(request.state, "user_id", None)
+    tier = UserTier.ANONYMOUS
+    if user_id:
+        user = get_user_by_id(user_id)
+        if user:
+            tier = PLAN_TO_TIER.get(user.get("plan_type", "free"), UserTier.FREE)
+
+    if tier not in (UserTier.PRO, UserTier.PREMIUM):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Batch analysis requires a Pro or Premium plan. Upgrade at /pricing.",
+        )
+
+    max_files = (
+        settings.batch_max_files_premium
+        if tier == UserTier.PREMIUM
+        else settings.batch_max_files_pro
+    )
+
     if not files:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="At least one file is required.",
         )
 
-    if len(files) > 10:
+    if len(files) > max_files:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Maximum 10 files per batch.",
+            detail=f"Maximum {max_files} files per batch on your plan.",
         )
 
     results: list[dict] = []

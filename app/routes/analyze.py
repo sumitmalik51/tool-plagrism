@@ -73,9 +73,17 @@ async def analyze_document(file: UploadFile, request: Request) -> PlagiarismRepo
     file_bytes = await file.read()
     user_id = getattr(request.state, "user_id", None)
 
+    # Resolve plan for tier-based file size limits
+    plan_type = "free"
+    if user_id:
+        from app.services.auth_service import get_user_by_id
+        user = get_user_by_id(user_id)
+        if user:
+            plan_type = user.get("plan_type", "free")
+
     # --- Ingest ---------------------------------------------------------------
     try:
-        ingestion_result = await ingest_file(file.filename, file_bytes)
+        ingestion_result = await ingest_file(file.filename, file_bytes, plan_type=plan_type)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -99,6 +107,7 @@ async def analyze_document(file: UploadFile, request: Request) -> PlagiarismRepo
     report = await run_pipeline(
         document_id=ingestion_result["document_id"],
         text=ingestion_result["text"],
+        plan_type=plan_type,
     )
 
     # --- Save scan result to DB -----------------------------------------------
@@ -140,6 +149,14 @@ async def analyze_text(
     document_id = body.document_id or uuid.uuid4().hex
     user_id = getattr(request.state, "user_id", None)
 
+    # Resolve plan for premium query boost
+    plan_type = "free"
+    if user_id:
+        from app.services.auth_service import get_user_by_id as _get_user
+        _u = _get_user(user_id)
+        if _u:
+            plan_type = _u.get("plan_type", "free")
+
     logger.info(
         "analyze_agent_started",
         document_id=document_id,
@@ -165,6 +182,7 @@ async def analyze_text(
         excluded_domains=body.excluded_domains or None,
         use_gpt_ai_detection=body.use_gpt_ai_detection,
         language_override=body.language,
+        plan_type=plan_type,
     )
 
     # --- Save scan result to DB -----------------------------------------------

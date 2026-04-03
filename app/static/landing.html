@@ -33,303 +33,495 @@
   <link rel="stylesheet" href="/static/css/theme.css" />
   <noscript><style>.fade-up{animation:none!important;opacity:1!important;transform:none!important}</style></noscript>
 </head>
-<body class="bg-bg text-txt min-h-screen">
+<body class="bg-bg text-txt min-h-screen overflow-x-hidden">
 
-  <!-- Navbar -->
-  <nav class="fixed top-0 left-0 right-0 z-50 bg-bg/80 backdrop-blur-xl border-b border-border/50">
-    <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+  <!-- ═══ Animated Grid Background ═══ -->
+  <div class="fixed inset-0 z-0 pointer-events-none overflow-hidden" aria-hidden="true">
+    <div class="absolute inset-0" style="background-image: radial-gradient(circle at 1px 1px, rgba(108,92,231,.06) 1px, transparent 0); background-size: 48px 48px;"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <!-- Floating particles -->
+    <div class="particle" style="top:15%;left:10%;--dx:20px;--dy:-30px;--duration:7s;opacity:.15;"></div>
+    <div class="particle" style="top:25%;left:80%;--dx:-25px;--dy:20px;--duration:9s;opacity:.12;width:6px;height:6px;background:#00b894;"></div>
+    <div class="particle" style="top:60%;left:20%;--dx:15px;--dy:-20px;--duration:11s;opacity:.1;width:5px;height:5px;"></div>
+    <div class="particle" style="top:70%;left:75%;--dx:-20px;--dy:25px;--duration:8s;opacity:.12;width:3px;height:3px;background:#e17055;"></div>
+    <div class="particle" style="top:40%;left:50%;--dx:18px;--dy:-15px;--duration:10s;opacity:.08;width:7px;height:7px;"></div>
+    <div class="particle" style="top:85%;left:35%;--dx:-12px;--dy:-22px;--duration:12s;opacity:.1;background:#00b894;"></div>
+  </div>
+
+  <!-- ═══ Navbar ═══ -->
+  <nav id="mainNav" class="fixed top-0 left-0 right-0 z-50 transition-all duration-300" style="background:transparent;">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-3 group">
+        <div class="w-10 h-10 bg-gradient-to-br from-accent to-[#00b894] rounded-xl grid place-items-center text-white font-bold text-lg shadow-lg shadow-accent/20 group-hover:scale-110 transition-transform duration-300">P</div>
+        <span class="text-lg font-bold tracking-tight">PlagiarismGuard</span>
+        <span class="text-[10px] text-muted bg-surface2 px-2 py-0.5 rounded-full font-semibold tracking-wider uppercase border border-border/50">Academic</span>
+      </a>
+
+      <!-- Desktop menu -->
+      <div class="hidden md:flex items-center gap-6">
+        <a href="#features" class="nav-link text-sm text-muted hover:text-txt transition-colors relative after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[2px] after:bg-accent after:transition-all after:duration-300 hover:after:w-full">Features</a>
+        <a href="#how-it-works" class="nav-link text-sm text-muted hover:text-txt transition-colors relative after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[2px] after:bg-accent after:transition-all after:duration-300 hover:after:w-full">How It Works</a>
+        <a href="#pricing" class="nav-link text-sm text-muted hover:text-txt transition-colors relative after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[2px] after:bg-accent after:transition-all after:duration-300 hover:after:w-full">Pricing</a>
+        <a href="#faq" class="nav-link text-sm text-muted hover:text-txt transition-colors relative after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[2px] after:bg-accent after:transition-all after:duration-300 hover:after:w-full">FAQ</a>
+      </div>
+
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 bg-gradient-to-br from-accent to-[#00b894] rounded-xl grid place-items-center text-white font-bold text-lg shadow-lg shadow-accent/20">P</div>
-        <span class="text-lg font-bold">PlagiarismGuard</span>
-        <span class="text-[10px] text-muted bg-surface2 px-2 py-0.5 rounded-full font-semibold tracking-wider uppercase">Academic</span>
-      </div>
-      <div class="flex items-center gap-4">
-        <a href="#features" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Features</a>
-        <a href="#pricing" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">Pricing</a>
-        <a href="#faq" class="text-sm text-muted hover:text-txt transition-colors hidden sm:block">FAQ</a>
-        <button onclick="toggleTheme()" class="text-muted hover:text-txt transition-colors" title="Toggle theme" aria-label="Toggle dark mode">
-          <svg class="theme-icon-moon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-          <svg class="theme-icon-sun hidden" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <button onclick="toggleTheme()" class="w-9 h-9 rounded-lg bg-surface2/60 border border-border/50 grid place-items-center text-muted hover:text-txt hover:border-accent/40 transition-all" title="Toggle theme" aria-label="Toggle dark mode">
+          <svg class="theme-icon-moon w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          <svg class="theme-icon-sun hidden w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
         </button>
-        <a href="/login" class="text-sm text-muted hover:text-txt transition-colors font-medium" id="navLogin">Sign In</a>
-        <a href="/signup" class="text-sm px-4 py-1.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-lg font-medium hover:shadow-lg hover:shadow-accent/25 transition-all" id="navSignup">Sign Up</a>
-        <!-- Shown when logged in -->
-        <a href="/app" class="hidden text-sm px-4 py-1.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-lg font-medium hover:shadow-lg hover:shadow-accent/25 transition-all" id="navDashboard">Dashboard →</a>
+        <!-- Mobile hamburger -->
+        <button id="mobileMenuBtn" class="md:hidden w-9 h-9 rounded-lg bg-surface2/60 border border-border/50 grid place-items-center text-muted hover:text-txt" aria-label="Menu">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <a href="/login" class="text-sm text-muted hover:text-txt transition-colors font-medium hidden sm:block" id="navLogin">Sign In</a>
+        <a href="/signup" class="text-sm px-5 py-2 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-accent/30 hover:-translate-y-0.5 transition-all duration-300 ripple" id="navSignup">Get Started Free</a>
+        <a href="/app" class="hidden text-sm px-5 py-2 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-accent/30 transition-all" id="navDashboard">Dashboard &rarr;</a>
       </div>
+    </div>
+    <!-- Mobile menu panel -->
+    <div id="mobileMenu" class="hidden md:hidden bg-surface/95 backdrop-blur-xl border-b border-border/50 px-6 pb-4">
+      <a href="#features" class="block py-2 text-sm text-muted hover:text-txt">Features</a>
+      <a href="#how-it-works" class="block py-2 text-sm text-muted hover:text-txt">How It Works</a>
+      <a href="#pricing" class="block py-2 text-sm text-muted hover:text-txt">Pricing</a>
+      <a href="#faq" class="block py-2 text-sm text-muted hover:text-txt">FAQ</a>
     </div>
   </nav>
 
   <!-- ════════════ HERO ════════════ -->
-  <section class="relative overflow-hidden pt-28 pb-16 px-6">
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-    <div class="orb orb-3"></div>
-
-    <div class="max-w-4xl mx-auto text-center relative z-10">
-      <div class="fade-up">
-        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent-l text-sm font-medium mb-6">
-          <span class="w-2 h-2 bg-ok rounded-full animate-pulse"></span>
-          🎉 Sign up &amp; get 3 days of Research plan — free, no credit card needed
+  <section class="relative pt-32 sm:pt-40 pb-20 px-6">
+    <div class="max-w-5xl mx-auto text-center relative z-10">
+      <!-- Animated badge -->
+      <div class="reveal">
+        <div class="inline-flex items-center gap-2 px-5 py-2 rounded-full glass-card text-accent-l text-sm font-medium mb-8 float-badge border-accent/20">
+          <span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-ok opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-ok"></span></span>
+          Sign up &amp; get 3 days of Research plan — free
         </div>
       </div>
 
-      <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold leading-tight mb-6 fade-up fade-up-d1">
+      <h1 class="text-4xl sm:text-5xl md:text-7xl font-extrabold leading-[1.1] mb-6 reveal" style="transition-delay:80ms;">
         Ensure Originality in<br>
-        <span class="gradient-text scan-line" id="heroRotate">Your Research</span>
+        <span class="gradient-text scan-line inline-block" id="heroRotate">Your Research</span>
       </h1>
-      <p class="text-lg text-muted max-w-2xl mx-auto mb-2 fade-up fade-up-d1">
-        with AI-Powered Plagiarism Detection
+
+      <p class="text-lg sm:text-xl text-muted max-w-2xl mx-auto mb-3 reveal" style="transition-delay:160ms;">
+        AI-Powered Plagiarism Detection &amp; Writing Intelligence
       </p>
-      <p class="text-base sm:text-lg text-muted max-w-2xl mx-auto mb-10 leading-relaxed fade-up fade-up-d2">
-        Detect, analyze, and safely rewrite content to maintain academic integrity and avoid plagiarism.
+      <p class="text-base text-muted/70 max-w-xl mx-auto mb-12 leading-relaxed reveal" style="transition-delay:200ms;">
+        Detect, analyze, and safely rewrite content to maintain academic integrity — all in seconds.
       </p>
 
-      <div class="flex flex-col sm:flex-row items-center justify-center gap-4 fade-up fade-up-d3">
+      <!-- CTA buttons -->
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-4 reveal" style="transition-delay:280ms;">
         <a href="/app#analyze"
-          class="inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl text-[15px] font-semibold hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all">
-          🔍 Check Your Document
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          class="group inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-accent via-[#5a4bd1] to-accent text-white rounded-2xl text-[15px] font-semibold hover:shadow-2xl hover:shadow-accent/30 hover:-translate-y-1 transition-all duration-300 ripple bg-[length:200%_auto] hover:bg-right-top">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          Check Your Document
+          <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
         </a>
         <a href="/app#rewriter"
-          class="inline-flex items-center gap-2 px-8 py-3.5 bg-surface2 border border-border text-txt rounded-xl text-[15px] font-medium hover:border-accent hover:text-accent-l transition-all">
+          class="inline-flex items-center gap-3 px-8 py-4 glass-card text-txt rounded-2xl text-[15px] font-medium hover:border-accent/40 hover:text-accent-l transition-all duration-300">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           Improve Writing
         </a>
       </div>
 
-      <!-- Trial CTA -->
-      <div class="mt-8 fade-up fade-up-d3">
+      <!-- Trial banner -->
+      <div class="mt-10 reveal" style="transition-delay:360ms;">
         <a href="/signup"
-          class="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-500/10 to-accent/10 border border-emerald-500/20 hover:border-emerald-400/40 transition-all group">
-          <span class="flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 text-lg">🚀</span>
+          class="inline-flex items-center gap-4 px-7 py-4 rounded-2xl glass-card hover:border-emerald-400/40 transition-all duration-300 group">
+          <span class="flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 text-emerald-400 text-xl border border-emerald-500/20 group-hover:scale-110 transition-transform">&#x1F680;</span>
           <span class="text-left">
             <span class="block text-sm font-semibold text-txt">Start your free 3-day Research trial</span>
-            <span class="block text-xs text-muted">Unlimited scans &bull; All Research features &bull; No credit card required</span>
+            <span class="block text-xs text-muted mt-0.5">Unlimited scans &bull; All Research features &bull; No credit card</span>
           </span>
-          <svg class="w-4 h-4 text-muted group-hover:text-accent-l transition-colors ml-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          <svg class="w-5 h-5 text-muted group-hover:text-accent-l group-hover:translate-x-1 transition-all ml-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
         </a>
       </div>
-    </div>
-  </section>
 
-  <!-- ════════════ TRUST SIGNALS ════════════ -->
-  <section class="py-8 px-6">
-    <div class="max-w-4xl mx-auto">
-      <div class="flex flex-wrap justify-center gap-6 text-sm text-muted">
-        <div class="flex items-center gap-2"><span class="w-1.5 h-1.5 bg-ok rounded-full"></span> Designed for researchers and academic writing</div>
-        <div class="flex items-center gap-2"><span class="w-1.5 h-1.5 bg-ok rounded-full"></span> Supports theses, dissertations, and journal papers</div>
-        <div class="flex items-center gap-2"><span class="w-1.5 h-1.5 bg-ok rounded-full"></span> Maintain originality and proper attribution</div>
+      <!-- Mock UI preview -->
+      <div class="mt-16 reveal from-scale" style="transition-delay:450ms;">
+        <div class="relative max-w-3xl mx-auto">
+          <div class="absolute -inset-4 bg-gradient-to-r from-accent/20 via-[#00b894]/20 to-accent/20 rounded-3xl blur-2xl opacity-50"></div>
+          <div class="relative glass-card rounded-2xl p-1 overflow-hidden">
+            <div class="bg-surface rounded-xl p-5 sm:p-6">
+              <!-- Title bar -->
+              <div class="flex items-center gap-3 mb-4 pb-3 border-b border-border/50">
+                <div class="flex gap-1.5"><div class="w-3 h-3 rounded-full bg-danger/60"></div><div class="w-3 h-3 rounded-full bg-warn/60"></div><div class="w-3 h-3 rounded-full bg-ok/60"></div></div>
+                <span class="text-xs text-muted font-mono">PlagiarismGuard — Analysis Results</span>
+              </div>
+              <!-- Mock results grid -->
+              <div class="grid grid-cols-3 gap-3 mb-4">
+                <div class="bg-surface2/60 rounded-xl p-4 text-center border border-border/30">
+                  <div class="text-2xl sm:text-3xl font-bold text-ok count-up" data-target="12" data-suffix="%">0%</div>
+                  <div class="text-[11px] text-muted mt-1">Similarity Score</div>
+                </div>
+                <div class="bg-surface2/60 rounded-xl p-4 text-center border border-border/30">
+                  <div class="text-2xl sm:text-3xl font-bold text-accent-l count-up" data-target="3" data-suffix="">0</div>
+                  <div class="text-[11px] text-muted mt-1">Sources Found</div>
+                </div>
+                <div class="bg-surface2/60 rounded-xl p-4 text-center border border-border/30">
+                  <div class="text-2xl sm:text-3xl font-bold text-ok count-up" data-target="88" data-suffix="%">0%</div>
+                  <div class="text-[11px] text-muted mt-1">Originality</div>
+                </div>
+              </div>
+              <!-- Mock progress bars -->
+              <div class="space-y-2">
+                <div class="flex items-center gap-3"><span class="text-[11px] text-muted w-20">Web Search</span><div class="flex-1 h-2 bg-surface2 rounded-full overflow-hidden"><div class="h-full bg-gradient-to-r from-accent to-[#00b894] rounded-full mock-bar" style="width:0%" data-width="85%"></div></div></div>
+                <div class="flex items-center gap-3"><span class="text-[11px] text-muted w-20">Academic</span><div class="flex-1 h-2 bg-surface2 rounded-full overflow-hidden"><div class="h-full bg-gradient-to-r from-[#00b894] to-[#4ECDC4] rounded-full mock-bar" style="width:0%" data-width="70%"></div></div></div>
+                <div class="flex items-center gap-3"><span class="text-[11px] text-muted w-20">AI Detection</span><div class="flex-1 h-2 bg-surface2 rounded-full overflow-hidden"><div class="h-full bg-gradient-to-r from-[#fdcb6e] to-[#e17055] rounded-full mock-bar" style="width:0%" data-width="40%"></div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- ════════════ BEFORE / AFTER ════════════ -->
-  <section class="py-12 px-6">
-    <div class="max-w-3xl mx-auto">
-      <div class="grid grid-cols-2 gap-6">
-        <div class="bg-danger/5 border border-danger/20 rounded-2xl p-6 text-center">
-          <div class="text-4xl font-extrabold text-danger mb-2 count-up" data-target="42" data-suffix="%">0%</div>
-          <div class="text-sm text-danger font-semibold">Before — Similarity Detected</div>
-          <p class="text-xs text-muted mt-2">Matching phrases and overlapping sources identified</p>
-        </div>
-        <div class="bg-ok/5 border border-ok/20 rounded-2xl p-6 text-center">
-          <div class="text-4xl font-extrabold text-ok mb-2 count-up" data-target="5" data-suffix="%">0%</div>
-          <div class="text-sm text-ok font-semibold">After — Original &amp; Verified</div>
-          <p class="text-xs text-muted mt-2">Refined for clarity and originality while preserving meaning</p>
-        </div>
+  <!-- ════════════ TRUST SIGNALS — Animated Marquee ════════════ -->
+  <section class="py-6 px-6 relative z-10 overflow-hidden">
+    <div class="max-w-5xl mx-auto">
+      <div class="flex flex-wrap justify-center gap-x-10 gap-y-3 text-sm text-muted reveal">
+        <div class="flex items-center gap-2 group"><span class="w-2 h-2 bg-ok rounded-full group-hover:scale-150 transition-transform"></span><span class="group-hover:text-txt transition-colors">250M+ scholarly sources</span></div>
+        <div class="flex items-center gap-2 group"><span class="w-2 h-2 bg-ok rounded-full group-hover:scale-150 transition-transform"></span><span class="group-hover:text-txt transition-colors">Theses &amp; dissertations</span></div>
+        <div class="flex items-center gap-2 group"><span class="w-2 h-2 bg-ok rounded-full group-hover:scale-150 transition-transform"></span><span class="group-hover:text-txt transition-colors">Results in &lt; 30 seconds</span></div>
+        <div class="flex items-center gap-2 group"><span class="w-2 h-2 bg-ok rounded-full group-hover:scale-150 transition-transform"></span><span class="group-hover:text-txt transition-colors">PDF, DOCX &amp; LaTeX support</span></div>
       </div>
     </div>
   </section>
 
   <!-- ════════════ STATS BAR ════════════ -->
-  <section class="border-y border-border/50 bg-surface/50 backdrop-blur-sm">
-    <div class="max-w-5xl mx-auto px-6 py-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
-      <div class="stat-card fade-up"><div class="text-2xl font-bold gradient-text count-up" data-target="10" data-suffix="K+" data-prefix="">0</div><div class="text-xs text-muted mt-1">Documents Analyzed</div></div>
-      <div class="stat-card fade-up fade-up-d1"><div class="text-2xl font-bold gradient-text count-up" data-target="95" data-suffix="%">0%</div><div class="text-xs text-muted mt-1">Originality Achieved</div></div>
-      <div class="stat-card fade-up fade-up-d2"><div class="text-2xl font-bold gradient-text count-up" data-target="250" data-suffix="M+">0</div><div class="text-xs text-muted mt-1">Scholarly Sources</div></div>
-      <div class="stat-card fade-up fade-up-d3"><div class="text-2xl font-bold gradient-text" data-static="true">&lt; 30s</div><div class="text-xs text-muted mt-1">Analysis Time</div></div>
+  <section class="relative z-10">
+    <hr class="glow-divider">
+    <div class="bg-surface/40 backdrop-blur-md">
+      <div class="max-w-5xl mx-auto px-6 py-8 grid grid-cols-2 sm:grid-cols-4 gap-4 stagger">
+        <div class="stat-card tilt-card reveal"><div class="text-3xl font-bold gradient-text count-up" data-target="10" data-suffix="K+">0</div><div class="text-xs text-muted mt-1">Documents Analyzed</div></div>
+        <div class="stat-card tilt-card reveal"><div class="text-3xl font-bold gradient-text count-up" data-target="95" data-suffix="%">0%</div><div class="text-xs text-muted mt-1">Originality Achieved</div></div>
+        <div class="stat-card tilt-card reveal"><div class="text-3xl font-bold gradient-text count-up" data-target="250" data-suffix="M+">0</div><div class="text-xs text-muted mt-1">Scholarly Sources</div></div>
+        <div class="stat-card tilt-card reveal"><div class="text-3xl font-bold gradient-text" data-static="true">&lt; 30s</div><div class="text-xs text-muted mt-1">Analysis Time</div></div>
+      </div>
+    </div>
+    <hr class="glow-divider">
+  </section>
+
+  <!-- ════════════ FEATURES — Bento Grid ════════════ -->
+  <section id="features" class="py-24 px-6 relative z-10">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center mb-16 reveal">
+        <span class="px-3 py-1 rounded-full bg-accent/10 text-accent-l text-xs font-semibold border border-accent/20 mb-4 inline-block">FEATURES</span>
+        <h2 class="text-3xl sm:text-4xl font-bold mb-3">Intelligent Detection Engine</h2>
+        <p class="text-muted max-w-xl mx-auto">Six powerful tools working in harmony to protect your academic integrity.</p>
+      </div>
+
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 stagger">
+        <!-- Feature 1 -->
+        <div class="feature-card glass-card tilt-card p-6 reveal" style="--card-accent: #FF6B6B;">
+          <div class="w-14 h-14 rounded-2xl bg-[#FF6B6B]/15 grid place-items-center text-2xl mb-5 group-hover:scale-110 transition-transform">&#x1F310;</div>
+          <h3 class="font-semibold text-lg mb-2">Web &amp; Academic Sources</h3>
+          <p class="text-sm text-muted leading-relaxed">Cross-references web pages and 250M+ scholarly papers to identify overlapping content with precision.</p>
+        </div>
+        <!-- Feature 2 -->
+        <div class="feature-card glass-card tilt-card p-6 reveal" style="--card-accent: #6c5ce7;">
+          <div class="w-14 h-14 rounded-2xl bg-accent/15 grid place-items-center text-2xl mb-5">&#x1F9E0;</div>
+          <h3 class="font-semibold text-lg mb-2">Deep Semantic Analysis</h3>
+          <p class="text-sm text-muted leading-relaxed">Detects paraphrasing and rephrased content using multilingual AI sentence embeddings.</p>
+        </div>
+        <!-- Feature 3 -->
+        <div class="feature-card glass-card tilt-card p-6 reveal" style="--card-accent: #fdcb6e;">
+          <div class="w-14 h-14 rounded-2xl bg-[#fdcb6e]/15 grid place-items-center text-2xl mb-5">&#x1F916;</div>
+          <h3 class="font-semibold text-lg mb-2">AI-Text Detection</h3>
+          <p class="text-sm text-muted leading-relaxed">Identifies GPT/ChatGPT-generated passages to maintain your authentic academic voice.</p>
+        </div>
+        <!-- Feature 4 -->
+        <div class="feature-card glass-card tilt-card p-6 reveal" style="--card-accent: #00b894;">
+          <div class="w-14 h-14 rounded-2xl bg-ok/15 grid place-items-center text-2xl mb-5">&#x270D;&#xFE0F;</div>
+          <h3 class="font-semibold text-lg mb-2">AI Rewriter</h3>
+          <p class="text-sm text-muted leading-relaxed">Safely rephrase flagged passages while preserving meaning and academic tone.</p>
+        </div>
+        <!-- Feature 5 -->
+        <div class="feature-card glass-card tilt-card p-6 reveal" style="--card-accent: #e17055;">
+          <div class="w-14 h-14 rounded-2xl bg-danger/15 grid place-items-center text-2xl mb-5">&#x1F4CA;</div>
+          <h3 class="font-semibold text-lg mb-2">Readability &amp; Grammar</h3>
+          <p class="text-sm text-muted leading-relaxed">Comprehensive readability scoring and grammar checking to polish your writing.</p>
+        </div>
+        <!-- Feature 6 -->
+        <div class="feature-card glass-card tilt-card p-6 reveal" style="--card-accent: #a29bfe;">
+          <div class="w-14 h-14 rounded-2xl bg-accent-l/15 grid place-items-center text-2xl mb-5">&#x1F4D1;</div>
+          <h3 class="font-semibold text-lg mb-2">Citation Generator</h3>
+          <p class="text-sm text-muted leading-relaxed">Auto-generate APA, MLA, Chicago &amp; IEEE citations for all detected sources.</p>
+        </div>
+      </div>
     </div>
   </section>
 
-  <!-- ════════════ FEATURES ════════════ -->
-  <section id="features" class="py-20 px-6">
+  <!-- ════════════ BEFORE / AFTER — Interactive ════════════ -->
+  <section class="py-16 px-6 relative z-10">
+    <div class="max-w-3xl mx-auto reveal">
+      <div class="text-center mb-10">
+        <span class="px-3 py-1 rounded-full bg-ok/10 text-ok text-xs font-semibold border border-ok/20 mb-4 inline-block">RESULTS</span>
+        <h2 class="text-2xl sm:text-3xl font-bold">See the Difference</h2>
+      </div>
+      <div class="grid grid-cols-2 gap-6">
+        <div class="glass-card tilt-card rounded-2xl p-7 text-center border-danger/20 hover:border-danger/40 transition-colors">
+          <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-danger/10 grid place-items-center">
+            <svg class="w-8 h-8 text-danger" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <div class="text-5xl font-extrabold text-danger mb-2 count-up" data-target="42" data-suffix="%">0%</div>
+          <div class="text-sm text-danger font-semibold">Before</div>
+          <p class="text-xs text-muted mt-2">Similarity Detected</p>
+        </div>
+        <div class="glass-card tilt-card rounded-2xl p-7 text-center border-ok/20 hover:border-ok/40 transition-colors">
+          <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-ok/10 grid place-items-center">
+            <svg class="w-8 h-8 text-ok" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <div class="text-5xl font-extrabold text-ok mb-2 count-up" data-target="5" data-suffix="%">0%</div>
+          <div class="text-sm text-ok font-semibold">After</div>
+          <p class="text-xs text-muted mt-2">Original &amp; Verified</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════ HOW IT WORKS — Timeline ════════════ -->
+  <section id="how-it-works" class="py-24 px-6 relative z-10">
+    <hr class="glow-divider mb-20">
     <div class="max-w-5xl mx-auto">
-      <div class="text-center mb-14">
-        <h2 class="text-3xl font-bold mb-3">Intelligent Detection Engine</h2>
-        <p class="text-muted max-w-xl mx-auto">Scans web and academic sources to identify matching or similar content in your writing.</p>
+      <div class="text-center mb-16 reveal">
+        <span class="px-3 py-1 rounded-full bg-accent/10 text-accent-l text-xs font-semibold border border-accent/20 mb-4 inline-block">WORKFLOW</span>
+        <h2 class="text-3xl sm:text-4xl font-bold mb-3">How It Works</h2>
+        <p class="text-muted max-w-lg mx-auto">Three simple steps to academic integrity</p>
       </div>
-      <div class="grid sm:grid-cols-3 gap-5">
-        <div class="feature-card text-center" style="--card-accent: #FF6B6B;">
-          <div class="w-14 h-14 mx-auto rounded-2xl bg-[#FF6B6B]/15 grid place-items-center text-2xl mb-4">🌐</div>
-          <h3 class="font-semibold mb-2">Web &amp; Academic Sources</h3>
-          <p class="text-sm text-muted leading-relaxed">Cross-references web pages and scholarly databases to identify overlapping content.</p>
-        </div>
-        <div class="feature-card text-center" style="--card-accent: #6c5ce7;">
-          <div class="w-14 h-14 mx-auto rounded-2xl bg-accent/15 grid place-items-center text-2xl mb-4">🧠</div>
-          <h3 class="font-semibold mb-2">Deep Semantic Analysis</h3>
-          <p class="text-sm text-muted leading-relaxed">Detects paraphrasing and reworded content using AI sentence embeddings.</p>
-        </div>
-        <div class="feature-card text-center" style="--card-accent: #fdcb6e;">
-          <div class="w-14 h-14 mx-auto rounded-2xl bg-[#fdcb6e]/15 grid place-items-center text-2xl mb-4">🤖</div>
-          <h3 class="font-semibold mb-2">AI-Generated Text Detection</h3>
-          <p class="text-sm text-muted leading-relaxed">Identifies AI-generated passages to help you maintain authentic academic voice.</p>
+
+      <!-- Timeline -->
+      <div class="relative">
+        <!-- Vertical line -->
+        <div class="hidden sm:block absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-accent/30 to-transparent"></div>
+
+        <div class="space-y-12 sm:space-y-0 sm:grid sm:grid-cols-3 sm:gap-8">
+          <!-- Step 1 -->
+          <div class="reveal text-center">
+            <div class="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-accent/20 to-accent/5 border border-accent/30 grid place-items-center text-xl font-bold text-accent-l shadow-lg shadow-accent/10 hover:scale-110 transition-transform duration-300">1</div>
+            <h3 class="font-bold text-lg mb-2">Upload or Paste</h3>
+            <p class="text-sm text-muted leading-relaxed">Submit your thesis, paper, or any writing. We support PDF, DOCX, LaTeX, and plain text.</p>
+          </div>
+          <!-- Step 2 -->
+          <div class="reveal text-center" style="transition-delay:120ms;">
+            <div class="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-[#00b894]/20 to-[#00b894]/5 border border-[#00b894]/30 grid place-items-center text-xl font-bold text-[#00b894] shadow-lg shadow-[#00b894]/10 hover:scale-110 transition-transform duration-300">2</div>
+            <h3 class="font-bold text-lg mb-2">AI Analyzes Deeply</h3>
+            <p class="text-sm text-muted leading-relaxed">4 AI agents run in parallel — web, academic, semantic, and AI detection — delivering results in seconds.</p>
+          </div>
+          <!-- Step 3 -->
+          <div class="reveal text-center" style="transition-delay:240ms;">
+            <div class="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-[#fdcb6e]/20 to-[#fdcb6e]/5 border border-[#fdcb6e]/30 grid place-items-center text-xl font-bold text-[#fdcb6e] shadow-lg shadow-[#fdcb6e]/10 hover:scale-110 transition-transform duration-300">3</div>
+            <h3 class="font-bold text-lg mb-2">Review &amp; Refine</h3>
+            <p class="text-sm text-muted leading-relaxed">Get a detailed report with highlighted passages, sources, and one-click AI rewriting to fix issues.</p>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ════════════ HOW IT WORKS ════════════ -->
-  <section class="py-16 px-6 border-t border-border/50 bg-surface/30">
-    <div class="max-w-4xl mx-auto">
-      <h2 class="text-2xl font-bold text-center mb-12">How It Works</h2>
-      <div class="grid sm:grid-cols-3 gap-8 text-center">
-        <div class="fade-up">
-          <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-accent/10 border border-accent/20 grid place-items-center text-2xl">1</div>
-          <h3 class="font-semibold mb-2">Paste Your Text</h3>
-          <p class="text-sm text-muted">Submit your thesis, paper, or any academic writing for analysis.</p>
-        </div>
-        <div class="fade-up fade-up-d1">
-          <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-accent/10 border border-accent/20 grid place-items-center text-2xl">2</div>
-          <h3 class="font-semibold mb-2">AI Analyzes &amp; Refines</h3>
-          <p class="text-sm text-muted">Our engine detects similarities and helps you rephrase safely while preserving meaning.</p>
-        </div>
-        <div class="fade-up fade-up-d2">
-          <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-accent/10 border border-accent/20 grid place-items-center text-2xl">3</div>
-          <h3 class="font-semibold mb-2">Review &amp; Submit</h3>
-          <p class="text-sm text-muted">Get original, properly refined text ready for publication or submission.</p>
-        </div>
+  <!-- ════════════ USE CASES — Interactive Cards ════════════ -->
+  <section class="py-16 px-6 relative z-10">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center mb-12 reveal">
+        <h2 class="text-2xl sm:text-3xl font-bold mb-3">Built for Academic Use</h2>
+        <p class="text-muted">Trusted by students, researchers, and institutions</p>
       </div>
-    </div>
-  </section>
-
-  <!-- ════════════ ACADEMIC USE CASES ════════════ -->
-  <section class="py-14 px-6 border-t border-border/50">
-    <div class="max-w-4xl mx-auto text-center">
-      <h2 class="text-2xl font-bold mb-6">Built for Academic Use</h2>
-      <div class="grid sm:grid-cols-4 gap-5">
-        <div class="bg-surface/80 border border-border rounded-xl p-5">
-          <div class="text-2xl mb-2">📚</div><h4 class="font-semibold text-sm mb-1">Thesis Writing</h4>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 stagger">
+        <div class="glass-card tilt-card rounded-2xl p-6 text-center reveal group cursor-default">
+          <div class="text-3xl mb-3 group-hover:scale-125 transition-transform duration-300">&#x1F4DA;</div>
+          <h4 class="font-semibold mb-1">Thesis Writing</h4>
           <p class="text-xs text-muted">Ensure originality across chapters and sections.</p>
         </div>
-        <div class="bg-surface/80 border border-border rounded-xl p-5">
-          <div class="text-2xl mb-2">📄</div><h4 class="font-semibold text-sm mb-1">Research Papers</h4>
+        <div class="glass-card tilt-card rounded-2xl p-6 text-center reveal group cursor-default">
+          <div class="text-3xl mb-3 group-hover:scale-125 transition-transform duration-300">&#x1F4C4;</div>
+          <h4 class="font-semibold mb-1">Research Papers</h4>
           <p class="text-xs text-muted">Check for unintentional similarity before submission.</p>
         </div>
-        <div class="bg-surface/80 border border-border rounded-xl p-5">
-          <div class="text-2xl mb-2">🗒️</div><h4 class="font-semibold text-sm mb-1">Journal Submissions</h4>
+        <div class="glass-card tilt-card rounded-2xl p-6 text-center reveal group cursor-default">
+          <div class="text-3xl mb-3 group-hover:scale-125 transition-transform duration-300">&#x1F5D2;&#xFE0F;</div>
+          <h4 class="font-semibold mb-1">Journal Submissions</h4>
           <p class="text-xs text-muted">Meet publisher originality requirements with confidence.</p>
         </div>
-        <div class="bg-surface/80 border border-border rounded-xl p-5">
-          <div class="text-2xl mb-2">🔍</div><h4 class="font-semibold text-sm mb-1">Literature Reviews</h4>
+        <div class="glass-card tilt-card rounded-2xl p-6 text-center reveal group cursor-default">
+          <div class="text-3xl mb-3 group-hover:scale-125 transition-transform duration-300">&#x1F50D;</div>
+          <h4 class="font-semibold mb-1">Literature Reviews</h4>
           <p class="text-xs text-muted">Properly paraphrase and attribute referenced works.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ════════════ PRICING ════════════ -->
-  <section id="pricing" class="py-20 px-6">
+  <!-- ════════════ PRICING — Enhanced ════════════ -->
+  <section id="pricing" class="py-24 px-6 relative z-10">
+    <hr class="glow-divider mb-20">
     <div class="max-w-5xl mx-auto">
-      <div class="text-center mb-12">
+      <div class="text-center mb-14 reveal">
         <span class="px-3 py-1 rounded-full bg-accent/10 text-accent-l text-xs font-semibold border border-accent/20 mb-4 inline-block">PRICING</span>
-        <h2 class="text-3xl font-bold mb-3">Plans for every researcher</h2>
-        <p class="text-muted max-w-lg mx-auto">Start with a free 3-day Research trial. Upgrade when your research demands more.</p>
+        <h2 class="text-3xl sm:text-4xl font-bold mb-3">Plans for every researcher</h2>
+        <p class="text-muted max-w-lg mx-auto">Start free. Upgrade when your research demands more.</p>
       </div>
-      <div class="grid md:grid-cols-3 gap-6">
+
+      <!-- Billing toggle -->
+      <div class="flex items-center justify-center gap-3 mb-10 reveal">
+        <span class="text-sm font-medium" id="toggleMonthly">Monthly</span>
+        <button id="billingToggle" class="relative w-14 h-7 rounded-full bg-surface2 border border-border transition-colors" aria-label="Toggle billing">
+          <div class="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-accent shadow-md transition-transform duration-300" id="toggleDot"></div>
+        </button>
+        <span class="text-sm font-medium text-muted" id="toggleAnnual">Annual <span class="text-xs text-ok font-semibold ml-1">Save 16%</span></span>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-6 stagger">
         <!-- Basic -->
-        <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative">
-          <h3 class="text-lg font-bold mb-1">Basic</h3>
-          <div class="flex items-end gap-1 mb-4"><span class="text-4xl font-bold">₹0</span><span class="text-muted text-sm mb-1">forever</span></div>
-          <ul class="space-y-3 text-sm flex-1 mb-6">
-            <li class="flex items-center gap-2"><span class="text-ok">✓</span> 3 tool uses per day</li>
-            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Plagiarism detection</li>
-            <li class="flex items-center gap-2"><span class="text-ok">✓</span> AI rewriter</li>
-            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Readability analyzer</li>
-            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Grammar checker</li>
+        <div class="glass-card tilt-card rounded-2xl p-8 flex flex-col relative reveal">
+          <h3 class="text-xl font-bold mb-1">Basic</h3>
+          <p class="text-sm text-muted mb-4">For occasional use</p>
+          <div class="flex items-end gap-1 mb-6"><span class="text-5xl font-extrabold">&#8377;0</span><span class="text-muted text-sm mb-2">forever</span></div>
+          <ul class="space-y-3 text-sm flex-1 mb-8">
+            <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">&#10003;</span> 3 tool uses per day</li>
+            <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">&#10003;</span> Plagiarism detection</li>
+            <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">&#10003;</span> AI rewriter</li>
+            <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">&#10003;</span> Readability &amp; grammar</li>
+            <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">&#10003;</span> 50 MB uploads</li>
           </ul>
-          <a href="/signup" class="w-full py-2.5 rounded-xl bg-surface2 text-txt text-sm font-semibold border border-border text-center hover:border-accent transition-colors">Get Started Free</a>
+          <a href="/signup" class="w-full py-3 rounded-xl bg-surface2 text-txt text-sm font-semibold border border-border text-center hover:border-accent hover:bg-accent/5 transition-all duration-300 ripple">Get Started Free</a>
         </div>
         <!-- Research (Most Popular) -->
-        <div class="bg-surface/80 backdrop-blur-sm border-2 border-accent rounded-2xl p-7 flex flex-col relative shadow-lg shadow-accent/10">
-          <span class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-accent text-white text-xs font-bold">MOST POPULAR</span>
-          <h3 class="text-lg font-bold mb-1">Research</h3>
-          <div class="flex items-end gap-1 mb-4"><span class="text-4xl font-bold">₹299</span><span class="text-muted text-sm mb-1">/month</span><span class="text-xs text-danger line-through ml-2 mb-1">₹499</span></div>
-          <ul class="space-y-3 text-sm flex-1 mb-6">
-            <li class="flex items-center gap-2"><span class="text-ok">✓</span> <strong>Unlimited</strong> tool uses</li>
-            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Everything in Basic</li>
-            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Priority processing</li>
-            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Detailed source reports</li>
-            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Scan history & analytics</li>
+        <div class="glass-card gradient-border tilt-card rounded-2xl p-8 flex flex-col relative reveal shadow-2xl shadow-accent/10 scale-[1.02]">
+          <span class="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-xs font-bold shadow-lg shadow-accent/30">MOST POPULAR</span>
+          <h3 class="text-xl font-bold mb-1">Research</h3>
+          <p class="text-sm text-muted mb-4">For serious academics</p>
+          <div class="flex items-end gap-1 mb-6">
+            <span class="text-5xl font-extrabold pricing-monthly">&#8377;299</span>
+            <span class="text-5xl font-extrabold pricing-annual hidden">&#8377;250</span>
+            <span class="text-muted text-sm mb-2">/month</span>
+            <span class="text-xs text-danger line-through ml-2 mb-2">&#8377;499</span>
+          </div>
+          <ul class="space-y-3 text-sm flex-1 mb-8">
+            <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">&#10003;</span> <strong>Unlimited</strong> tool uses</li>
+            <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">&#10003;</span> Everything in Basic</li>
+            <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">&#10003;</span> Batch analysis (5 files)</li>
+            <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">&#10003;</span> 5 API keys</li>
+            <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">&#10003;</span> Clean DOCX export</li>
+            <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">&#10003;</span> Scan history &amp; analytics</li>
           </ul>
-          <a href="/signup" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-bold text-center hover:shadow-lg hover:shadow-accent/25 transition-all">Start Free Trial</a>
+          <a href="/signup" class="w-full py-3 rounded-xl bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-bold text-center hover:shadow-2xl hover:shadow-accent/30 hover:-translate-y-0.5 transition-all duration-300 ripple">Start Free Trial</a>
         </div>
         <!-- Advanced -->
-        <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-7 flex flex-col relative">
-          <h3 class="text-lg font-bold mb-1">Advanced Research</h3>
-          <div class="flex items-end gap-1 mb-4"><span class="text-4xl font-bold">₹599</span><span class="text-muted text-sm mb-1">/month</span><span class="text-xs text-danger line-through ml-2 mb-1">₹999</span></div>
-          <ul class="space-y-3 text-sm flex-1 mb-6">
-            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Everything in Research</li>
-            <li class="flex items-center gap-2"><span class="text-ok">✓</span> API access</li>
-            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Batch file analysis</li>
-            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Custom integrations</li>
-            <li class="flex items-center gap-2"><span class="text-ok">✓</span> Priority support</li>
+        <div class="glass-card tilt-card rounded-2xl p-8 flex flex-col relative reveal">
+          <h3 class="text-xl font-bold mb-1">Advanced</h3>
+          <p class="text-sm text-muted mb-4">For power users &amp; teams</p>
+          <div class="flex items-end gap-1 mb-6">
+            <span class="text-5xl font-extrabold pricing-monthly">&#8377;599</span>
+            <span class="text-5xl font-extrabold pricing-annual hidden">&#8377;500</span>
+            <span class="text-muted text-sm mb-2">/month</span>
+            <span class="text-xs text-danger line-through ml-2 mb-2">&#8377;999</span>
+          </div>
+          <ul class="space-y-3 text-sm flex-1 mb-8">
+            <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">&#10003;</span> Everything in Research</li>
+            <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">&#10003;</span> 100 MB uploads</li>
+            <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">&#10003;</span> Batch analysis (10 files)</li>
+            <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">&#10003;</span> 20 API keys</li>
+            <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">&#10003;</span> Enhanced search depth</li>
+            <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">&#10003;</span> Priority support</li>
           </ul>
-          <a href="/signup" class="w-full py-2.5 rounded-xl bg-surface2 text-txt text-sm font-bold border border-border text-center hover:border-accent/50 hover:bg-accent/5 transition-all">Start Free Trial</a>
+          <a href="/signup" class="w-full py-3 rounded-xl bg-surface2 text-txt text-sm font-bold border border-border text-center hover:border-accent/50 hover:bg-accent/5 transition-all duration-300 ripple">Start Free Trial</a>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ════════════ FAQ ════════════ -->
-  <section id="faq" class="py-16 px-6 border-t border-border/50">
+  <!-- ════════════ TESTIMONIALS ════════════ -->
+  <section class="py-16 px-6 relative z-10">
+    <div class="max-w-4xl mx-auto">
+      <div class="text-center mb-12 reveal">
+        <span class="px-3 py-1 rounded-full bg-accent/10 text-accent-l text-xs font-semibold border border-accent/20 mb-4 inline-block">TESTIMONIALS</span>
+        <h2 class="text-2xl sm:text-3xl font-bold">Trusted by Researchers</h2>
+      </div>
+      <div class="grid sm:grid-cols-3 gap-5 stagger">
+        <div class="glass-card tilt-card rounded-2xl p-6 reveal">
+          <div class="flex items-center gap-1 mb-3 text-[#fdcb6e]">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <p class="text-sm text-muted leading-relaxed mb-4">"Finally a plagiarism checker that understands academic writing. The semantic detection caught paraphrased passages that other tools completely missed."</p>
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-full bg-gradient-to-br from-accent to-[#00b894] grid place-items-center text-white text-sm font-bold">R</div>
+            <div><div class="text-sm font-semibold">Dr. Rahul M.</div><div class="text-xs text-muted">Research Scholar, IIT Delhi</div></div>
+          </div>
+        </div>
+        <div class="glass-card tilt-card rounded-2xl p-6 reveal">
+          <div class="flex items-center gap-1 mb-3 text-[#fdcb6e]">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <p class="text-sm text-muted leading-relaxed mb-4">"The AI rewriter has saved me countless hours. It rephrases without losing the academic tone — exactly what I needed for my journal submissions."</p>
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-full bg-gradient-to-br from-[#00b894] to-[#4ECDC4] grid place-items-center text-white text-sm font-bold">P</div>
+            <div><div class="text-sm font-semibold">Priya S.</div><div class="text-xs text-muted">PhD Candidate, JNU</div></div>
+          </div>
+        </div>
+        <div class="glass-card tilt-card rounded-2xl p-6 reveal">
+          <div class="flex items-center gap-1 mb-3 text-[#fdcb6e]">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <p class="text-sm text-muted leading-relaxed mb-4">"I use PlagiarismGuard for every paper before submission. The batch analysis on Premium saves so much time when handling multiple chapters."</p>
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-full bg-gradient-to-br from-[#e17055] to-[#fdcb6e] grid place-items-center text-white text-sm font-bold">A</div>
+            <div><div class="text-sm font-semibold">Arjun K.</div><div class="text-xs text-muted">Asst. Professor, BITS Pilani</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════ FAQ — Enhanced ════════════ -->
+  <section id="faq" class="py-24 px-6 relative z-10">
+    <hr class="glow-divider mb-20">
     <div class="max-w-3xl mx-auto">
-      <div class="text-center mb-10">
+      <div class="text-center mb-12 reveal">
         <span class="px-3 py-1 rounded-full bg-accent/10 text-accent-l text-xs font-semibold border border-accent/20 mb-4 inline-block">FAQ</span>
-        <h2 class="text-2xl font-bold mb-2">Frequently Asked Questions</h2>
+        <h2 class="text-2xl sm:text-3xl font-bold mb-2">Frequently Asked Questions</h2>
         <p class="text-muted text-sm">Everything you need to know about PlagiarismGuard</p>
       </div>
-      <div class="space-y-3">
-        <details class="group bg-surface/80 border border-border rounded-xl overflow-hidden">
-          <summary class="flex items-center justify-between cursor-pointer px-6 py-4 text-sm font-semibold hover:text-accent-l transition-colors">
+      <div class="space-y-3 stagger">
+        <details class="group glass-card rounded-xl overflow-hidden reveal">
+          <summary class="flex items-center justify-between cursor-pointer px-6 py-5 text-sm font-semibold hover:text-accent-l transition-colors">
             How does PlagiarismGuard detect plagiarism?
-            <svg class="w-4 h-4 text-muted transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+            <svg class="w-5 h-5 text-muted transition-transform duration-300 group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
           </summary>
-          <div class="px-6 pb-4 text-sm text-muted leading-relaxed">
+          <div class="px-6 pb-5 text-sm text-muted leading-relaxed">
             PlagiarismGuard uses a multi-agent AI system that cross-references your text against 250M+ scholarly sources and web pages. It combines web search matching, deep semantic analysis using sentence embeddings, and AI-generated text detection to identify both direct copying and paraphrased content.
           </div>
         </details>
-        <details class="group bg-surface/80 border border-border rounded-xl overflow-hidden">
-          <summary class="flex items-center justify-between cursor-pointer px-6 py-4 text-sm font-semibold hover:text-accent-l transition-colors">
+        <details class="group glass-card rounded-xl overflow-hidden reveal">
+          <summary class="flex items-center justify-between cursor-pointer px-6 py-5 text-sm font-semibold hover:text-accent-l transition-colors">
             Can PlagiarismGuard detect AI-generated text?
-            <svg class="w-4 h-4 text-muted transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+            <svg class="w-5 h-5 text-muted transition-transform duration-300 group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
           </summary>
-          <div class="px-6 pb-4 text-sm text-muted leading-relaxed">
+          <div class="px-6 pb-5 text-sm text-muted leading-relaxed">
             Yes. PlagiarismGuard includes a dedicated AI detection engine that identifies passages likely generated by AI tools like ChatGPT, helping you maintain an authentic academic voice in your writing.
           </div>
         </details>
-        <details class="group bg-surface/80 border border-border rounded-xl overflow-hidden">
-          <summary class="flex items-center justify-between cursor-pointer px-6 py-4 text-sm font-semibold hover:text-accent-l transition-colors">
+        <details class="group glass-card rounded-xl overflow-hidden reveal">
+          <summary class="flex items-center justify-between cursor-pointer px-6 py-5 text-sm font-semibold hover:text-accent-l transition-colors">
             Is PlagiarismGuard free to use?
-            <svg class="w-4 h-4 text-muted transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+            <svg class="w-5 h-5 text-muted transition-transform duration-300 group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
           </summary>
-          <div class="px-6 pb-4 text-sm text-muted leading-relaxed">
-            Yes, the Basic plan is free forever with 3 tool uses per day. New users also get a free 3-day trial of the Research plan with unlimited scans — no credit card required. Paid plans start at ₹299/month.
+          <div class="px-6 pb-5 text-sm text-muted leading-relaxed">
+            Yes, the Basic plan is free forever with 3 tool uses per day. New users also get a free 3-day trial of the Research plan with unlimited scans — no credit card required. Paid plans start at &#8377;299/month.
           </div>
         </details>
-        <details class="group bg-surface/80 border border-border rounded-xl overflow-hidden">
-          <summary class="flex items-center justify-between cursor-pointer px-6 py-4 text-sm font-semibold hover:text-accent-l transition-colors">
+        <details class="group glass-card rounded-xl overflow-hidden reveal">
+          <summary class="flex items-center justify-between cursor-pointer px-6 py-5 text-sm font-semibold hover:text-accent-l transition-colors">
             What types of documents does it support?
-            <svg class="w-4 h-4 text-muted transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+            <svg class="w-5 h-5 text-muted transition-transform duration-300 group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
           </summary>
-          <div class="px-6 pb-4 text-sm text-muted leading-relaxed">
+          <div class="px-6 pb-5 text-sm text-muted leading-relaxed">
             PlagiarismGuard supports theses, dissertations, research papers, journal submissions, literature reviews, and any academic writing. You can paste text directly or upload PDF, DOCX, and LaTeX files for analysis.
           </div>
         </details>
-        <details class="group bg-surface/80 border border-border rounded-xl overflow-hidden">
-          <summary class="flex items-center justify-between cursor-pointer px-6 py-4 text-sm font-semibold hover:text-accent-l transition-colors">
+        <details class="group glass-card rounded-xl overflow-hidden reveal">
+          <summary class="flex items-center justify-between cursor-pointer px-6 py-5 text-sm font-semibold hover:text-accent-l transition-colors">
             How fast is the plagiarism analysis?
-            <svg class="w-4 h-4 text-muted transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+            <svg class="w-5 h-5 text-muted transition-transform duration-300 group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
           </summary>
-          <div class="px-6 pb-4 text-sm text-muted leading-relaxed">
+          <div class="px-6 pb-5 text-sm text-muted leading-relaxed">
             Most analyses complete in under 30 seconds. The system runs multiple AI agents in parallel — web search, semantic analysis, and AI detection — to deliver comprehensive results quickly.
           </div>
         </details>
@@ -337,121 +529,204 @@
     </div>
   </section>
 
-  <!-- ════════════ FINAL CTA ════════════ -->
-  <section class="py-10 px-6">
-    <div class="max-w-2xl mx-auto text-center">
-      <div class="bg-gradient-to-br from-accent/5 via-surface to-emerald-500/5 border border-accent/20 rounded-2xl p-8">
-        <h3 class="text-xl font-bold mb-2">Ready to upgrade your research workflow?</h3>
-        <p class="text-sm text-muted mb-5">Sign up now and get <span class="text-emerald-400 font-semibold">3 days of Research access</span> — completely free.</p>
-        <a href="/signup" class="inline-flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all">
-          Create Free Account
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-        </a>
-        <p class="text-xs text-muted mt-3">No credit card required &bull; Downgrades to Free after trial</p>
+  <!-- ════════════ FINAL CTA — Glowing ════════════ -->
+  <section class="py-16 px-6 relative z-10">
+    <div class="max-w-2xl mx-auto text-center reveal">
+      <div class="relative">
+        <div class="absolute -inset-3 bg-gradient-to-r from-accent/15 via-[#00b894]/15 to-accent/15 rounded-3xl blur-2xl"></div>
+        <div class="relative glass-card rounded-2xl p-10 border-accent/20">
+          <div class="text-4xl mb-4">&#x1F680;</div>
+          <h3 class="text-2xl font-bold mb-3">Ready to upgrade your research?</h3>
+          <p class="text-sm text-muted mb-7">Sign up now and get <span class="text-ok font-semibold">3 days of Research access</span> — completely free.</p>
+          <a href="/signup" class="inline-flex items-center gap-2 px-10 py-4 bg-gradient-to-r from-accent via-[#5a4bd1] to-accent text-white rounded-2xl text-base font-semibold hover:shadow-2xl hover:shadow-accent/30 hover:-translate-y-1 transition-all duration-300 ripple bg-[length:200%_auto] hover:bg-right-top">
+            Create Free Account
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+          <p class="text-xs text-muted mt-4">No credit card required &bull; Downgrades to Free after trial</p>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- Footer -->
-  <footer class="border-t border-border/50 py-8 px-6">
-    <div class="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted">
-      <div class="flex items-center gap-2">
-        <div class="w-6 h-6 bg-gradient-to-br from-accent to-[#00b894] rounded-md grid place-items-center text-white font-bold text-[10px]">P</div>
-        <span>PlagiarismGuard &copy; 2026</span>
+  <!-- ═══ Footer ═══ -->
+  <footer class="relative z-10 py-10 px-6">
+    <hr class="glow-divider mb-10">
+    <div class="max-w-5xl mx-auto">
+      <div class="grid sm:grid-cols-3 gap-8 mb-8">
+        <div>
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 bg-gradient-to-br from-accent to-[#00b894] rounded-lg grid place-items-center text-white font-bold text-sm">P</div>
+            <span class="font-bold">PlagiarismGuard</span>
+          </div>
+          <p class="text-xs text-muted leading-relaxed">AI-powered plagiarism detection and writing tools built for academic integrity.</p>
+        </div>
+        <div>
+          <h4 class="text-sm font-semibold mb-3">Product</h4>
+          <div class="space-y-2 text-xs text-muted">
+            <a href="#features" class="block hover:text-txt transition-colors">Features</a>
+            <a href="#pricing" class="block hover:text-txt transition-colors">Pricing</a>
+            <a href="#faq" class="block hover:text-txt transition-colors">FAQ</a>
+          </div>
+        </div>
+        <div>
+          <h4 class="text-sm font-semibold mb-3">Legal</h4>
+          <div class="space-y-2 text-xs text-muted">
+            <a href="/terms" class="block hover:text-txt transition-colors">Terms of Service</a>
+            <a href="/privacy" class="block hover:text-txt transition-colors">Privacy Policy</a>
+          </div>
+        </div>
       </div>
-      <div class="flex items-center gap-4">
-        <a href="/terms" class="hover:text-txt transition-colors">Terms</a>
-        <a href="/privacy" class="hover:text-txt transition-colors">Privacy</a>
-        <span class="hidden sm:inline">&bull;</span>
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-border/30 text-xs text-muted">
+        <span>&#169; 2026 PlagiarismGuard. All rights reserved.</span>
         <span class="hidden sm:inline">Powered by Azure OpenAI &bull; FastAPI &bull; Sentence-Transformers</span>
       </div>
     </div>
   </footer>
 
+<!-- ═══ SCRIPTS ═══ -->
 <script>
-  // Count-up animation on scroll
-  (function() {
-    const counters = document.querySelectorAll('.count-up');
-    const animated = new Set();
-    function animateCount(el) {
-      if (animated.has(el)) return;
-      animated.add(el);
-      const target = parseInt(el.dataset.target, 10);
-      const suffix = el.dataset.suffix || '';
-      const prefix = el.dataset.prefix || '';
-      const duration = 1200;
-      const start = performance.now();
-      function tick(now) {
-        const t = Math.min((now - start) / duration, 1);
-        const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic
-        const val = Math.round(ease * target);
-        el.textContent = prefix + val + suffix;
-        if (t < 1) requestAnimationFrame(tick);
-        else el.classList.add('count-pop');
-      }
-      requestAnimationFrame(tick);
-    }
-    const obs = new IntersectionObserver((entries) => {
-      entries.forEach(e => { if (e.isIntersecting) animateCount(e.target); });
-    }, { threshold: 0.3 });
-    counters.forEach(el => obs.observe(el));
-  })();
+(function() {
+  // ── Scroll-triggered reveal animation ──
+  const revealEls = document.querySelectorAll('.reveal');
+  const revealObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); revealObs.unobserve(e.target); }});
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+  revealEls.forEach(el => revealObs.observe(el));
 
-  // Hero text rotation
-  (function() {
-    const phrases = [
-      'Your Research',
-      'Your Thesis',
-      'Your Dissertation',
-      'Every Citation',
-      'Academic Writing',
-    ];
-    const el = document.getElementById('heroRotate');
-    if (!el) return;
+  // ── Count-up animation ──
+  const counters = document.querySelectorAll('.count-up');
+  const countAnimated = new Set();
+  function animateCount(el) {
+    if (countAnimated.has(el)) return;
+    countAnimated.add(el);
+    const target = parseInt(el.dataset.target, 10);
+    const suffix = el.dataset.suffix || '';
+    const prefix = el.dataset.prefix || '';
+    const duration = 1400;
+    const start = performance.now();
+    function tick(now) {
+      const t = Math.min((now - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      el.textContent = prefix + Math.round(ease * target) + suffix;
+      if (t < 1) requestAnimationFrame(tick);
+      else el.classList.add('count-pop');
+    }
+    requestAnimationFrame(tick);
+  }
+  const countObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) animateCount(e.target); });
+  }, { threshold: 0.3 });
+  counters.forEach(el => countObs.observe(el));
+
+  // ── Mock progress bar animation ──
+  const bars = document.querySelectorAll('.mock-bar');
+  const barObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        setTimeout(() => { e.target.style.width = e.target.dataset.width; e.target.style.transition = 'width 1.5s cubic-bezier(.16,1,.3,1)'; }, 200);
+        barObs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.5 });
+  bars.forEach(el => barObs.observe(el));
+
+  // ── Hero text rotation with typewriter effect ──
+  const phrases = ['Your Research', 'Your Thesis', 'Your Dissertation', 'Every Citation', 'Academic Writing'];
+  const heroEl = document.getElementById('heroRotate');
+  if (heroEl) {
     let idx = 0;
+    heroEl.style.transition = 'opacity .35s ease, transform .35s ease, filter .35s ease';
     setInterval(() => {
       idx = (idx + 1) % phrases.length;
-      el.style.opacity = '0';
-      el.style.transform = 'translateY(12px)';
+      heroEl.style.opacity = '0';
+      heroEl.style.transform = 'translateY(16px)';
+      heroEl.style.filter = 'blur(4px)';
       setTimeout(() => {
-        el.textContent = phrases[idx];
-        el.style.opacity = '1';
-        el.style.transform = 'translateY(0)';
-      }, 300);
-    }, 4000);
-    el.style.transition = 'opacity .3s ease, transform .3s ease';
-  })();
+        heroEl.textContent = phrases[idx];
+        heroEl.style.opacity = '1';
+        heroEl.style.transform = 'translateY(0)';
+        heroEl.style.filter = 'blur(0)';
+      }, 350);
+    }, 3500);
+  }
 
-  // If already logged in, show Dashboard link instead of Sign In / Sign Up
-  (function() {
-    if (localStorage.getItem('pg_token')) {
-      const login = document.getElementById('navLogin');
-      const signup = document.getElementById('navSignup');
-      const dash = document.getElementById('navDashboard');
-      if (login) login.style.display = 'none';
-      if (signup) signup.style.display = 'none';
-      if (dash) dash.classList.remove('hidden');
+  // ── Navbar background on scroll ──
+  const nav = document.getElementById('mainNav');
+  if (nav) {
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 60) {
+        nav.style.background = 'rgba(15,17,23,.85)';
+        nav.style.backdropFilter = 'blur(20px)';
+        nav.style.borderBottom = '1px solid rgba(46,51,72,.5)';
+      } else {
+        nav.style.background = 'transparent';
+        nav.style.backdropFilter = 'none';
+        nav.style.borderBottom = 'none';
+      }
+    }, { passive: true });
+    // Light mode adjustments
+    if (document.documentElement.classList.contains('light')) {
+      window.addEventListener('scroll', () => {
+        if (window.scrollY > 60) { nav.style.background = 'rgba(248,249,252,.9)'; }
+      }, { passive: true });
     }
-  })();
+  }
+
+  // ── Mobile menu ──
+  const menuBtn = document.getElementById('mobileMenuBtn');
+  const menuPanel = document.getElementById('mobileMenu');
+  if (menuBtn && menuPanel) {
+    menuBtn.addEventListener('click', () => { menuPanel.classList.toggle('hidden'); });
+    menuPanel.querySelectorAll('a').forEach(a => { a.addEventListener('click', () => { menuPanel.classList.add('hidden'); }); });
+  }
+
+  // ── Billing toggle ──
+  const togBtn = document.getElementById('billingToggle');
+  const togDot = document.getElementById('toggleDot');
+  const togM = document.getElementById('toggleMonthly');
+  const togA = document.getElementById('toggleAnnual');
+  let isAnnual = false;
+  if (togBtn) {
+    togBtn.addEventListener('click', () => {
+      isAnnual = !isAnnual;
+      togDot.style.transform = isAnnual ? 'translateX(28px)' : 'translateX(0)';
+      togM.classList.toggle('text-muted', isAnnual);
+      togA.classList.toggle('text-muted', !isAnnual);
+      document.querySelectorAll('.pricing-monthly').forEach(el => el.classList.toggle('hidden', isAnnual));
+      document.querySelectorAll('.pricing-annual').forEach(el => el.classList.toggle('hidden', !isAnnual));
+    });
+  }
+
+  // ── Auth state: show Dashboard if logged in ──
+  if (localStorage.getItem('pg_token')) {
+    const login = document.getElementById('navLogin');
+    const signup = document.getElementById('navSignup');
+    const dash = document.getElementById('navDashboard');
+    if (login) login.style.display = 'none';
+    if (signup) signup.style.display = 'none';
+    if (dash) dash.classList.remove('hidden');
+  }
+})();
 </script>
 
 <!-- Scroll-to-top button -->
 <button id="scrollTopBtn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Scroll to top"
-  class="fixed bottom-6 right-6 z-50 w-11 h-11 rounded-full bg-accent text-white shadow-lg shadow-accent/25 flex items-center justify-center opacity-0 pointer-events-none translate-y-4 transition-all duration-300 hover:bg-[#5a4bd1] hover:-translate-y-1">
+  class="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-gradient-to-r from-accent to-[#5a4bd1] text-white shadow-xl shadow-accent/25 flex items-center justify-center opacity-0 pointer-events-none translate-y-4 transition-all duration-300 hover:shadow-2xl hover:shadow-accent/40 hover:-translate-y-1">
   <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg>
 </button>
 <script>
-  (function() {
-    const btn = document.getElementById('scrollTopBtn');
-    if (!btn) return;
-    window.addEventListener('scroll', function() {
-      if (window.scrollY > 500) {
-        btn.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-4');
-      } else {
-        btn.classList.add('opacity-0', 'pointer-events-none', 'translate-y-4');
-      }
-    }, { passive: true });
-  })();
+(function() {
+  const btn = document.getElementById('scrollTopBtn');
+  if (!btn) return;
+  let ticking = false;
+  window.addEventListener('scroll', function() {
+    if (!ticking) { requestAnimationFrame(() => {
+      if (window.scrollY > 500) { btn.classList.remove('opacity-0','pointer-events-none','translate-y-4'); }
+      else { btn.classList.add('opacity-0','pointer-events-none','translate-y-4'); }
+      ticking = false;
+    }); ticking = true; }
+  }, { passive: true });
+})();
 </script>
 <script type="application/ld+json">
 {

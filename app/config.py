@@ -82,6 +82,15 @@ class Settings(BaseSettings):
     scan_limit_anonymous: int = 3   # max scans/day for anonymous (by IP)
     scan_limit_free: int = 3        # max scans/day for free registered users
 
+    # Tier-based feature limits
+    max_upload_size_mb_pro: int = 50       # Pro file size limit
+    max_upload_size_mb_premium: int = 100  # Premium file size limit
+    batch_max_files_pro: int = 5           # Pro batch analysis limit
+    batch_max_files_premium: int = 10      # Premium batch analysis limit
+    api_keys_limit_pro: int = 5            # Pro API key limit
+    api_keys_limit_premium: int = 20       # Premium API key limit
+    web_search_max_queries_premium: int = 15  # Premium gets more web search queries
+
     # Razorpay payment gateway
     razorpay_key_id: str = ""       # Set PG_RAZORPAY_KEY_ID
     razorpay_key_secret: str = ""   # Set PG_RAZORPAY_KEY_SECRET

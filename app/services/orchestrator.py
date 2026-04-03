@@ -30,24 +30,33 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-def _adaptive_query_count(text_length: int) -> tuple[int, int]:
-    """Scale search query counts based on document length.
+def _adaptive_query_count(text_length: int, plan_type: str = "free") -> tuple[int, int]:
+    """Scale search query counts based on document length and plan tier.
 
     Short papers (< 5K chars) get the default 8 queries.
     Medium papers (5-20K) get 12.
     Large papers (20-50K) get 16.
     Very large papers (50K+) get 20.
 
+    Premium users get a boost (configurable via settings).
+
     Returns (web_queries, scholar_queries).
     """
     if text_length < 5_000:
-        return settings.web_search_max_queries, settings.scholar_max_queries
+        base_web, base_scholar = settings.web_search_max_queries, settings.scholar_max_queries
     elif text_length < 20_000:
-        return 12, 12
+        base_web, base_scholar = 12, 12
     elif text_length < 50_000:
-        return 16, 16
+        base_web, base_scholar = 16, 16
     else:
-        return 20, 20
+        base_web, base_scholar = 20, 20
+
+    if plan_type == "premium":
+        # Premium gets at least the configured premium minimum
+        base_web = max(base_web, settings.web_search_max_queries_premium)
+        base_scholar = max(base_scholar, settings.web_search_max_queries_premium)
+
+    return base_web, base_scholar
 
 
 async def run_pipeline(
@@ -57,6 +66,7 @@ async def run_pipeline(
     excluded_domains: list[str] | None = None,
     use_gpt_ai_detection: bool = False,
     language_override: str | None = None,
+    plan_type: str = "free",
 ) -> PlagiarismReport:
     """Execute the full plagiarism detection pipeline.
 
@@ -115,7 +125,7 @@ async def run_pipeline(
     logger.info("chunks_prepared", document_id=document_id, chunk_count=len(chunks))
 
     # --- 1b. Scale search coverage based on document size ---------------------
-    web_q, scholar_q = _adaptive_query_count(len(scan_text))
+    web_q, scholar_q = _adaptive_query_count(len(scan_text), plan_type=plan_type)
     logger.info(
         "adaptive_queries",
         document_id=document_id,

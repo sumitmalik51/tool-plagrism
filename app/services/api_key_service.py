@@ -6,13 +6,20 @@ import hashlib
 import secrets
 from typing import Any
 
+from app.config import settings
 from app.services.database import get_db
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 _KEY_PREFIX = "pg_"
-_MAX_KEYS_PER_USER = 5
+
+
+def _max_keys_for_plan(plan_type: str) -> int:
+    """Return the max active API keys allowed for the given plan."""
+    if plan_type == "premium":
+        return settings.api_keys_limit_premium
+    return settings.api_keys_limit_pro  # pro (and fallback)
 
 
 def _hash_key(raw_key: str) -> str:
@@ -20,20 +27,21 @@ def _hash_key(raw_key: str) -> str:
     return hashlib.sha256(raw_key.encode()).hexdigest()
 
 
-def create_api_key(user_id: int, name: str = "Default") -> dict[str, Any]:
+def create_api_key(user_id: int, name: str = "Default", plan_type: str = "pro") -> dict[str, Any]:
     """Generate a new API key for the user.
 
     Returns the full key (shown once) and key metadata.
     """
     db = get_db()
 
-    # Check limit
+    # Check limit based on plan
+    max_keys = _max_keys_for_plan(plan_type)
     existing = db.fetch_all(
         "SELECT id FROM user_api_keys WHERE user_id = ? AND is_active = 1",
         (user_id,),
     )
-    if len(existing) >= _MAX_KEYS_PER_USER:
-        raise ValueError(f"Maximum {_MAX_KEYS_PER_USER} active API keys allowed.")
+    if len(existing) >= max_keys:
+        raise ValueError(f"Maximum {max_keys} active API keys allowed on your plan.")
 
     raw_key = _KEY_PREFIX + secrets.token_urlsafe(32)
     prefix = raw_key[:12] + "…"

@@ -9,13 +9,13 @@ import aiofiles
 
 from app.config import settings
 from app.services.text_extractor import extract_text
-from app.utils.helpers import ensure_upload_dir, validate_file_extension, validate_file_size
+from app.utils.helpers import ensure_upload_dir, validate_file_extension, validate_file_size, get_upload_limit_mb
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-async def ingest_file(filename: str, file_bytes: bytes) -> dict:
+async def ingest_file(filename: str, file_bytes: bytes, plan_type: str = "free") -> dict:
     """Validate, persist, and extract text from an uploaded file.
 
     Returns:
@@ -30,9 +30,10 @@ async def ingest_file(filename: str, file_bytes: bytes) -> dict:
         allowed = ", ".join(settings.allowed_extensions)
         raise ValueError(f"Unsupported file type. Allowed: {allowed}")
 
-    if not validate_file_size(len(file_bytes)):
+    if not validate_file_size(len(file_bytes), plan_type=plan_type):
+        limit = get_upload_limit_mb(plan_type)
         raise ValueError(
-            f"File exceeds maximum allowed size of {settings.max_upload_size_mb} MB."
+            f"File exceeds maximum allowed size of {limit} MB."
         )
 
     # --- Persist file ---------------------------------------------------------
