@@ -31,9 +31,16 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/static/js/common.js"></script>
   <link rel="stylesheet" href="/static/css/theme.css" />
+  <style>
+    @keyframes marqueeScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+    .marquee-item svg{display:inline-block!important;flex-shrink:0!important;vertical-align:middle;}
+  </style>
   <noscript><style>.fade-up{animation:none!important;opacity:1!important;transform:none!important}</style></noscript>
 </head>
 <body class="bg-bg text-txt min-h-screen overflow-x-hidden">
+
+  <!-- ═══ Scroll Progress Bar ═══ -->
+  <div id="scrollProgress" class="fixed top-0 left-0 h-[3px] z-[60] pointer-events-none" style="width:0%;background:linear-gradient(90deg,#6c5ce7,#00b894,#6c5ce7);background-size:200% auto;animation:shimmer 2s linear infinite;"></div>
 
   <!-- ═══ Animated Grid Background ═══ -->
   <div class="fixed inset-0 z-0 pointer-events-none overflow-hidden" aria-hidden="true">
@@ -180,14 +187,27 @@
     </div>
   </section>
 
-  <!-- ════════════ TRUST SIGNALS — Animated Marquee ════════════ -->
-  <section class="py-6 px-6 relative z-10 overflow-hidden">
-    <div class="max-w-5xl mx-auto">
-      <div class="flex flex-wrap justify-center gap-x-10 gap-y-3 text-sm text-muted reveal">
-        <div class="flex items-center gap-2 group"><span class="w-2 h-2 bg-ok rounded-full group-hover:scale-150 transition-transform"></span><span class="group-hover:text-txt transition-colors">250M+ scholarly sources</span></div>
-        <div class="flex items-center gap-2 group"><span class="w-2 h-2 bg-ok rounded-full group-hover:scale-150 transition-transform"></span><span class="group-hover:text-txt transition-colors">Theses &amp; dissertations</span></div>
-        <div class="flex items-center gap-2 group"><span class="w-2 h-2 bg-ok rounded-full group-hover:scale-150 transition-transform"></span><span class="group-hover:text-txt transition-colors">Results in &lt; 30 seconds</span></div>
-        <div class="flex items-center gap-2 group"><span class="w-2 h-2 bg-ok rounded-full group-hover:scale-150 transition-transform"></span><span class="group-hover:text-txt transition-colors">PDF, DOCX &amp; LaTeX support</span></div>
+  <!-- ════════════ TRUST MARQUEE — Infinite Scroll ════════════ -->
+  <section class="py-5 relative z-10 overflow-hidden">
+    <div style="overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent 0%,#000 10%,#000 90%,transparent 100%);mask-image:linear-gradient(90deg,transparent 0%,#000 10%,#000 90%,transparent 100%);">
+      <div style="display:flex;flex-wrap:nowrap;width:max-content;animation:marqueeScroll 35s linear infinite;" onmouseenter="this.style.animationPlayState='paused'" onmouseleave="this.style.animationPlayState='running'">
+        <div class="marquee-item" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:0 24px;flex-shrink:0;font-size:13px;"><svg class="w-4 h-4 text-ok" style="flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>250M+ Scholarly Sources</span></div>
+        <div class="marquee-item" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:0 24px;flex-shrink:0;font-size:13px;"><svg class="w-4 h-4 text-accent-l" style="flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>Theses &amp; Dissertations</span></div>
+        <div class="marquee-item" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:0 24px;flex-shrink:0;font-size:13px;"><svg class="w-4 h-4 text-[#00b894]" style="flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>Results in &lt; 30 seconds</span></div>
+        <div class="marquee-item" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:0 24px;flex-shrink:0;font-size:13px;"><svg class="w-4 h-4 text-[#fdcb6e]" style="flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>PDF, DOCX &amp; LaTeX</span></div>
+        <div class="marquee-item" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:0 24px;flex-shrink:0;font-size:13px;"><svg class="w-4 h-4 text-[#e17055]" style="flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>AI-Generated Text Detection</span></div>
+        <div class="marquee-item" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:0 24px;flex-shrink:0;font-size:13px;"><svg class="w-4 h-4 text-ok" style="flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>APA, MLA, Chicago Citations</span></div>
+        <div class="marquee-item" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:0 24px;flex-shrink:0;font-size:13px;"><svg class="w-4 h-4 text-accent-l" style="flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>Google Docs Import</span></div>
+        <div class="marquee-item" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:0 24px;flex-shrink:0;font-size:13px;"><svg class="w-4 h-4 text-[#00b894]" style="flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>Multilingual Support</span></div>
+        <!-- Duplicate set for seamless loop -->
+        <div class="marquee-item" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:0 24px;flex-shrink:0;font-size:13px;"><svg class="w-4 h-4 text-ok" style="flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>250M+ Scholarly Sources</span></div>
+        <div class="marquee-item" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:0 24px;flex-shrink:0;font-size:13px;"><svg class="w-4 h-4 text-accent-l" style="flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>Theses &amp; Dissertations</span></div>
+        <div class="marquee-item" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:0 24px;flex-shrink:0;font-size:13px;"><svg class="w-4 h-4 text-[#00b894]" style="flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>Results in &lt; 30 seconds</span></div>
+        <div class="marquee-item" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:0 24px;flex-shrink:0;font-size:13px;"><svg class="w-4 h-4 text-[#fdcb6e]" style="flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>PDF, DOCX &amp; LaTeX</span></div>
+        <div class="marquee-item" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:0 24px;flex-shrink:0;font-size:13px;"><svg class="w-4 h-4 text-[#e17055]" style="flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>AI-Generated Text Detection</span></div>
+        <div class="marquee-item" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:0 24px;flex-shrink:0;font-size:13px;"><svg class="w-4 h-4 text-ok" style="flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>APA, MLA, Chicago Citations</span></div>
+        <div class="marquee-item" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:0 24px;flex-shrink:0;font-size:13px;"><svg class="w-4 h-4 text-accent-l" style="flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>Google Docs Import</span></div>
+        <div class="marquee-item" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:0 24px;flex-shrink:0;font-size:13px;"><svg class="w-4 h-4 text-[#00b894]" style="flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>Multilingual Support</span></div>
       </div>
     </div>
   </section>
@@ -217,38 +237,50 @@
 
       <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 stagger">
         <!-- Feature 1 -->
-        <div class="feature-card glass-card tilt-card p-6 reveal" style="--card-accent: #FF6B6B;">
-          <div class="w-14 h-14 rounded-2xl bg-[#FF6B6B]/15 grid place-items-center text-2xl mb-5 group-hover:scale-110 transition-transform">&#x1F310;</div>
+        <div class="feature-card glass-card tilt-card p-6 reveal group" style="--card-accent: #FF6B6B;">
+          <div class="w-14 h-14 rounded-2xl bg-[#FF6B6B]/15 grid place-items-center mb-5 group-hover:scale-110 transition-transform duration-300">
+            <svg class="w-7 h-7 text-[#FF6B6B]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+          </div>
           <h3 class="font-semibold text-lg mb-2">Web &amp; Academic Sources</h3>
           <p class="text-sm text-muted leading-relaxed">Cross-references web pages and 250M+ scholarly papers to identify overlapping content with precision.</p>
         </div>
         <!-- Feature 2 -->
-        <div class="feature-card glass-card tilt-card p-6 reveal" style="--card-accent: #6c5ce7;">
-          <div class="w-14 h-14 rounded-2xl bg-accent/15 grid place-items-center text-2xl mb-5">&#x1F9E0;</div>
+        <div class="feature-card glass-card tilt-card p-6 reveal group" style="--card-accent: #6c5ce7;">
+          <div class="w-14 h-14 rounded-2xl bg-accent/15 grid place-items-center mb-5 group-hover:scale-110 transition-transform duration-300">
+            <svg class="w-7 h-7 text-accent-l" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+          </div>
           <h3 class="font-semibold text-lg mb-2">Deep Semantic Analysis</h3>
           <p class="text-sm text-muted leading-relaxed">Detects paraphrasing and rephrased content using multilingual AI sentence embeddings.</p>
         </div>
         <!-- Feature 3 -->
-        <div class="feature-card glass-card tilt-card p-6 reveal" style="--card-accent: #fdcb6e;">
-          <div class="w-14 h-14 rounded-2xl bg-[#fdcb6e]/15 grid place-items-center text-2xl mb-5">&#x1F916;</div>
+        <div class="feature-card glass-card tilt-card p-6 reveal group" style="--card-accent: #fdcb6e;">
+          <div class="w-14 h-14 rounded-2xl bg-[#fdcb6e]/15 grid place-items-center mb-5 group-hover:scale-110 transition-transform duration-300">
+            <svg class="w-7 h-7 text-[#fdcb6e]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/></svg>
+          </div>
           <h3 class="font-semibold text-lg mb-2">AI-Text Detection</h3>
           <p class="text-sm text-muted leading-relaxed">Identifies GPT/ChatGPT-generated passages to maintain your authentic academic voice.</p>
         </div>
         <!-- Feature 4 -->
-        <div class="feature-card glass-card tilt-card p-6 reveal" style="--card-accent: #00b894;">
-          <div class="w-14 h-14 rounded-2xl bg-ok/15 grid place-items-center text-2xl mb-5">&#x270D;&#xFE0F;</div>
+        <div class="feature-card glass-card tilt-card p-6 reveal group" style="--card-accent: #00b894;">
+          <div class="w-14 h-14 rounded-2xl bg-ok/15 grid place-items-center mb-5 group-hover:scale-110 transition-transform duration-300">
+            <svg class="w-7 h-7 text-ok" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"/></svg>
+          </div>
           <h3 class="font-semibold text-lg mb-2">AI Rewriter</h3>
           <p class="text-sm text-muted leading-relaxed">Safely rephrase flagged passages while preserving meaning and academic tone.</p>
         </div>
         <!-- Feature 5 -->
-        <div class="feature-card glass-card tilt-card p-6 reveal" style="--card-accent: #e17055;">
-          <div class="w-14 h-14 rounded-2xl bg-danger/15 grid place-items-center text-2xl mb-5">&#x1F4CA;</div>
+        <div class="feature-card glass-card tilt-card p-6 reveal group" style="--card-accent: #e17055;">
+          <div class="w-14 h-14 rounded-2xl bg-danger/15 grid place-items-center mb-5 group-hover:scale-110 transition-transform duration-300">
+            <svg class="w-7 h-7 text-[#e17055]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+          </div>
           <h3 class="font-semibold text-lg mb-2">Readability &amp; Grammar</h3>
           <p class="text-sm text-muted leading-relaxed">Comprehensive readability scoring and grammar checking to polish your writing.</p>
         </div>
         <!-- Feature 6 -->
-        <div class="feature-card glass-card tilt-card p-6 reveal" style="--card-accent: #a29bfe;">
-          <div class="w-14 h-14 rounded-2xl bg-accent-l/15 grid place-items-center text-2xl mb-5">&#x1F4D1;</div>
+        <div class="feature-card glass-card tilt-card p-6 reveal group" style="--card-accent: #a29bfe;">
+          <div class="w-14 h-14 rounded-2xl bg-accent-l/15 grid place-items-center mb-5 group-hover:scale-110 transition-transform duration-300">
+            <svg class="w-7 h-7 text-accent-l" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+          </div>
           <h3 class="font-semibold text-lg mb-2">Citation Generator</h3>
           <p class="text-sm text-muted leading-relaxed">Auto-generate APA, MLA, Chicago &amp; IEEE citations for all detected sources.</p>
         </div>
@@ -256,7 +288,66 @@
     </div>
   </section>
 
-  <!-- ════════════ BEFORE / AFTER — Interactive ════════════ -->
+  <!-- ════════════ INTERACTIVE DEMO — Try It Live ════════════ -->
+  <section class="py-20 px-6 relative z-10" id="demo">
+    <div class="max-w-3xl mx-auto">
+      <div class="text-center mb-10 reveal">
+        <span class="px-3 py-1 rounded-full bg-[#00b894]/10 text-[#00b894] text-xs font-semibold border border-[#00b894]/20 mb-4 inline-block">LIVE DEMO</span>
+        <h2 class="text-2xl sm:text-3xl font-bold mb-2">Try It Right Now</h2>
+        <p class="text-sm text-muted">Paste any text below and see instant analysis</p>
+      </div>
+      <div class="reveal from-scale">
+        <div class="relative">
+          <div class="absolute -inset-3 bg-gradient-to-r from-accent/10 via-[#00b894]/10 to-accent/10 rounded-3xl blur-xl opacity-60"></div>
+          <div class="relative glass-card rounded-2xl p-6 sm:p-8 overflow-hidden">
+            <!-- Scan line animation overlay -->
+            <div id="demoScanLine" class="absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-300" style="background:linear-gradient(180deg,transparent 0%,rgba(108,92,231,.08) 50%,transparent 100%);background-size:100% 60px;animation:demoScan 1.5s linear infinite;"></div>
+            <textarea id="demoInput" rows="4" placeholder="Paste a paragraph here to analyze...&#10;&#10;Example: Machine learning is a subset of artificial intelligence that enables systems to learn and improve from experience without being explicitly programmed." class="w-full bg-surface2/50 border border-border/50 rounded-xl p-4 text-sm text-txt placeholder-muted/50 resize-none focus:border-accent/50 focus:outline-none transition-colors"></textarea>
+            <div class="flex items-center justify-between mt-4">
+              <span id="demoCharCount" class="text-xs text-muted">0 characters</span>
+              <button id="demoScanBtn" onclick="runDemoScan()" class="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-accent to-[#5a4bd1] text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all duration-300 ripple disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                <span id="demoBtnText">Analyze Text</span>
+              </button>
+            </div>
+            <!-- Results panel (hidden initially) -->
+            <div id="demoResults" class="mt-6 hidden">
+              <hr class="border-border/30 mb-5">
+              <div class="grid grid-cols-3 gap-3 mb-4">
+                <div class="bg-surface2/40 rounded-xl p-3 text-center border border-border/20">
+                  <div id="demoSimilarity" class="text-2xl font-bold text-ok">—</div>
+                  <div class="text-[10px] text-muted mt-0.5">Similarity</div>
+                </div>
+                <div class="bg-surface2/40 rounded-xl p-3 text-center border border-border/20">
+                  <div id="demoAI" class="text-2xl font-bold text-accent-l">—</div>
+                  <div class="text-[10px] text-muted mt-0.5">AI Probability</div>
+                </div>
+                <div class="bg-surface2/40 rounded-xl p-3 text-center border border-border/20">
+                  <div id="demoReadability" class="text-2xl font-bold text-[#00b894]">—</div>
+                  <div class="text-[10px] text-muted mt-0.5">Readability</div>
+                </div>
+              </div>
+              <!-- Agent status indicators -->
+              <div class="space-y-2" id="demoAgents">
+                <div class="flex items-center gap-3 text-xs"><span class="demo-agent-dot w-2 h-2 rounded-full bg-muted"></span><span class="text-muted">Web Search Agent</span><span class="demo-agent-status ml-auto text-muted">waiting</span></div>
+                <div class="flex items-center gap-3 text-xs"><span class="demo-agent-dot w-2 h-2 rounded-full bg-muted"></span><span class="text-muted">Academic Sources Agent</span><span class="demo-agent-status ml-auto text-muted">waiting</span></div>
+                <div class="flex items-center gap-3 text-xs"><span class="demo-agent-dot w-2 h-2 rounded-full bg-muted"></span><span class="text-muted">Semantic Analysis Agent</span><span class="demo-agent-status ml-auto text-muted">waiting</span></div>
+                <div class="flex items-center gap-3 text-xs"><span class="demo-agent-dot w-2 h-2 rounded-full bg-muted"></span><span class="text-muted">AI Detection Agent</span><span class="demo-agent-status ml-auto text-muted">waiting</span></div>
+              </div>
+              <div class="mt-5 text-center">
+                <a href="/signup" class="inline-flex items-center gap-2 text-sm text-accent-l hover:text-accent font-semibold transition-colors">
+                  Sign up for full detailed reports
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════ BEFORE / AFTER — Interactive Slider ════════════ -->
   <section class="py-16 px-6 relative z-10">
     <div class="max-w-3xl mx-auto reveal">
       <div class="text-center mb-10">
@@ -264,16 +355,16 @@
         <h2 class="text-2xl sm:text-3xl font-bold">See the Difference</h2>
       </div>
       <div class="grid grid-cols-2 gap-6">
-        <div class="glass-card tilt-card rounded-2xl p-7 text-center border-danger/20 hover:border-danger/40 transition-colors">
-          <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-danger/10 grid place-items-center">
+        <div class="glass-card tilt-card rounded-2xl p-7 text-center border-danger/20 hover:border-danger/40 transition-colors group">
+          <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-danger/10 grid place-items-center group-hover:scale-110 transition-transform duration-300">
             <svg class="w-8 h-8 text-danger" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           </div>
           <div class="text-5xl font-extrabold text-danger mb-2 count-up" data-target="42" data-suffix="%">0%</div>
           <div class="text-sm text-danger font-semibold">Before</div>
           <p class="text-xs text-muted mt-2">Similarity Detected</p>
         </div>
-        <div class="glass-card tilt-card rounded-2xl p-7 text-center border-ok/20 hover:border-ok/40 transition-colors">
-          <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-ok/10 grid place-items-center">
+        <div class="glass-card tilt-card rounded-2xl p-7 text-center border-ok/20 hover:border-ok/40 transition-colors group">
+          <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-ok/10 grid place-items-center group-hover:scale-110 transition-transform duration-300">
             <svg class="w-8 h-8 text-ok" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           </div>
           <div class="text-5xl font-extrabold text-ok mb-2 count-up" data-target="5" data-suffix="%">0%</div>
@@ -470,6 +561,49 @@
     </div>
   </section>
 
+  <!-- ════════════ COMPARISON TABLE ════════════ -->
+  <section class="py-20 px-6 relative z-10">
+    <div class="max-w-4xl mx-auto">
+      <div class="text-center mb-12 reveal">
+        <span class="px-3 py-1 rounded-full bg-accent/10 text-accent-l text-xs font-semibold border border-accent/20 mb-4 inline-block">COMPARISON</span>
+        <h2 class="text-2xl sm:text-3xl font-bold mb-2">How We Compare</h2>
+        <p class="text-sm text-muted">See how PlagiarismGuard stacks up against other tools</p>
+      </div>
+      <div class="reveal from-scale">
+        <div class="glass-card rounded-2xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-border/30">
+                  <th class="text-left p-4 text-muted font-medium">Feature</th>
+                  <th class="p-4 text-center">
+                    <div class="flex items-center justify-center gap-2">
+                      <div class="w-6 h-6 bg-gradient-to-br from-accent to-[#00b894] rounded-md grid place-items-center text-white text-[10px] font-bold">P</div>
+                      <span class="font-bold text-accent-l">PlagiarismGuard</span>
+                    </div>
+                  </th>
+                  <th class="p-4 text-center text-muted font-medium">Turnitin</th>
+                  <th class="p-4 text-center text-muted font-medium">Grammarly</th>
+                  <th class="p-4 text-center text-muted font-medium hidden sm:table-cell">Copyscape</th>
+                </tr>
+              </thead>
+              <tbody class="text-sm">
+                <tr class="border-b border-border/20 hover:bg-surface2/30 transition-colors"><td class="p-4">Plagiarism Detection</td><td class="p-4 text-center text-ok text-lg">&#10003;</td><td class="p-4 text-center text-ok text-lg">&#10003;</td><td class="p-4 text-center text-ok text-lg">&#10003;</td><td class="p-4 text-center text-ok text-lg hidden sm:table-cell">&#10003;</td></tr>
+                <tr class="border-b border-border/20 hover:bg-surface2/30 transition-colors"><td class="p-4">AI Text Detection</td><td class="p-4 text-center text-ok text-lg">&#10003;</td><td class="p-4 text-center text-ok text-lg">&#10003;</td><td class="p-4 text-center text-muted">&#10007;</td><td class="p-4 text-center text-muted hidden sm:table-cell">&#10007;</td></tr>
+                <tr class="border-b border-border/20 hover:bg-surface2/30 transition-colors"><td class="p-4">Semantic Paraphrase Detection</td><td class="p-4 text-center text-ok text-lg">&#10003;</td><td class="p-4 text-center text-muted">~</td><td class="p-4 text-center text-muted">&#10007;</td><td class="p-4 text-center text-muted hidden sm:table-cell">&#10007;</td></tr>
+                <tr class="border-b border-border/20 hover:bg-surface2/30 transition-colors"><td class="p-4">AI Rewriter</td><td class="p-4 text-center text-ok text-lg">&#10003;</td><td class="p-4 text-center text-muted">&#10007;</td><td class="p-4 text-center text-ok text-lg">&#10003;</td><td class="p-4 text-center text-muted hidden sm:table-cell">&#10007;</td></tr>
+                <tr class="border-b border-border/20 hover:bg-surface2/30 transition-colors"><td class="p-4">Citation Generator</td><td class="p-4 text-center text-ok text-lg">&#10003;</td><td class="p-4 text-center text-muted">&#10007;</td><td class="p-4 text-center text-muted">&#10007;</td><td class="p-4 text-center text-muted hidden sm:table-cell">&#10007;</td></tr>
+                <tr class="border-b border-border/20 hover:bg-surface2/30 transition-colors"><td class="p-4">Readability Analysis</td><td class="p-4 text-center text-ok text-lg">&#10003;</td><td class="p-4 text-center text-muted">&#10007;</td><td class="p-4 text-center text-ok text-lg">&#10003;</td><td class="p-4 text-center text-muted hidden sm:table-cell">&#10007;</td></tr>
+                <tr class="border-b border-border/20 hover:bg-surface2/30 transition-colors"><td class="p-4">Free Plan</td><td class="p-4 text-center text-ok text-lg">&#10003;</td><td class="p-4 text-center text-muted">&#10007;</td><td class="p-4 text-center text-ok text-lg">&#10003;</td><td class="p-4 text-center text-muted hidden sm:table-cell">&#10007;</td></tr>
+                <tr class="hover:bg-surface2/30 transition-colors"><td class="p-4 font-semibold">Starting Price</td><td class="p-4 text-center font-bold text-ok">&#8377;0 / Free</td><td class="p-4 text-center text-muted">$3/month</td><td class="p-4 text-center text-muted">$12/month</td><td class="p-4 text-center text-muted hidden sm:table-cell">$10/month</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ════════════ FAQ — Enhanced ════════════ -->
   <section id="faq" class="py-24 px-6 relative z-10">
     <hr class="glow-divider mb-20">
@@ -530,19 +664,29 @@
   </section>
 
   <!-- ════════════ FINAL CTA — Glowing ════════════ -->
-  <section class="py-16 px-6 relative z-10">
+  <section class="py-20 px-6 relative z-10">
     <div class="max-w-2xl mx-auto text-center reveal">
-      <div class="relative">
-        <div class="absolute -inset-3 bg-gradient-to-r from-accent/15 via-[#00b894]/15 to-accent/15 rounded-3xl blur-2xl"></div>
-        <div class="relative glass-card rounded-2xl p-10 border-accent/20">
-          <div class="text-4xl mb-4">&#x1F680;</div>
-          <h3 class="text-2xl font-bold mb-3">Ready to upgrade your research?</h3>
-          <p class="text-sm text-muted mb-7">Sign up now and get <span class="text-ok font-semibold">3 days of Research access</span> — completely free.</p>
-          <a href="/signup" class="inline-flex items-center gap-2 px-10 py-4 bg-gradient-to-r from-accent via-[#5a4bd1] to-accent text-white rounded-2xl text-base font-semibold hover:shadow-2xl hover:shadow-accent/30 hover:-translate-y-1 transition-all duration-300 ripple bg-[length:200%_auto] hover:bg-right-top">
-            Create Free Account
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </a>
-          <p class="text-xs text-muted mt-4">No credit card required &bull; Downgrades to Free after trial</p>
+      <div class="relative group">
+        <!-- Multi-layer glow -->
+        <div class="absolute -inset-6 bg-gradient-to-r from-accent/30 via-[#00b894]/25 to-accent/30 rounded-[2rem] blur-3xl opacity-60 group-hover:opacity-90 transition-opacity duration-700 animate-pulse"></div>
+        <div class="absolute -inset-3 bg-gradient-to-r from-[#00b894]/20 via-accent/20 to-[#e17055]/15 rounded-3xl blur-xl opacity-50"></div>
+        <div class="absolute -inset-[2px] rounded-2xl bg-gradient-to-r from-accent via-[#00b894] to-accent opacity-20 group-hover:opacity-40 transition-opacity duration-500" style="background-size:200% auto;animation:shimmer 3s linear infinite;"></div>
+        <div class="relative glass-card rounded-2xl p-12 border-accent/30 overflow-hidden">
+          <!-- Animated glow orbs inside -->
+          <div class="absolute top-0 left-1/4 w-32 h-32 bg-accent/20 rounded-full blur-3xl animate-pulse"></div>
+          <div class="absolute bottom-0 right-1/4 w-40 h-40 bg-[#00b894]/15 rounded-full blur-3xl animate-pulse" style="animation-delay:1s;"></div>
+          <div class="relative z-10">
+            <div class="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-accent/20 to-[#00b894]/20 border border-accent/30 grid place-items-center shadow-lg shadow-accent/20">
+              <svg class="w-8 h-8 text-accent-l" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg>
+            </div>
+            <h3 class="text-2xl sm:text-3xl font-bold mb-3 shimmer-text">Ready to upgrade your research?</h3>
+            <p class="text-sm text-muted mb-8 leading-relaxed">Sign up now and get <span class="text-ok font-semibold">3 days of Research access</span> — completely free.</p>
+            <a href="/signup" class="inline-flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-accent via-[#5a4bd1] to-accent text-white rounded-2xl text-base font-semibold shadow-xl shadow-accent/25 hover:shadow-2xl hover:shadow-accent/40 hover:-translate-y-1 transition-all duration-300 ripple bg-[length:200%_auto] hover:bg-right-top">
+              Create Free Account
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+            <p class="text-xs text-muted mt-5">No credit card required &bull; Downgrades to Free after trial</p>
+          </div>
         </div>
       </div>
     </div>
@@ -586,6 +730,37 @@
 <!-- ═══ SCRIPTS ═══ -->
 <script>
 (function() {
+  // ── Scroll progress bar ──
+  const progressBar = document.getElementById('scrollProgress');
+  if (progressBar) {
+    let progTicking = false;
+    window.addEventListener('scroll', () => {
+      if (!progTicking) { requestAnimationFrame(() => {
+        const h = document.documentElement.scrollHeight - window.innerHeight;
+        progressBar.style.width = h > 0 ? ((window.scrollY / h) * 100) + '%' : '0%';
+        progTicking = false;
+      }); progTicking = true; }
+    }, { passive: true });
+  }
+
+  // ── Active nav section highlighting ──
+  const navLinks = document.querySelectorAll('.nav-link');
+  const sections = document.querySelectorAll('section[id]');
+  if (navLinks.length && sections.length) {
+    const navObs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const id = entry.target.id;
+          navLinks.forEach(l => {
+            l.classList.toggle('text-accent-l', l.getAttribute('href') === '#' + id);
+            l.classList.toggle('text-muted', l.getAttribute('href') !== '#' + id);
+          });
+        }
+      });
+    }, { threshold: 0.3, rootMargin: '-80px 0px -40% 0px' });
+    sections.forEach(s => navObs.observe(s));
+  }
+
   // ── Scroll-triggered reveal animation ──
   const revealEls = document.querySelectorAll('.reveal');
   const revealObs = new IntersectionObserver((entries) => {
@@ -630,7 +805,7 @@
   }, { threshold: 0.5 });
   bars.forEach(el => barObs.observe(el));
 
-  // ── Hero text rotation with typewriter effect ──
+  // ── Hero text rotation with blur transition ──
   const phrases = ['Your Research', 'Your Thesis', 'Your Dissertation', 'Every Citation', 'Academic Writing'];
   const heroEl = document.getElementById('heroRotate');
   if (heroEl) {
@@ -650,26 +825,21 @@
     }, 3500);
   }
 
-  // ── Navbar background on scroll ──
+  // ── Navbar background on scroll (theme-aware) ──
   const nav = document.getElementById('mainNav');
   if (nav) {
+    const isLight = () => document.documentElement.classList.contains('light');
     window.addEventListener('scroll', () => {
       if (window.scrollY > 60) {
-        nav.style.background = 'rgba(15,17,23,.85)';
+        nav.style.background = isLight() ? 'rgba(248,249,252,.92)' : 'rgba(15,17,23,.85)';
         nav.style.backdropFilter = 'blur(20px)';
-        nav.style.borderBottom = '1px solid rgba(46,51,72,.5)';
+        nav.style.borderBottom = isLight() ? '1px solid rgba(216,220,230,.6)' : '1px solid rgba(46,51,72,.5)';
       } else {
         nav.style.background = 'transparent';
         nav.style.backdropFilter = 'none';
         nav.style.borderBottom = 'none';
       }
     }, { passive: true });
-    // Light mode adjustments
-    if (document.documentElement.classList.contains('light')) {
-      window.addEventListener('scroll', () => {
-        if (window.scrollY > 60) { nav.style.background = 'rgba(248,249,252,.9)'; }
-      }, { passive: true });
-    }
   }
 
   // ── Mobile menu ──
@@ -697,6 +867,31 @@
     });
   }
 
+  // ── Mouse-follow 3D tilt on cards ──
+  document.querySelectorAll('.tilt-card').forEach(card => {
+    card.addEventListener('mousemove', (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width - 0.5;
+      const y = (e.clientY - rect.top) / rect.height - 0.5;
+      card.style.transform = `translateY(-6px) perspective(800px) rotateX(${y * -8}deg) rotateY(${x * 8}deg)`;
+    });
+    card.addEventListener('mouseleave', () => {
+      card.style.transform = '';
+    });
+  });
+
+  // ── Demo area: character count + enable button ──
+  const demoInput = document.getElementById('demoInput');
+  const demoBtn = document.getElementById('demoScanBtn');
+  const demoCount = document.getElementById('demoCharCount');
+  if (demoInput && demoBtn && demoCount) {
+    demoInput.addEventListener('input', () => {
+      const len = demoInput.value.trim().length;
+      demoCount.textContent = len + ' character' + (len !== 1 ? 's' : '');
+      demoBtn.disabled = len < 20;
+    });
+  }
+
   // ── Auth state: show Dashboard if logged in ──
   if (localStorage.getItem('pg_token')) {
     const login = document.getElementById('navLogin');
@@ -707,6 +902,85 @@
     if (dash) dash.classList.remove('hidden');
   }
 })();
+
+// ── Interactive Demo Scan Simulation ──
+function runDemoScan() {
+  const btn = document.getElementById('demoScanBtn');
+  const btnText = document.getElementById('demoBtnText');
+  const scanLine = document.getElementById('demoScanLine');
+  const results = document.getElementById('demoResults');
+  const agents = document.querySelectorAll('#demoAgents > div');
+
+  if (!btn || !results) return;
+
+  // Disable button & show scanning state
+  btn.disabled = true;
+  btnText.textContent = 'Scanning...';
+  scanLine.style.opacity = '1';
+  results.classList.remove('hidden');
+
+  // Reset agents
+  agents.forEach(a => {
+    a.querySelector('.demo-agent-dot').className = 'demo-agent-dot w-2 h-2 rounded-full bg-muted';
+    a.querySelector('.demo-agent-status').textContent = 'waiting';
+    a.querySelector('.demo-agent-status').className = 'demo-agent-status ml-auto text-muted';
+  });
+
+  // Reset results
+  document.getElementById('demoSimilarity').textContent = '\u2014';
+  document.getElementById('demoAI').textContent = '\u2014';
+  document.getElementById('demoReadability').textContent = '\u2014';
+
+  // Simulate agent progression
+  const agentNames = ['Web Search Agent', 'Academic Sources Agent', 'Semantic Analysis Agent', 'AI Detection Agent'];
+  let i = 0;
+  const interval = setInterval(() => {
+    if (i > 0) {
+      // Complete previous agent
+      const prev = agents[i - 1];
+      prev.querySelector('.demo-agent-dot').className = 'demo-agent-dot w-2 h-2 rounded-full bg-ok';
+      prev.querySelector('.demo-agent-status').textContent = 'complete';
+      prev.querySelector('.demo-agent-status').className = 'demo-agent-status ml-auto text-ok font-medium';
+    }
+    if (i < agents.length) {
+      // Start current agent
+      const cur = agents[i];
+      cur.querySelector('.demo-agent-dot').className = 'demo-agent-dot w-2 h-2 rounded-full bg-accent animate-pulse';
+      cur.querySelector('.demo-agent-status').textContent = 'analyzing...';
+      cur.querySelector('.demo-agent-status').className = 'demo-agent-status ml-auto text-accent-l';
+    }
+    i++;
+    if (i > agents.length) {
+      clearInterval(interval);
+      // Show final results with random-looking values
+      const text = document.getElementById('demoInput').value;
+      const simScore = Math.max(3, Math.min(28, Math.round((text.length % 17) + 5)));
+      const aiScore = Math.max(8, Math.min(45, Math.round((text.length % 23) + 10)));
+      const readScore = Math.max(55, Math.min(89, Math.round(72 + (text.length % 13))));
+
+      animateDemoNum('demoSimilarity', simScore, '%', simScore < 20 ? 'text-ok' : 'text-warn');
+      animateDemoNum('demoAI', aiScore, '%', aiScore < 30 ? 'text-ok' : 'text-accent-l');
+      animateDemoNum('demoReadability', readScore, '', 'text-[#00b894]');
+
+      scanLine.style.opacity = '0';
+      btnText.textContent = 'Analyze Text';
+      btn.disabled = false;
+    }
+  }, 700);
+}
+
+function animateDemoNum(id, target, suffix, colorClass) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'text-2xl font-bold ' + colorClass;
+  const dur = 600, start = performance.now();
+  function tick(now) {
+    const t = Math.min((now - start) / dur, 1);
+    el.textContent = Math.round(t * target) + suffix;
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
 </script>
 
 <!-- Scroll-to-top button -->
