@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Google Sans', Roboto, Arial, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      padding: 16px;
+      font-size: 13px;
+    }
+    h2 { font-size: 16px; margin-bottom: 16px; color: #fff; }
+    label {
+      display: block;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 4px;
+      margin-top: 12px;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #334;
+      border-radius: 6px;
+      background: #2a2a4a;
+      color: #e0e0e0;
+      font-size: 13px;
+      outline: none;
+    }
+    input:focus { border-color: #6366f1; }
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 16px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+    }
+    .btn:hover { opacity: 0.9; }
+    .status {
+      padding: 8px;
+      border-radius: 6px;
+      margin-top: 12px;
+      font-size: 12px;
+      display: none;
+    }
+    .status.success { display: block; background: #064e3b; color: #6ee7b7; }
+    .status.error { display: block; background: #4a1515; color: #fca5a5; }
+    .hint {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 16px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <h2>⚙ Settings</h2>
+
+  <label for="serverUrl">Server URL</label>
+  <input type="url" id="serverUrl" placeholder="https://your-app.azurewebsites.net">
+
+  <label for="apiKey">API Key</label>
+  <input type="password" id="apiKey" placeholder="pg_xxxxxxxxxxxx">
+
+  <button class="btn" onclick="save()">Save Settings</button>
+
+  <div id="status" class="status"></div>
+
+  <div class="hint">
+    Get your API key from PlagiarismGuard → Dashboard → API Keys.<br>
+    Your credentials are stored securely in your Google account.
+  </div>
+
+  <script>
+    // Load existing settings
+    google.script.run
+      .withSuccessHandler(function(url) {
+        if (url) document.getElementById("serverUrl").value = url;
+      })
+      .getServerUrl();
+
+    function save() {
+      var url = document.getElementById("serverUrl").value.trim();
+      var key = document.getElementById("apiKey").value.trim();
+      if (!url || !key) {
+        showStatus("Please fill in both fields.", "error");
+        return;
+      }
+      google.script.run
+        .withSuccessHandler(function() {
+          showStatus("Settings saved! You can close this sidebar.", "success");
+        })
+        .withFailureHandler(function(err) {
+          showStatus("Failed to save: " + err.message, "error");
+        })
+        .saveSettings(url, key);
+    }
+
+    function showStatus(msg, type) {
+      var el = document.getElementById("status");
+      el.textContent = msg;
+      el.className = "status " + type;
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+{
+  "timeZone": "UTC",
+  "dependencies": {},
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/documents.currentonly",
+    "https://www.googleapis.com/auth/presentations.currentonly",
+    "https://www.googleapis.com/auth/script.container.ui",
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/userinfo.email"
+  ],
+  "addOns": {
+    "common": {
+      "name": "PlagiarismGuard",
+      "logoUrl": "https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net/static/favicon.svg",
+      "layoutProperties": {
+        "primaryColor": "#6366f1",
+        "secondaryColor": "#8b5cf6"
+      }
+    },
+    "docs": {
+      "homepageTrigger": {
+        "runFunction": "onDocsHomepage"
+      },
+      "onFileScopeGrantedTrigger": {
+        "runFunction": "onDocsHomepage"
+      }
+    },
+    "slides": {
+      "homepageTrigger": {
+        "runFunction": "onSlidesHomepage"
+      },
+      "onFileScopeGrantedTrigger": {
+        "runFunction": "onSlidesHomepage"
+      }
+    }
+  }
+}

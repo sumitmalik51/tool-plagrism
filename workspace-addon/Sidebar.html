@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Google Sans', Roboto, Arial, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      padding: 16px;
+      font-size: 13px;
+    }
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    h2 svg { width: 22px; height: 22px; }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 10px 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 8px;
+      transition: all 0.2s;
+      text-align: left;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-scan {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+    }
+    .btn-ai {
+      background: linear-gradient(135deg, #06b6d4, #0891b2);
+      color: white;
+    }
+    .btn-humanize {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: white;
+    }
+    .btn-secondary {
+      background: #2a2a4a;
+      color: #94a3b8;
+      border: 1px solid #334;
+    }
+    .btn-secondary:hover { background: #3a3a5a; color: #e0e0e0; }
+
+    .btn-icon { font-size: 15px; margin-right: 6px; }
+
+    .divider {
+      height: 1px;
+      background: #333;
+      margin: 14px 0;
+    }
+
+    /* Status */
+    .status {
+      padding: 8px 10px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      font-size: 12px;
+      display: none;
+    }
+    .status.success { display: block; background: #064e3b; color: #6ee7b7; }
+    .status.error { display: block; background: #4a1515; color: #fca5a5; }
+    .status.loading { display: block; background: #1e3a5f; color: #93c5fd; }
+
+    /* Results */
+    .results {
+      display: none;
+      background: #2a2a4a;
+      border-radius: 10px;
+      padding: 14px;
+      margin-top: 12px;
+    }
+    .results.visible { display: block; }
+    .results h3 {
+      font-size: 14px;
+      margin-bottom: 10px;
+      color: #a5b4fc;
+    }
+
+    .metric {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #333;
+    }
+    .metric:last-child { border-bottom: none; }
+    .metric-label { color: #94a3b8; font-size: 12px; }
+    .metric-value { font-size: 15px; font-weight: 700; }
+
+    .score-low { color: #6ee7b7; }
+    .score-medium { color: #fbbf24; }
+    .score-high { color: #f87171; }
+
+    .source-item {
+      padding: 6px 0;
+      border-bottom: 1px solid #333;
+      font-size: 12px;
+    }
+    .source-item:last-child { border-bottom: none; }
+    .source-title { color: #a5b4fc; }
+    .source-match { color: #94a3b8; font-size: 11px; }
+    .source-item a { color: #818cf8; text-decoration: none; }
+
+    .model-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #312e81;
+      color: #a5b4fc;
+      margin: 2px;
+    }
+
+    /* Humanize result */
+    .humanized-text {
+      background: #1a1a2e;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 12px;
+      line-height: 1.6;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+    }
+
+    .spinner {
+      display: none;
+      text-align: center;
+      padding: 20px;
+    }
+    .spinner.active { display: block; }
+    .spinner-circle {
+      width: 24px;
+      height: 24px;
+      border: 3px solid #333;
+      border-top: 3px solid #6366f1;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .word-count {
+      text-align: center;
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h2>
+    <svg viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    PlagiarismGuard
+  </h2>
+
+  <div id="status" class="status"></div>
+
+  <button class="btn btn-scan" onclick="scanSelected()">
+    <span class="btn-icon">📋</span> Scan Selected Text
+  </button>
+  <button class="btn btn-scan" onclick="scanFullDoc()" style="background: linear-gradient(135deg, #4f46e5, #7c3aed);">
+    <span class="btn-icon">📄</span> Scan Full Document
+  </button>
+  <button class="btn btn-ai" onclick="aiDetectSelected()">
+    <span class="btn-icon">🤖</span> AI Detection Only
+  </button>
+  <button class="btn btn-humanize" onclick="humanizeSelected()">
+    <span class="btn-icon">✏️</span> Humanize Selected Text
+  </button>
+
+  <div class="divider"></div>
+
+  <button class="btn btn-secondary" onclick="openSettings()">
+    ⚙ Settings
+  </button>
+
+  <div class="spinner" id="spinner">
+    <div class="spinner-circle"></div>
+    <div style="color:#94a3b8; font-size:12px;">Analyzing…</div>
+  </div>
+
+  <div class="word-count" id="wordCount"></div>
+
+  <div class="results" id="results"></div>
+
+  <script>
+    function showStatus(msg, type) {
+      var el = document.getElementById("status");
+      el.textContent = msg;
+      el.className = "status " + type;
+    }
+
+    function clearStatus() {
+      document.getElementById("status").className = "status";
+    }
+
+    function showSpinner(show) {
+      document.getElementById("spinner").className = show ? "spinner active" : "spinner";
+    }
+
+    function scoreClass(score) {
+      return score >= 60 ? "score-high" : score >= 30 ? "score-medium" : "score-low";
+    }
+
+    // --- Scan Selected ---
+    function scanSelected() {
+      clearStatus();
+      showSpinner(true);
+      document.getElementById("results").className = "results";
+
+      google.script.run
+        .withSuccessHandler(function(text) {
+          if (!text || text.length < 20) {
+            showSpinner(false);
+            showStatus("Select at least a sentence of text first.", "error");
+            return;
+          }
+          var wc = text.split(/\s+/).filter(Boolean).length;
+          document.getElementById("wordCount").textContent = "Scanning " + wc.toLocaleString() + " words…";
+          
+          google.script.run
+            .withSuccessHandler(handleScanResult)
+            .withFailureHandler(handleError)
+            .callApiFromSidebar("/api/v1/analyze/quick", { text: text });
+        })
+        .withFailureHandler(handleError)
+        .getSelectedText();
+    }
+
+    // --- Scan Full Doc ---
+    function scanFullDoc() {
+      clearStatus();
+      showSpinner(true);
+      document.getElementById("results").className = "results";
+
+      google.script.run
+        .withSuccessHandler(function(text) {
+          if (!text || text.length < 50) {
+            showSpinner(false);
+            showStatus("Document is too short to scan.", "error");
+            return;
+          }
+          if (text.length > 50000) text = text.substring(0, 50000);
+          var wc = text.split(/\s+/).filter(Boolean).length;
+          document.getElementById("wordCount").textContent = "Scanning " + wc.toLocaleString() + " words…";
+
+          google.script.run
+            .withSuccessHandler(handleScanResult)
+            .withFailureHandler(handleError)
+            .callApiFromSidebar("/api/v1/analyze/quick", { text: text });
+        })
+        .withFailureHandler(handleError)
+        .getFullDocumentText();
+    }
+
+    // --- AI Detection ---
+    function aiDetectSelected() {
+      clearStatus();
+      showSpinner(true);
+      document.getElementById("results").className = "results";
+
+      google.script.run
+        .withSuccessHandler(function(text) {
+          if (!text || text.length < 20) {
+            showSpinner(false);
+            showStatus("Select text for AI detection.", "error");
+            return;
+          }
+
+          google.script.run
+            .withSuccessHandler(handleAIResult)
+            .withFailureHandler(handleError)
+            .callApiFromSidebar("/api/v1/tools/ai-detect", { text: text });
+        })
+        .withFailureHandler(handleError)
+        .getSelectedText();
+    }
+
+    // --- Humanize ---
+    function humanizeSelected() {
+      clearStatus();
+      showSpinner(true);
+      document.getElementById("results").className = "results";
+
+      google.script.run
+        .withSuccessHandler(function(text) {
+          if (!text || text.length < 10) {
+            showSpinner(false);
+            showStatus("Select text to humanize.", "error");
+            return;
+          }
+
+          google.script.run
+            .withSuccessHandler(handleHumanizeResult)
+            .withFailureHandler(handleError)
+            .callApiFromSidebar("/rewrite/general", { text: text, mode: "humanize" });
+        })
+        .withFailureHandler(handleError)
+        .getSelectedText();
+    }
+
+    // --- Result Handlers ---  
+    function handleScanResult(result) {
+      showSpinner(false);
+      document.getElementById("wordCount").textContent = "";
+      if (result.error) { showStatus(result.error, "error"); return; }
+
+      var plagScore = result.plagiarism_score || result.score || 0;
+      var aiScore = result.ai_score || 0;
+      var risk = result.risk_level || "LOW";
+      var conf = result.confidence_score || result.confidence || 0;
+      var riskEmoji = risk === "HIGH" ? "🔴" : risk === "MEDIUM" ? "🟡" : "🟢";
+
+      var html = '<h3>Scan Results</h3>';
+      html += '<div class="metric"><span class="metric-label">Plagiarism Score</span><span class="metric-value ' + scoreClass(plagScore) + '">' + plagScore.toFixed(1) + '%</span></div>';
+      html += '<div class="metric"><span class="metric-label">AI Detection</span><span class="metric-value ' + scoreClass(aiScore) + '">' + aiScore.toFixed(1) + '%</span></div>';
+      html += '<div class="metric"><span class="metric-label">Risk Level</span><span class="metric-value">' + riskEmoji + ' ' + risk + '</span></div>';
+      html += '<div class="metric"><span class="metric-label">Confidence</span><span class="metric-value">' + (conf * 100).toFixed(0) + '%</span></div>';
+
+      // Model attribution
+      var models = result.model_attribution || {};
+      var modelKeys = Object.keys(models);
+      if (modelKeys.length > 0) {
+        html += '<div style="padding-top:8px"><span class="metric-label">Suspected AI Models</span><div style="margin-top:4px">';
+        modelKeys.forEach(function(m) {
+          html += '<span class="model-tag">' + m + ' (' + models[m] + ')</span>';
+        });
+        html += '</div></div>';
+      }
+
+      // Sources
+      var sources = result.detected_sources || [];
+      if (sources.length > 0) {
+        html += '<h3 style="margin-top:12px">Sources (' + sources.length + ')</h3>';
+        sources.slice(0, 5).forEach(function(src) {
+          html += '<div class="source-item">';
+          var title = src.title || src.url || "Unknown";
+          if (src.url) {
+            html += '<a href="' + src.url + '" target="_blank" class="source-title">' + title.substring(0, 50) + '</a>';
+          } else {
+            html += '<span class="source-title">' + title.substring(0, 50) + '</span>';
+          }
+          html += '<div class="source-match">' + ((src.similarity || 0) * 100).toFixed(0) + '% match</div>';
+          html += '</div>';
+        });
+      }
+
+      var el = document.getElementById("results");
+      el.innerHTML = html;
+      el.className = "results visible";
+      showStatus("Scan complete!", "success");
+    }
+
+    function handleAIResult(result) {
+      showSpinner(false);
+      document.getElementById("wordCount").textContent = "";
+      if (result.error) { showStatus(result.error, "error"); return; }
+
+      var score = result.score || 0;
+      var conf = result.confidence || 0;
+      var verdict = score >= 60 ? "🔴 Likely AI-Generated" : score >= 30 ? "🟡 Possibly AI" : "🟢 Likely Human";
+
+      var html = '<h3>AI Detection</h3>';
+      html += '<div class="metric"><span class="metric-label">AI Score</span><span class="metric-value ' + scoreClass(score) + '">' + score.toFixed(1) + '%</span></div>';
+      html += '<div class="metric"><span class="metric-label">Verdict</span><span class="metric-value">' + verdict + '</span></div>';
+      html += '<div class="metric"><span class="metric-label">Confidence</span><span class="metric-value">' + (conf * 100).toFixed(0) + '%</span></div>';
+
+      var indicators = result.indicators || {};
+      var models = indicators.model_attribution || {};
+      var modelKeys = Object.keys(models);
+      if (modelKeys.length > 0) {
+        html += '<div style="padding-top:8px"><span class="metric-label">Suspected Models</span><div style="margin-top:4px">';
+        modelKeys.forEach(function(m) {
+          html += '<span class="model-tag">' + m + ' (' + models[m] + ')</span>';
+        });
+        html += '</div></div>';
+      }
+
+      var el = document.getElementById("results");
+      el.innerHTML = html;
+      el.className = "results visible";
+      showStatus("Detection complete!", "success");
+    }
+
+    function handleHumanizeResult(result) {
+      showSpinner(false);
+      document.getElementById("wordCount").textContent = "";
+      if (result.error) { showStatus(result.error, "error"); return; }
+
+      var text = result.rewritten_text || result.text || "";
+      var html = '<h3>Humanized Text</h3>';
+      html += '<div class="humanized-text">' + text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>') + '</div>';
+      html += '<button class="btn btn-scan" style="font-size:12px;padding:8px" onclick="copyText(\'' + text.replace(/'/g, "\\'").replace(/\n/g, "\\n").substring(0, 3000) + '\')">📋 Copy to Clipboard</button>';
+
+      var el = document.getElementById("results");
+      el.innerHTML = html;
+      el.className = "results visible";
+      showStatus("Humanization complete!", "success");
+    }
+
+    function handleError(err) {
+      showSpinner(false);
+      document.getElementById("wordCount").textContent = "";
+      showStatus("Error: " + (err.message || err), "error");
+    }
+
+    function copyText(text) {
+      navigator.clipboard.writeText(text).then(function() {
+        showStatus("Copied to clipboard!", "success");
+      }).catch(function() {
+        showStatus("Copy failed — manually select the text.", "error");
+      });
+    }
+
+    function openSettings() {
+      google.script.run.showSettings();
+    }
+  </script>
+</body>
+</html>
