@@ -105,7 +105,7 @@ async def rewrite_paragraph_endpoint(
 
     # Record usage
     if http_request:
-        record_usage(http_request, tool_type="rewrite")
+        record_usage(http_request, tool_type="rewrite", word_count=len(request.text.split()))
 
     # Bridge tool output (rewrites list) to response model (rewritten string)
     rewrites = result.get("rewrites", [])
@@ -163,7 +163,7 @@ async def rewrite_document_endpoint(
 
     # Record usage
     if http_request:
-        record_usage(http_request, tool_type="rewrite")
+        record_usage(http_request, tool_type="rewrite", word_count=len(request.text.split()))
 
     return RewriteDocumentResponse(**result)
 
@@ -246,7 +246,7 @@ async def general_rewrite_endpoint(
 
     # Record usage
     if http_request:
-        record_usage(http_request, tool_type="rewrite")
+        record_usage(http_request, tool_type="rewrite", word_count=len(request.text.split()))
 
     return GeneralRewriteResponse(**result)
 

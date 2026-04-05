@@ -155,7 +155,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     _CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
     _CSRF_EXEMPT_PREFIXES = ("/api/v1/auth/signup", "/api/v1/auth/login",
                              "/api/v1/auth/reset-password", "/api/v1/auth/verify-email",
-                             "/api/v1/auth/forgot-password", "/api/v1/auth/refresh")
+                             "/api/v1/auth/forgot-password", "/api/v1/auth/refresh",
+                             "/api/v1/stripe/webhook", "/api/v1/lti/")
 
     # Static file extensions that get long cache headers
     _CACHEABLE_SUFFIXES = (".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff2", ".woff")
@@ -199,16 +200,19 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
 
         # Content Security Policy
+        # NOTE: 'unsafe-inline' required for Tailwind CDN + inline <script> blocks.
+        # When migrating to build-time Tailwind, replace with nonce-based CSP.
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://checkout.razorpay.com https://cdn.jsdelivr.net; "
             "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com https://cdn.jsdelivr.net; "
             "font-src 'self' https://fonts.gstatic.com; "
-            "img-src 'self' data: https://fastapi.tiangolo.com; "
-            "connect-src 'self' https://api.razorpay.com; "
-            "frame-src https://api.razorpay.com; "
+            "img-src 'self' data: https://fastapi.tiangolo.com https://lh3.googleusercontent.com; "
+            "connect-src 'self' https://api.razorpay.com https://api.stripe.com; "
+            "frame-src https://api.razorpay.com https://js.stripe.com; "
             "object-src 'none'; "
-            "base-uri 'self'"
+            "base-uri 'self'; "
+            "form-action 'self'"
         )
 
         # HSTS

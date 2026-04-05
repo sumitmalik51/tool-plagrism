@@ -54,13 +54,15 @@ class BaseAgent(ABC):
                 error=str(exc),
                 elapsed_s=elapsed,
             )
-            # Return a safe zero-score result so the pipeline can continue
+            # Return a safe zero-score result so the pipeline can continue,
+            # but include error details and mark confidence as 0 so the
+            # aggregator knows this agent failed (not "clean").
             return AgentOutput(
                 agent_name=self.name,
                 score=0.0,
                 confidence=0.0,
                 flagged_passages=[],
-                details={"error": str(exc)},
+                details={"error": str(exc), "agent_failed": True},
             )
 
     @abstractmethod

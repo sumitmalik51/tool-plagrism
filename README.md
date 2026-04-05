@@ -78,9 +78,15 @@ app/
 │   └── admin.py         # Admin dashboard
 ├── static/              # Frontend (landing page, dashboard, login)
 └── utils/               # Helpers & logging
-extension/               # Chrome browser extension
+extension/               # Chrome browser extension (beta)
+workspace-addon/         # Google Workspace add-on (beta)
+word-addin/              # Microsoft Word add-in (beta)
 tests/                   # 450+ test suite
 ```
+
+> **Note:** The `extension/`, `workspace-addon/`, and `word-addin/` folders contain
+> scaffolded implementations that are not yet published to their respective stores.
+> They connect to the PlagiarismGuard API and are functional for local dev/testing.
 
 ## Subscription Tiers
 

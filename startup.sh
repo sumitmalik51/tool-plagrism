@@ -62,8 +62,8 @@ mkdir -p /home/uploads
 # ---- Install ODBC Driver 18 for Azure SQL (if not already present) -------
 if ! odbcinst -q -d -n "ODBC Driver 18 for SQL Server" > /dev/null 2>&1; then
     echo "[startup] Installing ODBC Driver 18 for SQL Server..."
-    curl -s https://packages.microsoft.com/keys/microsoft.asc | apt-key add - 2>/dev/null
-    curl -s https://packages.microsoft.com/config/debian/11/prod.list > /etc/apt/sources.list.d/mssql-release.list
+    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg 2>/dev/null
+    echo "deb [signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/11/prod bullseye main" > /etc/apt/sources.list.d/mssql-release.list
     apt-get update -qq
     ACCEPT_EULA=Y apt-get install -y -qq msodbcsql18 unixodbc-dev 2>/dev/null
     echo "[startup] ODBC Driver 18 installed."
@@ -74,8 +74,18 @@ fi
 # ---- Persistent HuggingFace cache (survives restarts) -------------------
 export HF_HOME="/home/data/hf_cache"
 export TRANSFORMERS_CACHE="/home/data/hf_cache"
+export SENTENCE_TRANSFORMERS_HOME="/home/data/hf_cache"
 mkdir -p "$HF_HOME"
 echo "[startup] HF_HOME=$HF_HOME"
+
+# Pre-download the embedding model if not already cached (avoids 5 min cold start)
+if [ ! -d "$HF_HOME/sentence_transformers" ] || [ -z "$(ls -A "$HF_HOME/sentence_transformers" 2>/dev/null)" ]; then
+    echo "[startup] Pre-downloading embedding model (first boot only)..."
+    python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')" 2>&1 | tail -1
+    echo "[startup] Embedding model cached."
+else
+    echo "[startup] Embedding model already cached — skipping download."
+fi
 
 # ---- Start gunicorn with uvicorn workers --------------------------------
 cd /home/site/wwwroot

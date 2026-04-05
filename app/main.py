@@ -9,6 +9,7 @@ from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -97,6 +98,41 @@ app.include_router(stripe_router)
 app.include_router(chatbot_router)
 
 
+# --- Custom OpenAPI schema with security schemes -----------------------------
+def custom_openapi() -> dict[str, Any]:
+    if app.openapi_schema:
+        return app.openapi_schema
+    schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    schema["components"] = schema.get("components", {})
+    schema["components"]["securitySchemes"] = {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "JWT token from /api/v1/auth/login. Enter: YOUR_TOKEN (no 'Bearer' prefix needed)",
+        },
+        "ApiKeyAuth": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-API-Key",
+            "description": "API key from your dashboard (pg_xxx…)",
+        },
+    }
+    # Apply both auth methods globally so the Authorize button works for all endpoints
+    schema["security"] = [
+        {"BearerAuth": []},
+        {"ApiKeyAuth": []},
+    ]
+    app.openapi_schema = schema
+    return schema
+
+
+app.openapi = custom_openapi  # type: ignore[assignment]
 # --- Global exception handlers -----------------------------------------------
 @app.exception_handler(Exception)
 async def app_error_handler(request: Request, exc: Exception) -> JSONResponse:

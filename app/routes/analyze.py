@@ -14,7 +14,7 @@ from app.models.schemas import PlagiarismReport
 from app.services.ingestion import ingest_file
 from app.services.orchestrator import run_pipeline
 from app.services.persistence import save_document, save_scan
-from app.services.rate_limiter import UserTier
+from app.services.rate_limiter import PLAN_TO_TIER, UserTier, limiter
 from app.services.report_generator import report_to_json
 from app.utils.logger import get_logger
 
@@ -80,6 +80,25 @@ async def analyze_document(file: UploadFile, request: Request) -> PlagiarismRepo
         user = get_user_by_id(user_id)
         if user:
             plan_type = user.get("plan_type", "free")
+
+    # --- Enforce word quota ----------------------------------------------------
+    word_count = len(file_bytes.decode(errors='ignore').split())
+    if user_id:
+        tier = PLAN_TO_TIER.get(plan_type, UserTier.FREE)
+        wq = limiter.check_word_quota(user_id, tier, word_count=word_count)
+        if not wq["allowed"]:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "error": "word_quota_exceeded",
+                    "message": f"Monthly word limit reached ({wq['limit']:,} words). "
+                               f"Used {wq['used']:,}, this document has {word_count:,} words.",
+                    "used": wq["used"],
+                    "limit": wq["limit"],
+                    "remaining": wq["remaining"],
+                    "upgrade_url": "/pricing",
+                },
+            )
 
     # --- Ingest ---------------------------------------------------------------
     try:
@@ -156,6 +175,25 @@ async def analyze_text(
         _u = _get_user(user_id)
         if _u:
             plan_type = _u.get("plan_type", "free")
+
+    # --- Enforce word quota ----------------------------------------------------
+    word_count = len(body.text.split())
+    if user_id:
+        tier = PLAN_TO_TIER.get(plan_type, UserTier.FREE)
+        wq = limiter.check_word_quota(user_id, tier, word_count=word_count)
+        if not wq["allowed"]:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "error": "word_quota_exceeded",
+                    "message": f"Monthly word limit reached ({wq['limit']:,} words). "
+                               f"Used {wq['used']:,}, this text has {word_count:,} words.",
+                    "used": wq["used"],
+                    "limit": wq["limit"],
+                    "remaining": wq["remaining"],
+                    "upgrade_url": "/pricing",
+                },
+            )
 
     logger.info(
         "analyze_agent_started",

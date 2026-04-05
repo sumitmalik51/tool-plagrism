@@ -43,7 +43,7 @@ class UserTier(str, Enum):
     PREMIUM = "premium"
 
 
-# Backwards-compat alias so existing code referencing PAID keeps working
+# Backwards-compat alias — DEPRECATED, use UserTier.PRO directly
 UserTier.PAID = UserTier.PRO  # type: ignore[attr-defined]
 
 
@@ -51,6 +51,7 @@ UserTier.PAID = UserTier.PRO  # type: ignore[attr-defined]
 PLAN_TO_TIER: dict[str, UserTier] = {
     "free": UserTier.FREE,
     "pro": UserTier.PRO,
+    "paid": UserTier.PRO,  # legacy alias
     "premium": UserTier.PREMIUM,
 }
 

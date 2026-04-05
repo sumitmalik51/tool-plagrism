@@ -35,7 +35,21 @@ async def upload_file(file: UploadFile) -> UploadResponse:
             detail="Filename is required.",
         )
 
+    # Pre-check file size before reading into memory
+    if file.size and file.size > 100 * 1024 * 1024:  # 100 MB hard cap
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File too large ({file.size / (1024*1024):.1f} MB). Maximum is 100 MB.",
+        )
+
     file_bytes = await file.read()
+
+    # Double-check actual byte length (file.size can be None for streaming)
+    if len(file_bytes) > 100 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File too large ({len(file_bytes) / (1024*1024):.1f} MB). Maximum is 100 MB.",
+        )
 
     try:
         result = await ingest_file(file.filename, file_bytes)

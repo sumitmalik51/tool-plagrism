@@ -77,6 +77,12 @@ class AggregationAgent(BaseAgent):
             flagged_count=len(flagged),
         )
 
+        # --- Detect failed agents ---------------------------------------------
+        failed_agents = [
+            o.agent_name for o in agent_outputs
+            if o.details.get("agent_failed")
+        ]
+
         return AgentOutput(
             agent_name=self.name,
             score=weighted_score,
@@ -89,6 +95,7 @@ class AggregationAgent(BaseAgent):
                     o.agent_name: {"score": o.score, "confidence": o.confidence}
                     for o in agent_outputs
                 },
+                **({"agents_failed": failed_agents, "partial_result": True} if failed_agents else {}),
             },
         )
 
