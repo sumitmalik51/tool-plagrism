@@ -101,6 +101,11 @@ class Settings(BaseSettings):
     razorpay_key_secret: str = ""   # Set PG_RAZORPAY_KEY_SECRET
     razorpay_webhook_secret: str = ""  # Set PG_RAZORPAY_WEBHOOK_SECRET (optional, falls back to key_secret)
 
+    # Stripe payment gateway (international payments)
+    stripe_secret_key: str = ""       # Set PG_STRIPE_SECRET_KEY
+    stripe_publishable_key: str = ""  # Set PG_STRIPE_PUBLISHABLE_KEY
+    stripe_webhook_secret: str = ""   # Set PG_STRIPE_WEBHOOK_SECRET
+
     # Database — Azure SQL connection string.
     # When empty, falls back to SQLite for local dev.
     # Set PG_SQL_CONNECTION_STRING in production.

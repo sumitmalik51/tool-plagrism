@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pricing — PlagiarismGuard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{colors:{primary:'#4f46e5',surface:'#1e293b',bg:'#0f172a'}}}}</script>
+<style>
+  body { background: #0f172a; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .plan-card { transition: transform 0.2s, box-shadow 0.2s; }
+  .plan-card:hover { transform: translateY(-4px); box-shadow: 0 12px 36px rgba(79,70,229,0.15); }
+  .popular { border-color: #4f46e5 !important; }
+  .toggle-bg { background: #334155; }
+  .toggle-bg.active { background: #4f46e5; }
+</style>
+</head>
+<body class="text-slate-200 min-h-screen">
+
+<!-- Nav -->
+<nav class="border-b border-slate-800 px-6 py-4 flex items-center justify-between">
+  <a href="/" class="text-xl font-bold text-white">Plagiarism<span class="text-primary">Guard</span></a>
+  <div class="flex gap-4 items-center text-sm">
+    <a href="/app" class="text-slate-400 hover:text-white">Dashboard</a>
+    <a href="/history" class="text-slate-400 hover:text-white">History</a>
+    <a href="/api-docs" class="text-slate-400 hover:text-white">API</a>
+  </div>
+</nav>
+
+<main class="max-w-6xl mx-auto px-6 py-16">
+  <!-- Header -->
+  <div class="text-center mb-12">
+    <h1 class="text-4xl font-extrabold text-white mb-3">Simple, transparent pricing</h1>
+    <p class="text-slate-400 text-lg">Start free. Upgrade when you need more.</p>
+    <!-- Billing toggle -->
+    <div class="mt-6 flex items-center justify-center gap-3">
+      <span id="lblMonthly" class="text-sm font-medium text-white">Monthly</span>
+      <button id="toggleBilling" onclick="toggleInterval()" class="relative w-12 h-6 rounded-full toggle-bg transition-colors">
+        <span id="toggleDot" class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform"></span>
+      </button>
+      <span id="lblYearly" class="text-sm font-medium text-slate-400">Yearly <span class="text-green-400 text-xs">Save 20%</span></span>
+    </div>
+    <!-- Currency selector -->
+    <div class="mt-4 flex items-center justify-center gap-2">
+      <label class="text-xs text-slate-400">Currency:</label>
+      <select id="currency" onchange="updateDisplay()" class="bg-surface border border-slate-700 rounded px-2 py-1 text-sm text-slate-200">
+        <option value="usd" selected>USD ($)</option>
+        <option value="eur">EUR (€)</option>
+        <option value="gbp">GBP (£)</option>
+        <option value="inr">INR (₹)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Plans Grid -->
+  <div class="grid md:grid-cols-3 gap-8">
+    <!-- Free -->
+    <div class="plan-card bg-surface border border-slate-700 rounded-2xl p-8">
+      <h2 class="text-lg font-semibold text-white mb-1">Free</h2>
+      <p class="text-sm text-slate-400 mb-6">Get started — no card required</p>
+      <div class="mb-6">
+        <span class="text-4xl font-extrabold text-white">$0</span>
+        <span class="text-slate-400 text-sm">/month</span>
+      </div>
+      <ul class="space-y-3 text-sm text-slate-300 mb-8">
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>5,000 words/month</li>
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>3 scans/day</li>
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>AI detection</li>
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Basic report</li>
+        <li class="flex items-start gap-2"><span class="text-slate-600 mt-0.5">✗</span>API access</li>
+        <li class="flex items-start gap-2"><span class="text-slate-600 mt-0.5">✗</span>Batch uploads</li>
+      </ul>
+      <a href="/signup" class="block w-full text-center py-3 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 font-medium text-sm transition">
+        Get Started Free
+      </a>
+    </div>
+
+    <!-- Pro -->
+    <div class="plan-card popular bg-surface border-2 border-primary rounded-2xl p-8 relative">
+      <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white text-xs font-bold px-4 py-1 rounded-full">MOST POPULAR</div>
+      <h2 class="text-lg font-semibold text-white mb-1">Pro</h2>
+      <p class="text-sm text-slate-400 mb-6">For students & researchers</p>
+      <div class="mb-6">
+        <span class="text-4xl font-extrabold text-white" id="proPriceDisplay">$14.99</span>
+        <span class="text-slate-400 text-sm" id="proInterval">/month</span>
+      </div>
+      <ul class="space-y-3 text-sm text-slate-300 mb-8">
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>200,000 words/month</li>
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Unlimited scans</li>
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>AI detection + model attribution</li>
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>PDF reports</li>
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>5 API keys</li>
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Batch upload (5 files)</li>
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Priority support</li>
+      </ul>
+      <button onclick="checkout('pro')" id="btnPro" class="w-full py-3 rounded-lg bg-primary hover:bg-indigo-600 text-white font-semibold text-sm transition">
+        Upgrade to Pro
+      </button>
+    </div>
+
+    <!-- Premium -->
+    <div class="plan-card bg-surface border border-slate-700 rounded-2xl p-8">
+      <h2 class="text-lg font-semibold text-white mb-1">Premium</h2>
+      <p class="text-sm text-slate-400 mb-6">For teams & institutions</p>
+      <div class="mb-6">
+        <span class="text-4xl font-extrabold text-white" id="premiumPriceDisplay">$29.99</span>
+        <span class="text-slate-400 text-sm" id="premiumInterval">/month</span>
+      </div>
+      <ul class="space-y-3 text-sm text-slate-300 mb-8">
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>500,000 words/month</li>
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Unlimited scans</li>
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Everything in Pro</li>
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Team collaboration</li>
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>20 API keys</li>
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Batch upload (10 files)</li>
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Webhook notifications</li>
+        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>LMS integrations</li>
+      </ul>
+      <button onclick="checkout('premium')" id="btnPremium" class="w-full py-3 rounded-lg border border-primary text-primary hover:bg-primary hover:text-white font-semibold text-sm transition">
+        Upgrade to Premium
+      </button>
+    </div>
+  </div>
+
+  <!-- Manage subscription -->
+  <div id="manageSection" class="mt-12 text-center hidden">
+    <p class="text-slate-400 text-sm mb-3">Already subscribed?</p>
+    <button onclick="openPortal()" class="px-6 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 text-sm">
+      Manage Subscription
+    </button>
+  </div>
+
+  <!-- FAQ -->
+  <div class="mt-20 max-w-3xl mx-auto">
+    <h2 class="text-2xl font-bold text-white text-center mb-8">Frequently Asked Questions</h2>
+    <div class="space-y-4">
+      <details class="bg-surface border border-slate-700 rounded-xl p-5 group">
+        <summary class="cursor-pointer text-white font-medium">Can I switch plans?</summary>
+        <p class="mt-2 text-sm text-slate-400">Yes — upgrade or downgrade anytime. Changes are prorated automatically.</p>
+      </details>
+      <details class="bg-surface border border-slate-700 rounded-xl p-5">
+        <summary class="cursor-pointer text-white font-medium">What payment methods are accepted?</summary>
+        <p class="mt-2 text-sm text-slate-400">We accept Visa, Mastercard, American Express, and 135+ local payment methods worldwide via Stripe. Indian users can also pay via Razorpay (UPI, cards, netbanking).</p>
+      </details>
+      <details class="bg-surface border border-slate-700 rounded-xl p-5">
+        <summary class="cursor-pointer text-white font-medium">Is there a free trial?</summary>
+        <p class="mt-2 text-sm text-slate-400">The Free plan is permanent — no trial period. Upgrade only when you need more capacity.</p>
+      </details>
+      <details class="bg-surface border border-slate-700 rounded-xl p-5">
+        <summary class="cursor-pointer text-white font-medium">Can I cancel anytime?</summary>
+        <p class="mt-2 text-sm text-slate-400">Absolutely. Cancel anytime from the customer portal. You'll keep access until the current billing period ends.</p>
+      </details>
+    </div>
+  </div>
+</main>
+
+<script>
+const TOKEN = localStorage.getItem('pg_token');
+let isYearly = false;
+
+const FX = { usd: 1, eur: 0.92, gbp: 0.79, inr: 83.5 };
+const SYM = { usd: '$', eur: '€', gbp: '£', inr: '₹' };
+
+const prices = {
+  pro:     { monthly: 1499, yearly: 14388 },
+  premium: { monthly: 2999, yearly: 28788 },
+};
+
+function toggleInterval() {
+  isYearly = !isYearly;
+  document.getElementById('toggleDot').style.transform = isYearly ? 'translateX(24px)' : '';
+  document.getElementById('toggleBilling').classList.toggle('active', isYearly);
+  document.getElementById('lblMonthly').classList.toggle('text-slate-400', isYearly);
+  document.getElementById('lblMonthly').classList.toggle('text-white', !isYearly);
+  document.getElementById('lblYearly').classList.toggle('text-white', isYearly);
+  document.getElementById('lblYearly').classList.toggle('text-slate-400', !isYearly);
+  updateDisplay();
+}
+
+function updateDisplay() {
+  const cur = document.getElementById('currency').value;
+  const rate = FX[cur] || 1;
+  const sym = SYM[cur] || '$';
+
+  for (const tier of ['pro', 'premium']) {
+    const cents = isYearly ? prices[tier].yearly : prices[tier].monthly;
+    const converted = (cents / 100 * rate).toFixed(2);
+    document.getElementById(`${tier}PriceDisplay`).textContent = `${sym}${converted}`;
+    document.getElementById(`${tier}Interval`).textContent = isYearly ? '/year' : '/month';
+  }
+}
+
+async function checkout(tier) {
+  if (!TOKEN) { window.location.href = '/login'; return; }
+  const plan_id = `${tier}_${isYearly ? 'yearly' : 'monthly'}`;
+  const btn = document.getElementById(tier === 'pro' ? 'btnPro' : 'btnPremium');
+  btn.disabled = true; btn.textContent = 'Redirecting...';
+  try {
+    const r = await fetch('/api/v1/stripe/create-checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+      body: JSON.stringify({ plan_id })
+    });
+    if (!r.ok) { const e = await r.json(); alert(e.detail || 'Error'); return; }
+    const data = await r.json();
+    window.location.href = data.checkout_url;
+  } catch(e) { alert('Payment error: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = tier === 'pro' ? 'Upgrade to Pro' : 'Upgrade to Premium'; }
+}
+
+async function openPortal() {
+  if (!TOKEN) return;
+  const r = await fetch('/api/v1/stripe/portal', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + TOKEN }
+  });
+  if (r.ok) { const d = await r.json(); window.location.href = d.portal_url; }
+}
+
+// Show manage section if user is logged in
+if (TOKEN) document.getElementById('manageSection').classList.remove('hidden');
+
+// Handle success/cancel from URL
+const params = new URLSearchParams(location.search);
+if (params.get('status') === 'success') {
+  const banner = document.createElement('div');
+  banner.className = 'fixed top-4 left-1/2 -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded-xl shadow-lg z-50 font-medium';
+  banner.textContent = '🎉 Subscription activated! Welcome to your new plan.';
+  document.body.appendChild(banner);
+  setTimeout(() => banner.remove(), 5000);
+}
+</script>
+</body>
+</html>

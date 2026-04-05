@@ -374,6 +374,75 @@ async def route_user_stats(authorization: str = Header(default="")):
     return get_user_stats(user_id)
 
 
+@router.get("/scans/export-csv")
+async def route_export_scans_csv(authorization: str = Header(default="")):
+    """Export all user scans as a CSV file download."""
+    from fastapi.responses import StreamingResponse
+    import csv
+    import io
+
+    user_id = _get_user_id(authorization)
+    scans = get_user_scans(user_id, limit=10000, offset=0)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Document ID", "Filename", "Plagiarism Score", "Confidence",
+                     "Risk Level", "Sources", "Flagged Passages", "Date"])
+    for s in scans:
+        writer.writerow([
+            s.get("document_id", ""),
+            s.get("filename", ""),
+            s.get("plagiarism_score", 0),
+            s.get("confidence_score", 0),
+            s.get("risk_level", ""),
+            s.get("sources_count", 0),
+            s.get("flagged_count", 0),
+            s.get("created_at", ""),
+        ])
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=plagiarismguard-scans.csv"},
+    )
+
+
+@router.get("/scans/chart-data")
+async def route_scans_chart_data(authorization: str = Header(default="")):
+    """Return aggregated scan data for charts (score trends, risk distribution, daily counts)."""
+    user_id = _get_user_id(authorization)
+    from app.services.database import get_db
+    db = get_db()
+
+    # Score trend (last 30 scans)
+    trend_rows = db.fetch_all(
+        "SELECT plagiarism_score, confidence_score, risk_level, created_at "
+        "FROM scans WHERE user_id = ? ORDER BY created_at DESC",
+        (user_id,),
+    )[:30]
+    trend_rows = list(reversed(trend_rows))
+
+    # Risk distribution
+    risk_counts = {"LOW": 0, "MEDIUM": 0, "HIGH": 0}
+    for row in db.fetch_all("SELECT risk_level, COUNT(*) as cnt FROM scans WHERE user_id = ? GROUP BY risk_level", (user_id,)):
+        risk_counts[row["risk_level"]] = row["cnt"]
+
+    # Daily scan counts (last 30 days)
+    daily = db.fetch_all(
+        "SELECT CAST(created_at AS DATE) as scan_date, COUNT(*) as cnt "
+        "FROM scans WHERE user_id = ? GROUP BY CAST(created_at AS DATE) "
+        "ORDER BY scan_date DESC",
+        (user_id,),
+    )[:30]
+
+    return {
+        "score_trend": [{"score": r["plagiarism_score"], "confidence": r["confidence_score"],
+                         "risk": r["risk_level"], "date": str(r["created_at"])} for r in trend_rows],
+        "risk_distribution": risk_counts,
+        "daily_counts": [{"date": str(d["scan_date"]), "count": d["cnt"]} for d in reversed(list(daily))],
+    }
+
+
 @router.get("/referral")
 async def route_referral_info(authorization: str = Header(default="")):
     """Return referral code, bonus scans, and referral count for the user."""

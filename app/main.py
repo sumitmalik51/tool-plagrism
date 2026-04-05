@@ -23,6 +23,10 @@ from app.routes.tools import router as tools_router
 from app.routes.upload import router as upload_router
 from app.routes.writing import router as writing_router
 from app.routes.advanced import router as advanced_router
+from app.routes.teams import router as teams_router
+from app.routes.webhooks import router as webhooks_router
+from app.routes.lms import router as lms_router
+from app.routes.stripe_payments import router as stripe_router
 from app.utils.logger import setup_logging, get_logger
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -85,6 +89,10 @@ app.include_router(rewrite_router)
 app.include_router(tools_router)
 app.include_router(writing_router)
 app.include_router(advanced_router)
+app.include_router(teams_router)
+app.include_router(webhooks_router)
+app.include_router(lms_router)
+app.include_router(stripe_router)
 
 
 # --- Global exception handlers -----------------------------------------------
@@ -187,6 +195,36 @@ async def serve_signup() -> FileResponse:
 async def serve_admin() -> FileResponse:
     """Serve the admin dashboard page."""
     return FileResponse(STATIC_DIR / "admin.html")
+
+
+@app.get("/history", include_in_schema=False)
+async def serve_history() -> FileResponse:
+    """Serve the scan history dashboard."""
+    return FileResponse(STATIC_DIR / "history.html")
+
+
+@app.get("/api-docs", include_in_schema=False)
+async def serve_api_docs() -> FileResponse:
+    """Serve the branded API documentation page."""
+    return FileResponse(STATIC_DIR / "api-docs.html")
+
+
+@app.get("/batch", include_in_schema=False)
+async def serve_batch() -> FileResponse:
+    """Serve the batch upload page."""
+    return FileResponse(STATIC_DIR / "batch.html")
+
+
+@app.get("/highlight", include_in_schema=False)
+async def serve_highlight() -> FileResponse:
+    """Serve the Turnitin-style highlight comparison view."""
+    return FileResponse(STATIC_DIR / "highlight.html")
+
+
+@app.get("/pricing", include_in_schema=False)
+async def serve_pricing() -> FileResponse:
+    """Serve the pricing / subscription page."""
+    return FileResponse(STATIC_DIR / "pricing.html")
 
 
 @app.get("/terms", include_in_schema=False)

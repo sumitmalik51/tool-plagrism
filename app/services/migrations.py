@@ -65,6 +65,96 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets(user_id);
         """,
     ),
+    (
+        4,
+        "Add teams and team_members tables",
+        """
+        CREATE TABLE IF NOT EXISTS teams (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT NOT NULL,
+            owner_id    INTEGER NOT NULL REFERENCES users(id),
+            plan_type   TEXT NOT NULL DEFAULT 'team',
+            max_seats   INTEGER NOT NULL DEFAULT 5,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        ---
+        CREATE TABLE IF NOT EXISTS team_members (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            team_id     INTEGER NOT NULL REFERENCES teams(id),
+            user_id     INTEGER NOT NULL REFERENCES users(id),
+            role        TEXT NOT NULL DEFAULT 'member',
+            invited_by  INTEGER REFERENCES users(id),
+            joined_at   TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(team_id, user_id)
+        );
+        ---
+        CREATE TABLE IF NOT EXISTS team_invites (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            team_id     INTEGER NOT NULL REFERENCES teams(id),
+            email       TEXT NOT NULL,
+            token       TEXT NOT NULL UNIQUE,
+            invited_by  INTEGER NOT NULL REFERENCES users(id),
+            status      TEXT NOT NULL DEFAULT 'pending',
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        ---
+        CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id);
+        ---
+        CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members(user_id);
+        ---
+        CREATE INDEX IF NOT EXISTS idx_team_invites_token ON team_invites(token);
+        """,
+    ),
+    (
+        5,
+        "Add webhook_subscriptions table",
+        """
+        CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL REFERENCES users(id),
+            url         TEXT NOT NULL,
+            events      TEXT NOT NULL DEFAULT 'scan.complete',
+            secret      TEXT NOT NULL,
+            is_active   INTEGER NOT NULL DEFAULT 1,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        ---
+        CREATE INDEX IF NOT EXISTS idx_webhooks_user ON webhook_subscriptions(user_id);
+        """,
+    ),
+    (
+        6,
+        "Add stripe_customer_id column to users",
+        """
+        ALTER TABLE users ADD COLUMN stripe_customer_id TEXT NULL;
+        """,
+    ),
+    (
+        7,
+        "Add LTI platform and state tables",
+        """
+        CREATE TABLE IF NOT EXISTS lti_platforms (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            issuer          TEXT NOT NULL UNIQUE,
+            client_id       TEXT NOT NULL,
+            auth_endpoint   TEXT NOT NULL,
+            token_endpoint  TEXT NOT NULL,
+            jwks_url        TEXT NOT NULL,
+            created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        ---
+        CREATE TABLE IF NOT EXISTS lti_states (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            state       TEXT NOT NULL UNIQUE,
+            nonce       TEXT NOT NULL,
+            issuer      TEXT,
+            client_id   TEXT,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        ---
+        CREATE INDEX IF NOT EXISTS idx_lti_states_state ON lti_states(state);
+        """,
+    ),
 ]
 
 # MSSQL variants — same version numbers, different syntax
@@ -109,6 +199,108 @@ MIGRATIONS_MSSQL: list[tuple[int, str, str]] = [
         ---
         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_password_resets_user')
         CREATE INDEX idx_password_resets_user ON password_resets(user_id);
+        """,
+    ),
+    (
+        4,
+        "Add teams and team_members tables",
+        """
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'teams')
+        CREATE TABLE teams (
+            id          INT IDENTITY(1,1) PRIMARY KEY,
+            name        NVARCHAR(200) NOT NULL,
+            owner_id    INT NOT NULL REFERENCES users(id),
+            plan_type   NVARCHAR(20) NOT NULL DEFAULT 'team',
+            max_seats   INT NOT NULL DEFAULT 5,
+            created_at  DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+        );
+        ---
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'team_members')
+        CREATE TABLE team_members (
+            id          INT IDENTITY(1,1) PRIMARY KEY,
+            team_id     INT NOT NULL REFERENCES teams(id),
+            user_id     INT NOT NULL REFERENCES users(id),
+            role        NVARCHAR(20) NOT NULL DEFAULT 'member',
+            invited_by  INT NULL REFERENCES users(id),
+            joined_at   DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+            UNIQUE(team_id, user_id)
+        );
+        ---
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'team_invites')
+        CREATE TABLE team_invites (
+            id          INT IDENTITY(1,1) PRIMARY KEY,
+            team_id     INT NOT NULL REFERENCES teams(id),
+            email       NVARCHAR(255) NOT NULL,
+            token       NVARCHAR(128) NOT NULL UNIQUE,
+            invited_by  INT NOT NULL REFERENCES users(id),
+            status      NVARCHAR(20) NOT NULL DEFAULT 'pending',
+            created_at  DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+        );
+        ---
+        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_team_members_team')
+        CREATE INDEX idx_team_members_team ON team_members(team_id);
+        ---
+        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_team_members_user')
+        CREATE INDEX idx_team_members_user ON team_members(user_id);
+        ---
+        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_team_invites_token')
+        CREATE INDEX idx_team_invites_token ON team_invites(token);
+        """,
+    ),
+    (
+        5,
+        "Add webhook_subscriptions table",
+        """
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'webhook_subscriptions')
+        CREATE TABLE webhook_subscriptions (
+            id          INT IDENTITY(1,1) PRIMARY KEY,
+            user_id     INT NOT NULL REFERENCES users(id),
+            url         NVARCHAR(500) NOT NULL,
+            events      NVARCHAR(200) NOT NULL DEFAULT 'scan.complete',
+            secret      NVARCHAR(128) NOT NULL,
+            is_active   BIT NOT NULL DEFAULT 1,
+            created_at  DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+        );
+        ---
+        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_webhooks_user')
+        CREATE INDEX idx_webhooks_user ON webhook_subscriptions(user_id);
+        """,
+    ),
+    (
+        6,
+        "Add stripe_customer_id column to users",
+        """
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('users') AND name = 'stripe_customer_id')
+        ALTER TABLE users ADD stripe_customer_id NVARCHAR(100) NULL;
+        """,
+    ),
+    (
+        7,
+        "Add LTI platform and state tables",
+        """
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'lti_platforms')
+        CREATE TABLE lti_platforms (
+            id              INT IDENTITY(1,1) PRIMARY KEY,
+            issuer          NVARCHAR(500) NOT NULL UNIQUE,
+            client_id       NVARCHAR(255) NOT NULL,
+            auth_endpoint   NVARCHAR(500) NOT NULL,
+            token_endpoint  NVARCHAR(500) NOT NULL,
+            jwks_url        NVARCHAR(500) NOT NULL,
+            created_at      DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+        );
+        ---
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'lti_states')
+        CREATE TABLE lti_states (
+            id          INT IDENTITY(1,1) PRIMARY KEY,
+            state       NVARCHAR(128) NOT NULL UNIQUE,
+            nonce       NVARCHAR(128) NOT NULL,
+            issuer      NVARCHAR(500),
+            client_id   NVARCHAR(255),
+            created_at  DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+        );
+        ---
+        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_lti_states_state')
+        CREATE INDEX idx_lti_states_state ON lti_states(state);
         """,
     ),
 ]
