@@ -27,6 +27,7 @@ from app.routes.teams import router as teams_router
 from app.routes.webhooks import router as webhooks_router
 from app.routes.lms import router as lms_router
 from app.routes.stripe_payments import router as stripe_router
+from app.routes.chatbot import router as chatbot_router
 from app.utils.logger import setup_logging, get_logger
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -93,6 +94,7 @@ app.include_router(teams_router)
 app.include_router(webhooks_router)
 app.include_router(lms_router)
 app.include_router(stripe_router)
+app.include_router(chatbot_router)
 
 
 # --- Global exception handlers -----------------------------------------------
