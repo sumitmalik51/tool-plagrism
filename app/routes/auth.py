@@ -31,7 +31,9 @@ from app.services.auth_service import (
 )
 from app.services.api_key_service import (
     create_api_key,
+    delete_api_key,
     list_api_keys,
+    regenerate_api_key,
     revoke_api_key,
 )
 from app.services.email_service import send_password_reset_email, send_verification_email, send_welcome_email
@@ -1104,3 +1106,42 @@ async def route_revoke_api_key(
         raise HTTPException(status_code=404, detail="API key not found or already revoked.")
 
     return {"success": True, "message": "API key revoked."}
+
+
+@router.post("/api-keys/regenerate")
+async def route_regenerate_api_key(
+    body: dict,
+    authorization: str = Header(default=""),
+):
+    """Regenerate an API key — issues a new secret while keeping the same name/ID."""
+    user_id = _get_user_id(authorization)
+    key_id = body.get("key_id")
+    if not key_id:
+        raise HTTPException(status_code=400, detail="key_id is required.")
+
+    result = regenerate_api_key(user_id, int(key_id))
+    if not result:
+        raise HTTPException(status_code=404, detail="API key not found or inactive.")
+
+    return {
+        "id": result["id"],
+        "key": result["key"],
+        "prefix": result["prefix"],
+        "name": result["name"],
+        "message": "Key regenerated. Store the new key securely — it won't be shown again.",
+    }
+
+
+@router.delete("/api-keys/{key_id}")
+async def route_delete_api_key(
+    key_id: int,
+    authorization: str = Header(default=""),
+):
+    """Permanently delete an API key."""
+    user_id = _get_user_id(authorization)
+
+    deleted = delete_api_key(user_id, key_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="API key not found.")
+
+    return {"success": True, "message": "API key permanently deleted."}

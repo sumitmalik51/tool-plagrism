@@ -4,7 +4,7 @@
    ═══════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
-  if (document.getElementById('pg-chat-widget')) return;
+  if (document.getElementById('pg-chat-fab')) return;
 
   // --- Styles ---
   var style = document.createElement('style');
@@ -251,11 +251,26 @@
   function addBotMessage(text) {
     var el = document.createElement('div');
     el.className = 'pg-msg bot';
-    // Simple markdown-ish: bold with **text**
-    el.innerHTML = text
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    // Extract markdown links before HTML-escaping so they don't get mangled
+    var links = [];
+    var processed = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(match, label, url) {
+      var idx = links.length;
+      links.push({ label: label, url: url });
+      return '%%PGLINK' + idx + '%%';
+    });
+    // HTML escape
+    processed = processed
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // Restore links as clickable <a> tags
+    processed = processed.replace(/%%PGLINK(\d+)%%/g, function(m, i) {
+      var lk = links[parseInt(i)];
+      return '<a href="' + lk.url + '" style="color:#818cf8;text-decoration:underline;font-weight:500" target="_top">' + lk.label + '</a>';
+    });
+    // Bold and newlines
+    processed = processed
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/\n/g, '<br>');
+    el.innerHTML = processed;
     msgContainer.appendChild(el);
     scrollToBottom();
   }

@@ -111,7 +111,7 @@
           </div>
 
           <!-- Usage & Stats row -->
-          <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-8 stagger">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mt-8 stagger">
             <!-- Scans remaining -->
             <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-5 reveal tilt-card">
               <div class="flex items-center justify-between mb-3">
@@ -126,6 +126,22 @@
                 <div class="usage-fill bg-gradient-to-r from-accent to-[#00b894]" id="dashUsageBar" style="width: 0%"></div>
               </div>
               <p class="text-xs text-muted mt-2"><span id="dashScansRemaining">3</span> uses remaining</p>
+            </div>
+
+            <!-- Words this month -->
+            <div class="bg-surface/80 backdrop-blur-sm border border-border rounded-2xl p-5 reveal tilt-card">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-xs text-muted font-medium uppercase tracking-wider">Words This Month</span>
+                <span class="text-lg">📝</span>
+              </div>
+              <div class="flex items-end gap-2 mb-2">
+                <span class="text-3xl font-bold" id="dashWordsUsed">0</span>
+                <span class="text-muted text-sm mb-1">/ <span id="dashWordsLimit">5K</span></span>
+              </div>
+              <div class="usage-bar">
+                <div class="usage-fill bg-gradient-to-r from-[#fdcb6e] to-[#f39c12]" id="dashWordsBar" style="width: 0%"></div>
+              </div>
+              <p class="text-xs text-muted mt-2"><span id="dashWordsRemaining">5,000</span> words remaining</p>
             </div>
 
             <!-- Total scans -->
@@ -257,9 +273,17 @@
           <div class="bg-surface/80 border border-border rounded-2xl p-6">
             <div class="flex items-center justify-between mb-4">
               <h3 class="text-lg font-bold flex items-center gap-2">🔑 API Keys</h3>
-              <button onclick="createApiKey()" class="px-4 py-2 bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-semibold rounded-lg hover:shadow-lg hover:shadow-accent/25 transition-all">+ New Key</button>
+              <div class="flex items-center gap-3">
+                <a href="/api-docs" class="px-4 py-2 bg-surface2 border border-border text-accent-l text-sm font-semibold rounded-lg hover:bg-border/40 transition-all flex items-center gap-2">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                  API Docs
+                </a>
+                <button id="btnNewKey" onclick="createApiKey()" class="px-4 py-2 bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-semibold rounded-lg hover:shadow-lg hover:shadow-accent/25 transition-all">+ New Key</button>
+              </div>
             </div>
-            <p class="text-sm text-muted mb-4">Use API keys for programmatic access. Include as <code class="text-accent-l text-xs bg-surface2 px-1.5 py-0.5 rounded">X-API-Key</code> header in requests.</p>
+            <p class="text-sm text-muted mb-4">Use API keys for programmatic access. Include as <code class="text-accent-l text-xs bg-surface2 px-1.5 py-0.5 rounded">X-API-Key</code> header in requests.
+              <a href="/api-docs" class="text-accent-l hover:underline ml-1">View full documentation →</a>
+            </p>
             <div id="apiKeysList" class="space-y-2">
               <p class="text-sm text-muted py-4 text-center">Loading...</p>
             </div>
@@ -270,6 +294,17 @@
                 <input type="text" id="newKeyValue" readonly class="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-txt font-mono flex-1 outline-none">
                 <button onclick="copyNewApiKey()" class="px-3 py-2 bg-ok text-white text-sm font-semibold rounded-lg hover:opacity-85 transition-opacity">Copy</button>
               </div>
+            </div>
+            <!-- Quick usage example -->
+            <div class="mt-5 p-4 bg-[#1e1e2e] border border-border/30 rounded-xl">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-semibold text-muted uppercase tracking-wider">Quick Example</span>
+                <button onclick="navigator.clipboard.writeText(document.getElementById('apiSnippet').textContent);showToast('Copied!','success')" class="text-xs text-accent-l hover:underline">Copy</button>
+              </div>
+              <pre id="apiSnippet" class="text-xs text-[#cdd6f4] leading-relaxed overflow-x-auto"><code>curl -X POST https://plagiarismguard.com/api/v1/analyze \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Your text to check..."}'</code></pre>
             </div>
           </div>
         </div>
@@ -543,7 +578,7 @@
     </section>
 
     <!-- ═══════════ Readability Analyzer Section (Advanced) ═══════════ -->
-    <section id="readability" class="py-12 px-6 border-t border-border/50">
+    <section id="readability" class="py-2 px-6 border-t border-border/50">
       <div class="max-w-4xl mx-auto reveal">
         <button onclick="toggleAdvanced('readabilityAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
           <div class="flex items-center gap-3">
@@ -583,7 +618,7 @@
     </section>
 
     <!-- ═══════════ Grammar & Style Checker Section (Advanced) ═══════════ -->
-    <section id="grammar" class="py-12 px-6 border-t border-border/50 bg-surface/20">
+    <section id="grammar" class="py-2 px-6 border-t border-border/50 bg-surface/20">
       <div class="max-w-4xl mx-auto reveal">
         <button onclick="toggleAdvanced('grammarAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
           <div class="flex items-center gap-3">
@@ -624,7 +659,7 @@
     </section>
 
     <!-- ═══════════ Write & Check — Real-time Writing Mode ═══════════ -->
-    <section id="writecheck" class="py-12 px-6 border-t border-border/50">
+    <section id="writecheck" class="py-2 px-6 border-t border-border/50">
       <div class="max-w-4xl mx-auto reveal">
         <button onclick="toggleAdvanced('writecheckAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
           <div class="flex items-center gap-3">
@@ -662,7 +697,7 @@
     </section>
 
     <!-- ═══════════ Section-by-Section Analysis ═══════════ -->
-    <section id="sectionAnalysis" class="py-12 px-6 border-t border-border/50">
+    <section id="sectionAnalysis" class="py-2 px-6 border-t border-border/50">
       <div class="max-w-4xl mx-auto reveal">
         <button onclick="toggleAdvanced('sectionAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
           <div class="flex items-center gap-3">
@@ -698,7 +733,7 @@
 
     <!-- ═══════════ Reference / DOI Validator ═══════════ -->
     <hr class="glow-divider">
-    <section id="refValidation" class="py-12 px-6 bg-surface/20">
+    <section id="refValidation" class="py-2 px-6 bg-surface/20">
       <div class="max-w-4xl mx-auto reveal">
         <button onclick="toggleAdvanced('refAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
           <div class="flex items-center gap-3">
@@ -733,7 +768,7 @@
     </section>
 
     <!-- ═══════════ Cross-Document Comparison ═══════════ -->
-    <section id="crossCompare" class="py-12 px-6 border-t border-border/50">
+    <section id="crossCompare" class="py-2 px-6 border-t border-border/50">
       <div class="max-w-4xl mx-auto reveal">
         <button onclick="toggleAdvanced('crossAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
           <div class="flex items-center gap-3">
@@ -779,7 +814,7 @@
     </section>
 
     <!-- ═══════════ Institutional Repository Check ═══════════ -->
-    <section id="repoCheck" class="py-12 px-6 border-t border-border/50 bg-surface/20">
+    <section id="repoCheck" class="py-2 px-6 border-t border-border/50 bg-surface/20">
       <div class="max-w-4xl mx-auto reveal">
         <button onclick="toggleAdvanced('repoAdvanced')" class="w-full flex items-center justify-between py-4 text-left">
           <div class="flex items-center gap-3">
@@ -2926,12 +2961,15 @@
     const panel = $(panelId);
     const arrowId = panelId.replace('Advanced', 'Arrow');
     const arrow = $(arrowId);
+    const section = panel.closest('section');
     if (panel.classList.contains('hidden')) {
       panel.classList.remove('hidden');
       if (arrow) arrow.style.transform = 'rotate(90deg)';
+      if (section) { section.classList.remove('py-2'); section.classList.add('py-8'); }
     } else {
       panel.classList.add('hidden');
       if (arrow) arrow.style.transform = '';
+      if (section) { section.classList.remove('py-8'); section.classList.add('py-2'); }
     }
   }
 
@@ -4213,6 +4251,35 @@
         } else {
           $('dashUsageBar').className = 'usage-fill bg-gradient-to-r from-accent to-[#00b894]';
         }
+
+        // --- Word quota ---
+        const wq = data.word_quota;
+        if (wq) {
+          const wUsed = wq.used || 0;
+          const wLimitRaw = wq.limit;
+          const wIsUnlimited = wLimitRaw === 'unlimited';
+          const wLimit = wIsUnlimited ? '∞' : (wLimitRaw >= 1000 ? Math.round(wLimitRaw / 1000) + 'K' : wLimitRaw);
+          const wRemaining = wq.remaining === 'unlimited' ? -1 : (wq.remaining || 0);
+          const wRemainingDisplay = wRemaining < 0 ? '∞' : wRemaining.toLocaleString();
+          const wNumLimit = wIsUnlimited ? 1 : wLimitRaw;
+          const wPct = wIsUnlimited ? 0 : Math.min((wUsed / wNumLimit) * 100, 100);
+
+          $('dashWordsUsed').textContent = wUsed.toLocaleString();
+          $('dashWordsLimit').textContent = wLimit;
+          $('dashWordsRemaining').textContent = wRemainingDisplay;
+          $('dashWordsBar').style.width = (wIsUnlimited ? 0 : wPct) + '%';
+
+          if (!wIsUnlimited) {
+            if (wPct >= 100) {
+              $('dashWordsBar').className = 'usage-fill bg-gradient-to-r from-danger to-[#d63031]';
+              $('dashWordsRemaining').parentElement.classList.add('text-danger');
+            } else if (wPct >= 75) {
+              $('dashWordsBar').className = 'usage-fill bg-gradient-to-r from-warn to-[#f39c12]';
+            } else {
+              $('dashWordsBar').className = 'usage-fill bg-gradient-to-r from-[#fdcb6e] to-[#f39c12]';
+            }
+          }
+        }
       }
     } catch {}
   }
@@ -4424,7 +4491,11 @@
             <span class="text-sm text-txt">${esc(k.name)}</span>
             <span class="text-xs text-muted">${k.last_used_at ? 'Last used ' + new Date(k.last_used_at).toLocaleDateString() : 'Never used'}</span>
           </div>
-          <button onclick="revokeApiKey(${k.id})" class="text-xs px-3 py-1.5 bg-danger/10 text-danger rounded-lg hover:bg-danger/20 transition-colors font-semibold">Revoke</button>
+          <div class="flex items-center gap-2">
+            <button onclick="regenerateApiKey(${k.id})" class="text-xs px-3 py-1.5 bg-accent/10 text-accent-l rounded-lg hover:bg-accent/20 transition-colors font-semibold" title="Regenerate key">⟳ Regenerate</button>
+            <button onclick="revokeApiKey(${k.id})" class="text-xs px-3 py-1.5 bg-warn/10 text-warn rounded-lg hover:bg-warn/20 transition-colors font-semibold" title="Revoke (disable)">Revoke</button>
+            <button onclick="deleteApiKey(${k.id})" class="text-xs px-3 py-1.5 bg-danger/10 text-danger rounded-lg hover:bg-danger/20 transition-colors font-semibold" title="Delete permanently">🗑</button>
+          </div>
         </div>`).join('');
     } catch { list.innerHTML = '<p class="text-sm text-danger py-2">Error loading keys.</p>'; }
   }
@@ -4434,6 +4505,10 @@
     if (!name || !name.trim()) return;
     const token = localStorage.getItem('pg_token');
     if (!token) { window.location.href = '/login'; return; }
+    const btn = $('btnNewKey');
+    const origText = btn.textContent;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>Creating…';
     try {
       const res = await fetch('/api/v1/auth/api-keys', {
         method: 'POST',
@@ -4448,6 +4523,9 @@
       loadApiKeys();
     } catch (err) {
       alert('⚠ ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = origText;
     }
   }
 
@@ -4463,6 +4541,51 @@
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.detail || 'Failed'); }
       showToast('API key revoked.');
+      $('newKeyReveal').classList.add('hidden');
+      loadApiKeys();
+    } catch (err) {
+      alert('⚠ ' + err.message);
+    }
+  }
+
+  async function regenerateApiKey(keyId) {
+    if (!confirm('Regenerate this API key? The current key will stop working immediately and a new one will be issued.')) return;
+    const token = localStorage.getItem('pg_token');
+    if (!token) return;
+    const btn = event.currentTarget;
+    const origHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="inline-block w-3 h-3 border-2 border-accent/30 border-t-accent rounded-full animate-spin"></span>';
+    try {
+      const res = await fetch('/api/v1/auth/api-keys/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ key_id: keyId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to regenerate');
+      $('newKeyValue').value = data.key;
+      $('newKeyReveal').classList.remove('hidden');
+      showToast('API key regenerated! Copy the new key now.');
+      loadApiKeys();
+    } catch (err) {
+      alert('⚠ ' + err.message);
+      btn.disabled = false;
+      btn.innerHTML = origHTML;
+    }
+  }
+
+  async function deleteApiKey(keyId) {
+    if (!confirm('Permanently delete this API key? This cannot be undone.')) return;
+    const token = localStorage.getItem('pg_token');
+    if (!token) return;
+    try {
+      const res = await fetch('/api/v1/auth/api-keys/' + keyId, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.detail || 'Failed'); }
+      showToast('API key deleted.');
       $('newKeyReveal').classList.add('hidden');
       loadApiKeys();
     } catch (err) {
@@ -5115,7 +5238,7 @@
 
 <!-- Scroll-to-top button -->
 <button id="scrollTopBtn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Scroll to top"
-  class="fixed bottom-6 right-6 z-50 w-11 h-11 rounded-full bg-accent text-white shadow-lg shadow-accent/25 flex items-center justify-center opacity-0 pointer-events-none translate-y-4 transition-all duration-300 hover:bg-[#5a4bd1] hover:-translate-y-1">
+  class="fixed bottom-24 right-6 z-50 w-11 h-11 rounded-full bg-accent text-white shadow-lg shadow-accent/25 flex items-center justify-center opacity-0 pointer-events-none translate-y-4 transition-all duration-300 hover:bg-[#5a4bd1] hover:-translate-y-1">
   <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg>
 </button>
 <script>
@@ -5131,6 +5254,6 @@
     }, { passive: true });
   })();
 </script>
-<script src="/static/js/chat-widget.js" defer></script>
+<script src="/static/js/chat-widget.js?v=3" defer></script>
 
 </body>

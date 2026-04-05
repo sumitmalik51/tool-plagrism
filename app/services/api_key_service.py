@@ -95,6 +95,46 @@ def revoke_api_key(user_id: int, key_id: int) -> bool:
     return bool(affected)
 
 
+def delete_api_key(user_id: int, key_id: int) -> bool:
+    """Permanently delete an API key. Returns True if found and deleted."""
+    db = get_db()
+    affected = db.execute(
+        "DELETE FROM user_api_keys WHERE id = ? AND user_id = ?",
+        (key_id, user_id),
+    )
+    if affected:
+        logger.info("api_key_deleted", user_id=user_id, key_id=key_id)
+    return bool(affected)
+
+
+def regenerate_api_key(user_id: int, key_id: int) -> dict[str, Any] | None:
+    """Regenerate an existing API key — replaces the hash/prefix, keeps name and id."""
+    db = get_db()
+    row = db.fetch_one(
+        "SELECT id, name FROM user_api_keys WHERE id = ? AND user_id = ? AND is_active = 1",
+        (key_id, user_id),
+    )
+    if not row:
+        return None
+
+    raw_key = _KEY_PREFIX + secrets.token_urlsafe(32)
+    prefix = raw_key[:12] + "…"
+    key_hash = _hash_key(raw_key)
+
+    db.execute(
+        "UPDATE user_api_keys SET key_prefix = ?, key_hash = ?, last_used_at = NULL WHERE id = ? AND user_id = ?",
+        (prefix, key_hash, key_id, user_id),
+    )
+    logger.info("api_key_regenerated", user_id=user_id, key_id=key_id)
+
+    return {
+        "id": row["id"],
+        "key": raw_key,
+        "prefix": prefix,
+        "name": row["name"],
+    }
+
+
 def validate_api_key(raw_key: str) -> dict[str, Any] | None:
     """Validate a raw API key. Returns user info if valid, None otherwise.
 

@@ -4,231 +4,320 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Pricing — PlagiarismGuard</title>
+<link rel="stylesheet" href="/static/css/theme.css" />
 <script src="https://cdn.tailwindcss.com"></script>
-<script>tailwind.config={theme:{extend:{colors:{primary:'#4f46e5',surface:'#1e293b',bg:'#0f172a'}}}}</script>
+<script>tailwind.config={theme:{extend:{colors:{accent:'#6c5ce7','accent-l':'#a29bfe',ok:'#00b894',danger:'#e17055',warn:'#fdcb6e',surface:'#181c2e',surface2:'#232842',bg:'#0f1221',border:'#2e3348',txt:'#e6e8f0',muted:'#8b8fa3'}}}}</script>
 <style>
-  body { background: #0f172a; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-  .plan-card { transition: transform 0.2s, box-shadow 0.2s; }
-  .plan-card:hover { transform: translateY(-4px); box-shadow: 0 12px 36px rgba(79,70,229,0.15); }
-  .popular { border-color: #4f46e5 !important; }
-  .toggle-bg { background: #334155; }
-  .toggle-bg.active { background: #4f46e5; }
+  body { background: #0f1221; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .plan-card { transition: transform 0.25s, box-shadow 0.25s; }
+  .plan-card:hover { transform: translateY(-6px); box-shadow: 0 16px 48px rgba(108,92,231,0.15); }
+  .gradient-border { border: 2px solid transparent; background-image: linear-gradient(#181c2e, #181c2e), linear-gradient(135deg, #6c5ce7, #a29bfe, #6c5ce7); background-origin: border-box; background-clip: padding-box, border-box; }
+  .toggle-track { background: #2e3348; transition: background 0.3s; }
+  .toggle-track.active { background: #6c5ce7; }
+  .toggle-knob { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::marker { display: none; }
+  details summary { list-style: none; }
+  details[open] .faq-arrow { transform: rotate(90deg); }
 </style>
 </head>
-<body class="text-slate-200 min-h-screen">
+<body class="text-txt min-h-screen">
 
 <!-- Nav -->
-<nav class="border-b border-slate-800 px-6 py-4 flex items-center justify-between">
-  <a href="/" class="text-xl font-bold text-white">Plagiarism<span class="text-primary">Guard</span></a>
-  <div class="flex gap-4 items-center text-sm">
-    <a href="/app" class="text-slate-400 hover:text-white">Dashboard</a>
-    <a href="/history" class="text-slate-400 hover:text-white">History</a>
-    <a href="/api-docs" class="text-slate-400 hover:text-white">API</a>
+<nav class="border-b border-border px-6 py-4 flex items-center justify-between backdrop-blur-sm bg-bg/80 sticky top-0 z-40">
+  <a href="/" class="text-xl font-bold text-white">Plagiarism<span class="text-accent">Guard</span></a>
+  <div class="flex gap-5 items-center text-sm">
+    <a href="/app" class="text-muted hover:text-txt transition-colors">Dashboard</a>
+    <a href="/history" class="text-muted hover:text-txt transition-colors">History</a>
+    <a href="/api-docs" class="text-muted hover:text-txt transition-colors">API</a>
+    <a href="/login" id="navAuth" class="px-4 py-1.5 rounded-lg bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20 transition-all text-sm font-medium">Login</a>
   </div>
 </nav>
 
 <main class="max-w-6xl mx-auto px-6 py-16">
   <!-- Header -->
-  <div class="text-center mb-12">
-    <h1 class="text-4xl font-extrabold text-white mb-3">Simple, transparent pricing</h1>
-    <p class="text-slate-400 text-lg">Start free. Upgrade when you need more.</p>
+  <div class="text-center mb-14">
+    <span class="px-3 py-1 rounded-full bg-accent/10 text-accent-l text-xs font-semibold border border-accent/20 mb-4 inline-block">PRICING</span>
+    <h1 class="text-4xl sm:text-5xl font-extrabold text-white mb-4">Plans for every researcher</h1>
+    <p class="text-muted text-lg max-w-lg mx-auto">Start free. Upgrade when your research demands more.</p>
+
     <!-- Billing toggle -->
-    <div class="mt-6 flex items-center justify-center gap-3">
-      <span id="lblMonthly" class="text-sm font-medium text-white">Monthly</span>
-      <button id="toggleBilling" onclick="toggleInterval()" class="relative w-12 h-6 rounded-full toggle-bg transition-colors">
-        <span id="toggleDot" class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform"></span>
+    <div class="mt-8 flex items-center justify-center gap-3">
+      <span id="lblMonthly" class="text-sm font-semibold text-white">Monthly</span>
+      <button id="toggleBilling" onclick="toggleInterval()" class="relative w-14 h-7 rounded-full toggle-track" aria-label="Toggle billing">
+        <span id="toggleDot" class="toggle-knob absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-md"></span>
       </button>
-      <span id="lblYearly" class="text-sm font-medium text-slate-400">Yearly <span class="text-green-400 text-xs">Save 20%</span></span>
+      <span id="lblYearly" class="text-sm font-semibold text-muted">Annual <span class="text-ok text-xs font-bold ml-1">Save 16%</span></span>
     </div>
+
     <!-- Currency selector -->
     <div class="mt-4 flex items-center justify-center gap-2">
-      <label class="text-xs text-slate-400">Currency:</label>
-      <select id="currency" onchange="updateDisplay()" class="bg-surface border border-slate-700 rounded px-2 py-1 text-sm text-slate-200">
-        <option value="usd" selected>USD ($)</option>
+      <label class="text-xs text-muted">Currency:</label>
+      <select id="currency" onchange="updateDisplay()" class="bg-surface2 border border-border rounded-lg px-3 py-1.5 text-sm text-txt cursor-pointer focus:outline-none focus:border-accent transition-colors">
+        <option value="inr" selected>INR (₹)</option>
+        <option value="usd">USD ($)</option>
         <option value="eur">EUR (€)</option>
         <option value="gbp">GBP (£)</option>
-        <option value="inr">INR (₹)</option>
       </select>
     </div>
   </div>
 
   <!-- Plans Grid -->
-  <div class="grid md:grid-cols-3 gap-8">
-    <!-- Free -->
-    <div class="plan-card bg-surface border border-slate-700 rounded-2xl p-8">
-      <h2 class="text-lg font-semibold text-white mb-1">Free</h2>
-      <p class="text-sm text-slate-400 mb-6">Get started — no card required</p>
-      <div class="mb-6">
-        <span class="text-4xl font-extrabold text-white">$0</span>
-        <span class="text-slate-400 text-sm">/month</span>
+  <div class="grid md:grid-cols-3 gap-8 mt-6">
+    <!-- Free / Basic -->
+    <div class="plan-card bg-surface rounded-2xl p-8 border border-border flex flex-col">
+      <h2 class="text-xl font-bold text-white mb-1">Basic</h2>
+      <p class="text-sm text-muted mb-5">For occasional use</p>
+      <div class="flex items-end gap-1 mb-6">
+        <span class="text-5xl font-extrabold text-white" id="freePriceDisplay">₹0</span>
+        <span class="text-muted text-sm mb-2">forever</span>
       </div>
-      <ul class="space-y-3 text-sm text-slate-300 mb-8">
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>5,000 words/month</li>
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>3 scans/day</li>
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>AI detection</li>
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Basic report</li>
-        <li class="flex items-start gap-2"><span class="text-slate-600 mt-0.5">✗</span>API access</li>
-        <li class="flex items-start gap-2"><span class="text-slate-600 mt-0.5">✗</span>Batch uploads</li>
+      <ul class="space-y-3 text-sm flex-1 mb-8">
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> 3 scans per day</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> 5,000 words/month</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Plagiarism detection</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> AI content detection</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Readability & grammar</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> 50 MB uploads</li>
+        <li class="flex items-center gap-3 text-muted"><span class="w-5 h-5 rounded-full bg-border/50 grid place-items-center text-muted text-xs">✗</span> API access</li>
+        <li class="flex items-center gap-3 text-muted"><span class="w-5 h-5 rounded-full bg-border/50 grid place-items-center text-muted text-xs">✗</span> Batch uploads</li>
       </ul>
-      <a href="/signup" class="block w-full text-center py-3 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 font-medium text-sm transition">
+      <a href="/signup" class="w-full py-3 rounded-xl bg-surface2 text-txt text-sm font-semibold border border-border text-center hover:border-accent hover:bg-accent/5 transition-all duration-300">
         Get Started Free
       </a>
     </div>
 
-    <!-- Pro -->
-    <div class="plan-card popular bg-surface border-2 border-primary rounded-2xl p-8 relative">
-      <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white text-xs font-bold px-4 py-1 rounded-full">MOST POPULAR</div>
-      <h2 class="text-lg font-semibold text-white mb-1">Pro</h2>
-      <p class="text-sm text-slate-400 mb-6">For students & researchers</p>
-      <div class="mb-6">
-        <span class="text-4xl font-extrabold text-white" id="proPriceDisplay">$14.99</span>
-        <span class="text-slate-400 text-sm" id="proInterval">/month</span>
+    <!-- Research / Pro (Most Popular) -->
+    <div class="plan-card gradient-border rounded-2xl p-8 flex flex-col relative shadow-2xl shadow-accent/10 scale-[1.02]">
+      <span class="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-xs font-bold shadow-lg shadow-accent/30">MOST POPULAR</span>
+      <h2 class="text-xl font-bold text-white mb-1">Research</h2>
+      <p class="text-sm text-muted mb-5">For serious academics</p>
+      <div class="flex items-end gap-1 mb-6">
+        <span class="text-5xl font-extrabold text-white" id="proPriceDisplay">₹299</span>
+        <span class="text-muted text-sm mb-2" id="proInterval">/month</span>
+        <span class="text-xs text-danger line-through ml-2 mb-2" id="proStrikethrough">₹499</span>
       </div>
-      <ul class="space-y-3 text-sm text-slate-300 mb-8">
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>200,000 words/month</li>
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Unlimited scans</li>
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>AI detection + model attribution</li>
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>PDF reports</li>
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>5 API keys</li>
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Batch upload (5 files)</li>
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Priority support</li>
+      <ul class="space-y-3 text-sm flex-1 mb-8">
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> <strong>Unlimited</strong> scans</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> 200,000 words/month</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Everything in Basic</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> AI detection + model attribution</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Batch analysis (5 files)</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> 5 API keys</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> PDF & DOCX reports</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Scan history & analytics</li>
       </ul>
-      <button onclick="checkout('pro')" id="btnPro" class="w-full py-3 rounded-lg bg-primary hover:bg-indigo-600 text-white font-semibold text-sm transition">
-        Upgrade to Pro
+      <button onclick="checkout('pro')" id="btnPro" class="w-full py-3 rounded-xl bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-bold text-center hover:shadow-2xl hover:shadow-accent/30 hover:-translate-y-0.5 transition-all duration-300">
+        Upgrade to Research
       </button>
     </div>
 
-    <!-- Premium -->
-    <div class="plan-card bg-surface border border-slate-700 rounded-2xl p-8">
-      <h2 class="text-lg font-semibold text-white mb-1">Premium</h2>
-      <p class="text-sm text-slate-400 mb-6">For teams & institutions</p>
-      <div class="mb-6">
-        <span class="text-4xl font-extrabold text-white" id="premiumPriceDisplay">$29.99</span>
-        <span class="text-slate-400 text-sm" id="premiumInterval">/month</span>
+    <!-- Advanced / Premium -->
+    <div class="plan-card bg-surface rounded-2xl p-8 border border-border flex flex-col">
+      <h2 class="text-xl font-bold text-white mb-1">Advanced</h2>
+      <p class="text-sm text-muted mb-5">For power users & teams</p>
+      <div class="flex items-end gap-1 mb-6">
+        <span class="text-5xl font-extrabold text-white" id="premiumPriceDisplay">₹599</span>
+        <span class="text-muted text-sm mb-2" id="premiumInterval">/month</span>
+        <span class="text-xs text-danger line-through ml-2 mb-2" id="premiumStrikethrough">₹999</span>
       </div>
-      <ul class="space-y-3 text-sm text-slate-300 mb-8">
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>500,000 words/month</li>
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Unlimited scans</li>
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Everything in Pro</li>
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Team collaboration</li>
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>20 API keys</li>
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Batch upload (10 files)</li>
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>Webhook notifications</li>
-        <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span>LMS integrations</li>
+      <ul class="space-y-3 text-sm flex-1 mb-8">
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> <strong>Unlimited</strong> scans</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> 500,000 words/month</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Everything in Research</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Team collaboration</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> 20 API keys</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Batch analysis (10 files)</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Webhook notifications</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> LMS integrations</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> 100 MB uploads</li>
       </ul>
-      <button onclick="checkout('premium')" id="btnPremium" class="w-full py-3 rounded-lg border border-primary text-primary hover:bg-primary hover:text-white font-semibold text-sm transition">
-        Upgrade to Premium
+      <button onclick="checkout('premium')" id="btnPremium" class="w-full py-3 rounded-xl bg-surface2 text-txt text-sm font-semibold border border-accent/30 text-center hover:bg-accent hover:text-white hover:border-accent transition-all duration-300">
+        Upgrade to Advanced
       </button>
     </div>
   </div>
 
   <!-- Manage subscription -->
   <div id="manageSection" class="mt-12 text-center hidden">
-    <p class="text-slate-400 text-sm mb-3">Already subscribed?</p>
-    <button onclick="openPortal()" class="px-6 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 text-sm">
-      Manage Subscription
-    </button>
+    <div class="inline-flex items-center gap-3 px-6 py-3 rounded-xl bg-surface2 border border-border">
+      <span class="text-sm text-muted">Already subscribed?</span>
+      <button onclick="openPortal()" class="px-5 py-2 rounded-lg bg-accent/10 text-accent border border-accent/20 hover:bg-accent hover:text-white text-sm font-medium transition-all duration-300">
+        Manage Subscription →
+      </button>
+    </div>
   </div>
 
   <!-- FAQ -->
-  <div class="mt-20 max-w-3xl mx-auto">
-    <h2 class="text-2xl font-bold text-white text-center mb-8">Frequently Asked Questions</h2>
-    <div class="space-y-4">
-      <details class="bg-surface border border-slate-700 rounded-xl p-5 group">
-        <summary class="cursor-pointer text-white font-medium">Can I switch plans?</summary>
-        <p class="mt-2 text-sm text-slate-400">Yes — upgrade or downgrade anytime. Changes are prorated automatically.</p>
+  <div class="mt-24 max-w-3xl mx-auto">
+    <div class="text-center mb-10">
+      <span class="px-3 py-1 rounded-full bg-accent/10 text-accent-l text-xs font-semibold border border-accent/20 mb-4 inline-block">FAQ</span>
+      <h2 class="text-3xl font-bold text-white">Frequently Asked Questions</h2>
+    </div>
+    <div class="space-y-3">
+      <details class="bg-surface border border-border rounded-xl group">
+        <summary class="cursor-pointer text-white font-medium p-5 flex items-center justify-between">
+          Can I switch plans?
+          <span class="faq-arrow text-muted transition-transform duration-200 inline-flex items-center justify-center w-6 h-6"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
+        </summary>
+        <p class="px-5 pb-5 text-sm text-muted -mt-1">Yes — upgrade or downgrade anytime. Changes are prorated automatically.</p>
       </details>
-      <details class="bg-surface border border-slate-700 rounded-xl p-5">
-        <summary class="cursor-pointer text-white font-medium">What payment methods are accepted?</summary>
-        <p class="mt-2 text-sm text-slate-400">We accept Visa, Mastercard, American Express, and 135+ local payment methods worldwide via Stripe. Indian users can also pay via Razorpay (UPI, cards, netbanking).</p>
+      <details class="bg-surface border border-border rounded-xl group">
+        <summary class="cursor-pointer text-white font-medium p-5 flex items-center justify-between">
+          What payment methods are accepted?
+          <span class="faq-arrow text-muted transition-transform duration-200 inline-flex items-center justify-center w-6 h-6"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
+        </summary>
+        <p class="px-5 pb-5 text-sm text-muted -mt-1">We accept Visa, Mastercard, American Express, and 135+ local payment methods worldwide via Stripe. Indian users can also pay via Razorpay (UPI, cards, netbanking).</p>
       </details>
-      <details class="bg-surface border border-slate-700 rounded-xl p-5">
-        <summary class="cursor-pointer text-white font-medium">Is there a free trial?</summary>
-        <p class="mt-2 text-sm text-slate-400">The Free plan is permanent — no trial period. Upgrade only when you need more capacity.</p>
+      <details class="bg-surface border border-border rounded-xl group">
+        <summary class="cursor-pointer text-white font-medium p-5 flex items-center justify-between">
+          Is there a free trial?
+          <span class="faq-arrow text-muted transition-transform duration-200 inline-flex items-center justify-center w-6 h-6"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
+        </summary>
+        <p class="px-5 pb-5 text-sm text-muted -mt-1">The Basic plan is free forever — no trial period. Upgrade only when you need more capacity.</p>
       </details>
-      <details class="bg-surface border border-slate-700 rounded-xl p-5">
-        <summary class="cursor-pointer text-white font-medium">Can I cancel anytime?</summary>
-        <p class="mt-2 text-sm text-slate-400">Absolutely. Cancel anytime from the customer portal. You'll keep access until the current billing period ends.</p>
+      <details class="bg-surface border border-border rounded-xl group">
+        <summary class="cursor-pointer text-white font-medium p-5 flex items-center justify-between">
+          Can I cancel anytime?
+          <span class="faq-arrow text-muted transition-transform duration-200 inline-flex items-center justify-center w-6 h-6"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
+        </summary>
+        <p class="px-5 pb-5 text-sm text-muted -mt-1">Absolutely. Cancel anytime from the customer portal. You'll keep access until the current billing period ends.</p>
+      </details>
+      <details class="bg-surface border border-border rounded-xl group">
+        <summary class="cursor-pointer text-white font-medium p-5 flex items-center justify-between">
+          Do you support multiple currencies?
+          <span class="faq-arrow text-muted transition-transform duration-200 inline-flex items-center justify-center w-6 h-6"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
+        </summary>
+        <p class="px-5 pb-5 text-sm text-muted -mt-1">Yes! We support INR, USD, EUR, and GBP. Use the currency selector above to see prices in your local currency.</p>
       </details>
     </div>
   </div>
 </main>
 
+<!-- Footer -->
+<footer class="border-t border-border mt-20 py-8 px-6 text-center text-xs text-muted">
+  <p>&copy; 2026 PlagiarismGuard. All rights reserved. <a href="/terms" class="hover:text-txt">Terms</a> &middot; <a href="/privacy" class="hover:text-txt">Privacy</a></p>
+</footer>
+
 <script>
 const TOKEN = localStorage.getItem('pg_token');
 let isYearly = false;
 
-const FX = { usd: 1, eur: 0.92, gbp: 0.79, inr: 83.5 };
-const SYM = { usd: '$', eur: '€', gbp: '£', inr: '₹' };
+// Update nav auth link
+if (TOKEN) {
+  const navAuth = document.getElementById('navAuth');
+  if (navAuth) { navAuth.textContent = 'Dashboard'; navAuth.href = '/app'; }
+}
 
-const prices = {
-  pro:     { monthly: 1499, yearly: 14388 },
-  premium: { monthly: 2999, yearly: 28788 },
+// Base prices in INR (matching landing page exactly)
+const basePrices = {
+  pro:     { monthly: 299, yearly: 250, strikeMonthly: 499, strikeYearly: 399 },
+  premium: { monthly: 599, yearly: 500, strikeMonthly: 999, strikeYearly: 799 },
 };
+
+// Approximate FX rates from INR
+const FX = { inr: 1, usd: 0.012, eur: 0.011, gbp: 0.0095 };
+const SYM = { inr: '\u20B9', usd: '$', eur: '\u20AC', gbp: '\u00A3' };
 
 function toggleInterval() {
   isYearly = !isYearly;
-  document.getElementById('toggleDot').style.transform = isYearly ? 'translateX(24px)' : '';
+  document.getElementById('toggleDot').style.transform = isYearly ? 'translateX(28px)' : '';
   document.getElementById('toggleBilling').classList.toggle('active', isYearly);
-  document.getElementById('lblMonthly').classList.toggle('text-slate-400', isYearly);
+  document.getElementById('lblMonthly').classList.toggle('text-muted', isYearly);
   document.getElementById('lblMonthly').classList.toggle('text-white', !isYearly);
   document.getElementById('lblYearly').classList.toggle('text-white', isYearly);
-  document.getElementById('lblYearly').classList.toggle('text-slate-400', !isYearly);
+  document.getElementById('lblYearly').classList.toggle('text-muted', !isYearly);
   updateDisplay();
 }
 
 function updateDisplay() {
   const cur = document.getElementById('currency').value;
   const rate = FX[cur] || 1;
-  const sym = SYM[cur] || '$';
+  const sym = SYM[cur] || '\u20B9';
+  const isINR = cur === 'inr';
+
+  // Free plan
+  document.getElementById('freePriceDisplay').textContent = sym + '0';
 
   for (const tier of ['pro', 'premium']) {
-    const cents = isYearly ? prices[tier].yearly : prices[tier].monthly;
-    const converted = (cents / 100 * rate).toFixed(2);
-    document.getElementById(`${tier}PriceDisplay`).textContent = `${sym}${converted}`;
-    document.getElementById(`${tier}Interval`).textContent = isYearly ? '/year' : '/month';
+    const base = basePrices[tier];
+    const price = isYearly ? base.yearly : base.monthly;
+    const strike = isYearly ? base.strikeYearly : base.strikeMonthly;
+    const converted = price * rate;
+    const strikeConverted = strike * rate;
+
+    const fmt = isINR ? Math.round(converted).toString() : converted.toFixed(2);
+    const strikeFmt = isINR ? Math.round(strikeConverted).toString() : strikeConverted.toFixed(2);
+
+    document.getElementById(tier + 'PriceDisplay').textContent = sym + fmt;
+    document.getElementById(tier + 'Interval').textContent = '/month';
+    document.getElementById(tier + 'Strikethrough').textContent = sym + strikeFmt;
   }
 }
 
 async function checkout(tier) {
   if (!TOKEN) { window.location.href = '/login'; return; }
-  const plan_id = `${tier}_${isYearly ? 'yearly' : 'monthly'}`;
-  const btn = document.getElementById(tier === 'pro' ? 'btnPro' : 'btnPremium');
+  const plan_id = tier + '_' + (isYearly ? 'yearly' : 'monthly');
+  var btnId = tier === 'pro' ? 'btnPro' : 'btnPremium';
+  var btn = document.getElementById(btnId);
+  var origText = btn.textContent;
   btn.disabled = true; btn.textContent = 'Redirecting...';
   try {
-    const r = await fetch('/api/v1/stripe/create-checkout', {
+    var r = await fetch('/api/v1/stripe/create-checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
-      body: JSON.stringify({ plan_id })
+      body: JSON.stringify({ plan_id: plan_id })
     });
-    if (!r.ok) { const e = await r.json(); alert(e.detail || 'Error'); return; }
-    const data = await r.json();
+    if (!r.ok) {
+      var e = await r.json().catch(function() { return {}; });
+      alert(e.detail || 'Payment service unavailable. Please try again.');
+      return;
+    }
+    var data = await r.json();
     window.location.href = data.checkout_url;
-  } catch(e) { alert('Payment error: ' + e.message); }
-  finally { btn.disabled = false; btn.textContent = tier === 'pro' ? 'Upgrade to Pro' : 'Upgrade to Premium'; }
+  } catch(err) {
+    alert('Unable to connect to payment service. Please check your connection and try again.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
 }
 
 async function openPortal() {
-  if (!TOKEN) return;
-  const r = await fetch('/api/v1/stripe/portal', {
-    method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + TOKEN }
-  });
-  if (r.ok) { const d = await r.json(); window.location.href = d.portal_url; }
+  if (!TOKEN) { window.location.href = '/login'; return; }
+  try {
+    var r = await fetch('/api/v1/stripe/portal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN }
+    });
+    if (r.ok) {
+      var d = await r.json();
+      window.location.href = d.portal_url;
+    } else {
+      var e = await r.json().catch(function() { return {}; });
+      alert(e.detail || 'Unable to open subscription portal. Please try again.');
+    }
+  } catch(err) {
+    alert('Connection error. Please try again.');
+  }
 }
 
 // Show manage section if user is logged in
 if (TOKEN) document.getElementById('manageSection').classList.remove('hidden');
 
 // Handle success/cancel from URL
-const params = new URLSearchParams(location.search);
+var params = new URLSearchParams(location.search);
 if (params.get('status') === 'success') {
-  const banner = document.createElement('div');
-  banner.className = 'fixed top-4 left-1/2 -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded-xl shadow-lg z-50 font-medium';
-  banner.textContent = '🎉 Subscription activated! Welcome to your new plan.';
+  var banner = document.createElement('div');
+  banner.className = 'fixed top-20 left-1/2 -translate-x-1/2 bg-ok text-white px-8 py-4 rounded-xl shadow-2xl z-50 font-semibold text-sm';
+  banner.textContent = '\uD83C\uDF89 Subscription activated! Welcome to your new plan.';
   document.body.appendChild(banner);
-  setTimeout(() => banner.remove(), 5000);
+  setTimeout(function() { banner.style.transition = 'opacity 0.5s'; banner.style.opacity = '0'; setTimeout(function() { banner.remove(); }, 500); }, 4000);
 }
+
+// Initial display
+updateDisplay();
 </script>
+<script src="/static/js/chat-widget.js?v=3" defer></script>
 </body>
 </html>
