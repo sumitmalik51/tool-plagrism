@@ -553,7 +553,7 @@
             </div>
             <h2 class="text-xl font-bold">Readability Analyzer</h2>
           </div>
-          <span class="text-muted text-lg transition-transform" id="readabilityArrow">▶</span>
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-surface2 border border-border text-muted transition-transform duration-300" id="readabilityArrow"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
         </button>
 
         <div id="readabilityAdvanced" class="hidden">
@@ -593,7 +593,7 @@
             </div>
             <h2 class="text-xl font-bold">Grammar &amp; Style Checker</h2>
           </div>
-          <span class="text-muted text-lg transition-transform" id="grammarArrow">▶</span>
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-surface2 border border-border text-muted transition-transform duration-300" id="grammarArrow"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
         </button>
 
         <div id="grammarAdvanced" class="hidden">
@@ -635,7 +635,7 @@
             <h2 class="text-xl font-bold">Write &amp; Check</h2>
             <span class="text-xs text-muted ml-1">Real-time plagiarism warnings as you type</span>
           </div>
-          <span class="text-muted text-lg transition-transform" id="writecheckArrow">▶</span>
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-surface2 border border-border text-muted transition-transform duration-300" id="writecheckArrow"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
         </button>
 
         <div id="writecheckAdvanced" class="hidden">
@@ -673,7 +673,7 @@
             <h2 class="text-xl font-bold">Section-by-Section Analysis</h2>
             <span class="new-badge">New</span>
           </div>
-          <span class="text-muted text-lg transition-transform" id="sectionArrow">▶</span>
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-surface2 border border-border text-muted transition-transform duration-300" id="sectionArrow"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
         </button>
         <div id="sectionAdvanced" class="hidden">
           <p class="text-sm text-muted mb-4">Paste a research paper and get plagiarism scores per section (Abstract, Introduction, Methods, etc.).</p>
@@ -709,7 +709,7 @@
             <h2 class="text-xl font-bold">Reference &amp; DOI Validator</h2>
             <span class="new-badge">New</span>
           </div>
-          <span class="text-muted text-lg transition-transform" id="refArrow">▶</span>
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-surface2 border border-border text-muted transition-transform duration-300" id="refArrow"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
         </button>
         <div id="refAdvanced" class="hidden">
           <p class="text-sm text-muted mb-4">Paste your paper including references. We'll extract each citation and verify it against OpenAlex.</p>
@@ -744,7 +744,7 @@
             <h2 class="text-xl font-bold">Cross-Document Comparison</h2>
             <span class="new-badge">New</span>
           </div>
-          <span class="text-muted text-lg transition-transform" id="crossArrow">▶</span>
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-surface2 border border-border text-muted transition-transform duration-300" id="crossArrow"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
         </button>
         <div id="crossAdvanced" class="hidden">
           <p class="text-sm text-muted mb-4">Compare two documents for overlap or self-plagiarism using embedding similarity.</p>
@@ -790,7 +790,7 @@
             <h2 class="text-xl font-bold">Repository Check</h2>
             <span class="text-xs text-muted ml-1">Check against your prior submissions</span>
           </div>
-          <span class="text-muted text-lg transition-transform" id="repoArrow">▶</span>
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-surface2 border border-border text-muted transition-transform duration-300" id="repoArrow"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
         </button>
         <div id="repoAdvanced" class="hidden">
           <p class="text-sm text-muted mb-4">Paste text to check for overlap with your previously scanned documents. Detects self-plagiarism across submissions.</p>
@@ -2928,10 +2928,10 @@
     const arrow = $(arrowId);
     if (panel.classList.contains('hidden')) {
       panel.classList.remove('hidden');
-      if (arrow) arrow.textContent = '▼';
+      if (arrow) arrow.style.transform = 'rotate(90deg)';
     } else {
       panel.classList.add('hidden');
-      if (arrow) arrow.textContent = '▶';
+      if (arrow) arrow.style.transform = '';
     }
   }
 

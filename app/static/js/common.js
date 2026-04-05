@@ -233,6 +233,13 @@ function startOnboardingTour(steps) {
       card.style.top = (rect.bottom + window.scrollY + 16) + 'px';
       card.style.left = Math.max(16, Math.min(rect.left, window.innerWidth - 360)) + 'px';
 
+      // Ensure the tour card (below target) is fully visible in the viewport
+      var cardTop = rect.bottom + 16;
+      var cardEstimatedHeight = 180; // approximate card height
+      if (cardTop + cardEstimatedHeight > window.innerHeight) {
+        window.scrollBy({ top: cardTop + cardEstimatedHeight - window.innerHeight + 40, behavior: 'smooth' });
+      }
+
       var dots = steps.map(function(_, di) {
         return '<span class="tour-dot' + (di === i ? ' active' : '') + '"></span>';
       }).join('');
