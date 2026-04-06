@@ -35,6 +35,9 @@
     .source-card.active { background: rgba(108,92,231,.15); border-left: 3px solid #6c5ce7; }
     .feature-card, .action-card, .stat-card { transition: transform .25s ease, box-shadow .25s ease, border-color .3s; }
     .feature-card:active, .action-card:active { transform: scale(.97); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes progress-pulse { 0%,100% { opacity: 1; } 50% { opacity: .65; } }
+    #progressBar { animation: progress-pulse 1.5s ease-in-out infinite; }
   </style>
 </head>
 <body class="bg-bg text-txt min-h-screen">
@@ -1607,20 +1610,20 @@
               $('progressLabel').textContent = d.percent + '%';
             }
             if (d.message) $('loaderMsg').textContent = d.message;
-            if (d.stage === 'complete' || d.stage === 'timeout') eventSource.close();
+            if (d.stage === 'complete' || d.stage === 'done' || d.stage === 'timeout') eventSource.close();
           } catch {}
         };
         eventSource.onerror = function() { eventSource.close(); };
       } catch {}
     }
 
-    // Small delay then connect SSE (give server time to create tracker)
-    const sseTimer = setTimeout(connectProgress, 500);
+    // Connect SSE immediately — tracker is created before analysis starts
+    connectProgress();
 
     try {
       // --- Batch mode ---
       if (currentMode === 'file' && currentFiles.length > 1) {
-        clearTimeout(sseTimer);
+        if (eventSource) try { eventSource.close(); } catch {}
         const form = new FormData();
         currentFiles.forEach(f => form.append('files', f));
         const res = await fetch('/api/v1/analyze-batch', { method: 'POST', body: form });
@@ -1649,6 +1652,7 @@
       } else {
         const form = new FormData();
         form.append('file', currentFile);
+        form.append('document_id', docId);
         res = await fetch('/api/v1/analyze', { method: 'POST', body: form });
       }
 
@@ -1670,7 +1674,6 @@
     } catch (err) {
       showErrorWithRetry('errorBox', err.message, 'runAnalysis');
     } finally {
-      clearTimeout(sseTimer);
       if (eventSource) try { eventSource.close(); } catch {}
       $('loader').classList.add('hidden');
       $('loader').classList.remove('flex');
@@ -3981,13 +3984,17 @@
             const fileIcon = { pdf: '📕', docx: '📘', txt: '📝', tex: '📐', text: '📝' }[fileType] || '📄';
             return `
               <div class="bg-surface border border-border rounded-lg p-4 flex items-center gap-4 hover:border-accent/50 transition-colors cursor-pointer group"
-                   onclick="viewScanDetail('${esc(s.document_id)}')" title="${esc(fullDate)}">
+                   onclick="viewScanDetail('${esc(s.document_id)}', this)" title="${esc(fullDate)}">
                 <div class="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold shrink-0" style="background:${scoreColor(score)}20;color:${scoreColor(score)}">${score}%</div>
                 <div class="flex-1 min-w-0">
                   <div class="text-sm font-medium truncate flex items-center gap-1.5">${fileIcon} ${esc(filename)}</div>
                   <div class="text-xs text-muted mt-0.5">${date} · ${flagged} flagged · ${sources} sources</div>
                 </div>
                 <span class="px-2 py-0.5 rounded text-[10px] font-bold ${riskColors[risk] || ''}">${risk}</span>
+                <button onclick="event.stopPropagation(); deleteScan('${esc(s.document_id)}', this)" title="Delete scan"
+                        class="p-1.5 rounded-lg text-muted hover:text-danger hover:bg-danger/10 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                </button>
                 <span class="text-muted text-xs opacity-0 group-hover:opacity-100 transition-opacity">View →</span>
               </div>`;
           }).join('');
@@ -4000,7 +4007,15 @@
     }
   }
 
-  async function viewScanDetail(documentId) {
+  async function viewScanDetail(documentId, clicked) {
+    /* Show loading indicator on clicked row */
+    if (clicked) {
+      clicked.style.pointerEvents = 'none';
+      clicked.style.opacity = '0.6';
+      clicked.insertAdjacentHTML('beforeend',
+        '<span class="scan-loading-spinner" style="margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--accent,#7c6af4)">' +
+        '<svg width="16" height="16" viewBox="0 0 24 24" style="animation:spin 0.8s linear infinite"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="3" stroke-dasharray="31 31" stroke-linecap="round"/></svg> Loading…</span>');
+    }
     try {
       const res = await fetch('/api/v1/auth/scans/' + encodeURIComponent(documentId), { headers: _authHeaders() });
       if (!res.ok) { showToast('Could not load scan details', 'error'); return; }
@@ -4014,11 +4029,40 @@
       }
     } catch (err) {
       showToast('Error loading scan: ' + err.message, 'error');
+    } finally {
+      if (clicked) {
+        clicked.style.pointerEvents = '';
+        clicked.style.opacity = '';
+        const sp = clicked.querySelector('.scan-loading-spinner');
+        if (sp) sp.remove();
+      }
+    }
+  }
+
+  async function deleteScan(documentId, btnEl) {
+    if (!confirm('Delete this scan? This cannot be undone.')) return;
+    const row = btnEl.closest('div[onclick]');
+    if (row) { row.style.opacity = '0.4'; row.style.pointerEvents = 'none'; }
+    try {
+      const res = await fetch('/api/v1/auth/scans/' + encodeURIComponent(documentId), {
+        method: 'DELETE',
+        headers: _authHeaders(),
+      });
+      if (!res.ok) { showToast('Failed to delete scan', 'error'); return; }
+      if (row) row.remove();
+      showToast('Scan deleted', 'success');
+      loadScanHistory();
+      loadDashboardData();
+    } catch (err) {
+      showToast('Error: ' + err.message, 'error');
+    } finally {
+      if (row) { row.style.opacity = ''; row.style.pointerEvents = ''; }
     }
   }
 
   function timeAgo(ts) {
-    const diff = Date.now() - new Date(ts).getTime();
+    const utcTs = typeof ts === 'string' && !ts.endsWith('Z') && !ts.includes('+') ? ts.replace(' ', 'T') + 'Z' : ts;
+    const diff = Date.now() - new Date(utcTs).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return 'just now';
     if (mins < 60) return mins + 'm ago';
@@ -4857,8 +4901,8 @@
       const sources = s.sources_count || 0;
 
       return `
-        <div class="flex items-center gap-4 px-5 py-4 bg-surface/80 border border-border/60 rounded-xl hover:border-accent/40 transition-colors cursor-pointer"
-             onclick="viewScanDetail('${esc(s.document_id)}')">
+        <div class="flex items-center gap-4 px-5 py-4 bg-surface/80 border border-border/60 rounded-xl hover:border-accent/40 transition-colors cursor-pointer group"
+             onclick="viewScanDetail('${esc(s.document_id)}', this)">
           <div class="w-10 h-10 rounded-xl ${riskBg} border grid place-items-center shrink-0">
             <span class="text-lg font-bold ${riskColor}">${score}</span>
           </div>
@@ -4867,6 +4911,10 @@
             <div class="text-xs text-muted">${date} &bull; ${sources} source${sources !== 1 ? 's' : ''}</div>
           </div>
           <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${riskBg} border ${riskColor}">${risk}</span>
+          <button onclick="event.stopPropagation(); deleteScan('${esc(s.document_id)}', this)" title="Delete scan"
+                  class="p-1.5 rounded-lg text-muted hover:text-danger hover:bg-danger/10 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+          </button>
         </div>`;
     }).join('');
   }

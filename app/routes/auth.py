@@ -37,7 +37,7 @@ from app.services.api_key_service import (
     revoke_api_key,
 )
 from app.services.email_service import send_password_reset_email, send_verification_email, send_welcome_email
-from app.services.persistence import get_scan, get_user_scans, get_user_stats
+from app.services.persistence import delete_scan, get_scan, get_user_scans, get_user_stats
 from app.services.rate_limiter import PLAN_TO_TIER, UserTier, limiter
 
 logger = structlog.get_logger(__name__)
@@ -435,6 +435,19 @@ async def route_scans_chart_data(authorization: str = Header(default="")):
         "risk_distribution": risk_counts,
         "daily_counts": [{"date": str(d["scan_date"]), "count": d["cnt"]} for d in reversed(list(daily))],
     }
+
+
+@router.delete("/scans/{document_id}")
+async def route_delete_scan(
+    document_id: str,
+    authorization: str = Header(default=""),
+):
+    """Delete a scan owned by the authenticated user."""
+    user_id = _get_user_id(authorization)
+    deleted = delete_scan(document_id, user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Scan not found.")
+    return {"ok": True, "message": "Scan deleted"}
 
 
 @router.get("/scans/{document_id}")

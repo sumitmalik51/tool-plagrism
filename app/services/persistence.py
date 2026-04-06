@@ -184,6 +184,24 @@ def get_user_scans(
     return db.fetch_all(query, tuple(params))
 
 
+def delete_scan(document_id: str, user_id: int) -> bool:
+    """Delete a scan and its associated document if owned by the user.
+
+    Returns True if the scan was deleted, False if not found / not owned.
+    """
+    db = get_db()
+    scan = db.fetch_one(
+        "SELECT id FROM scans WHERE document_id = ? AND user_id = ?",
+        (document_id, user_id),
+    )
+    if not scan:
+        return False
+    db.execute("DELETE FROM scans WHERE document_id = ? AND user_id = ?", (document_id, user_id))
+    db.execute("DELETE FROM documents WHERE document_id = ? AND user_id = ?", (document_id, user_id))
+    logger.info("scan_deleted", document_id=document_id, user_id=user_id)
+    return True
+
+
 def get_user_stats(user_id: int) -> dict[str, Any]:
     """Aggregate statistics for a user's dashboard."""
     db = get_db()

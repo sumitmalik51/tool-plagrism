@@ -15,7 +15,7 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-async def ingest_file(filename: str, file_bytes: bytes, plan_type: str = "free") -> dict:
+async def ingest_file(filename: str, file_bytes: bytes, plan_type: str = "free", document_id: str | None = None) -> dict:
     """Validate, persist, and extract text from an uploaded file.
 
     Returns:
@@ -37,7 +37,7 @@ async def ingest_file(filename: str, file_bytes: bytes, plan_type: str = "free")
         )
 
     # --- Persist file ---------------------------------------------------------
-    document_id = uuid.uuid4().hex
+    document_id = document_id or uuid.uuid4().hex
     ext = Path(filename).suffix.lower()
     upload_dir = ensure_upload_dir()
     dest_path = upload_dir / f"{document_id}{ext}"

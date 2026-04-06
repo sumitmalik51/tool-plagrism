@@ -5,13 +5,14 @@ from __future__ import annotations
 import json
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.dependencies.rate_limit import enforce_scan_limit, record_scan
 from app.models.schemas import PlagiarismReport
+from app.services import progress as scan_progress
 from app.services.ingestion import ingest_file
 from app.services.orchestrator import run_pipeline
 from app.services.persistence import save_document, save_scan
@@ -60,7 +61,7 @@ class AnalyzeTextRequest(BaseModel):
     summary="Upload and analyse a document for plagiarism",
     dependencies=[Depends(enforce_scan_limit)],
 )
-async def analyze_document(file: UploadFile, request: Request) -> PlagiarismReport:
+async def analyze_document(file: UploadFile, request: Request, document_id: str | None = Form(None)) -> PlagiarismReport:
     """Accept a file, run every detection agent in parallel, and return
     a structured plagiarism report with scores, flagged passages, and
     a human-readable explanation.
@@ -82,9 +83,14 @@ async def analyze_document(file: UploadFile, request: Request) -> PlagiarismRepo
         if user:
             plan_type = user.get("plan_type", "free")
 
+    # --- Create progress tracker early so SSE can connect immediately --------
+    effective_doc_id = document_id or uuid.uuid4().hex
+    tracker = scan_progress.get_or_create(effective_doc_id)
+    tracker.emit("upload", "Processing uploaded file...", 2)
+
     # --- Ingest ---------------------------------------------------------------
     try:
-        ingestion_result = await ingest_file(file.filename, file_bytes, plan_type=plan_type)
+        ingestion_result = await ingest_file(file.filename, file_bytes, plan_type=plan_type, document_id=effective_doc_id)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -168,6 +174,10 @@ async def analyze_text(
     """
     document_id = body.document_id or uuid.uuid4().hex
     user_id = getattr(request.state, "user_id", None)
+
+    # --- Create progress tracker early so SSE can connect immediately --------
+    tracker = scan_progress.get_or_create(document_id)
+    tracker.emit("upload", "Preparing text for analysis...", 2)
 
     # Resolve plan for premium query boost
     plan_type = "free"

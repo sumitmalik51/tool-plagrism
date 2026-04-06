@@ -160,13 +160,44 @@ def chunk_text(
 # ---------------------------------------------------------------------------
 
 def _extract_from_pdf(file_bytes: bytes) -> str:
+    # Primary: pdfplumber (much better at preserving spaces)
+    try:
+        import pdfplumber
+        pages: list[str] = []
+        with pdfplumber.open(BytesIO(file_bytes)) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    pages.append(page_text)
+        text = "\n".join(pages)
+        if text.strip():
+            return _fix_pdf_spacing(text)
+    except Exception:
+        logger.warning("pdfplumber_failed_falling_back_to_pypdf2")
+
+    # Fallback: PyPDF2
     reader = PdfReader(BytesIO(file_bytes))
-    pages: list[str] = []
+    pages = []
     for page in reader.pages:
         page_text = page.extract_text()
         if page_text:
             pages.append(page_text)
-    return "\n".join(pages)
+    return _fix_pdf_spacing("\n".join(pages))
+
+
+def _fix_pdf_spacing(text: str) -> str:
+    """Post-process extracted PDF text to restore missing spaces."""
+    # Insert space between a lowercase letter and an uppercase letter (camelCase joins)
+    text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
+    # Insert space between a letter and an opening paren
+    text = re.sub(r'([a-zA-Z])\(', r'\1 (', text)
+    # Insert space between a closing paren/period/comma and a letter (no space after punctuation)
+    text = re.sub(r'([.,;:)])([a-zA-Z])', r'\1 \2', text)
+    # Insert space between a digit and a letter (but not inside known patterns like "3D")
+    text = re.sub(r'(\d)([a-zA-Z]{2,})', r'\1 \2', text)
+    # Collapse multiple spaces
+    text = re.sub(r' {2,}', ' ', text)
+    return text
 
 
 def _extract_from_docx(file_bytes: bytes) -> str:

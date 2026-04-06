@@ -151,6 +151,8 @@ async def run_pipeline(
     # --- 2. Run detection agents in parallel ----------------------------------
     tracker.emit("agents", "Running detection agents in parallel...", 20,
                  agents=["semantic", "web_search", "academic", "ai_detection"])
+
+    agent_names = ["Semantic Analysis", "Web Search", "Academic Search", "AI Detection"]
     detection_agents = [
         SemanticAgent(),
         WebSearchAgent(),
@@ -158,22 +160,64 @@ async def run_pipeline(
         AIDetectionAgent(),
     ]
 
+    agents_done = 0
+
     async def _run_agent_with_progress(agent, inp, idx):
+        nonlocal agents_done
         result = await agent.run(inp)
-        pct = 20 + ((idx + 1) * 15)  # 35, 50, 65, 80
+        agents_done += 1
+        pct = 20 + (agents_done * 15)  # 35, 50, 65, 80
         tracker.emit(
             "agent_done",
-            f"{agent.name} completed (score: {result.score:.1f})",
+            f"{agent.name} completed ({agents_done}/4)",
             min(pct, 75),
             agent_name=agent.name,
             score=result.score,
         )
         return result
 
-    agent_outputs: list[AgentOutput] = await asyncio.gather(
-        *(_run_agent_with_progress(agent, agent_input, i)
-          for i, agent in enumerate(detection_agents))
-    )
+    # Heartbeat: tick progress every 0.6s while agents run
+    _heartbeat_pct = 20
+    _heartbeat_running = True
+
+    async def _progress_heartbeat():
+        nonlocal _heartbeat_pct
+        stage_msgs = [
+            "Searching web sources...",
+            "Comparing against academic databases...",
+            "Running semantic similarity checks...",
+            "Analysing writing patterns...",
+            "Cross-referencing sources...",
+            "Checking content fingerprints...",
+        ]
+        msg_idx = 0
+        while _heartbeat_running:
+            await asyncio.sleep(0.8)
+            if not _heartbeat_running:
+                break
+            if _heartbeat_pct < 70:
+                _heartbeat_pct += 2
+                tracker.emit(
+                    "scanning",
+                    stage_msgs[msg_idx % len(stage_msgs)],
+                    _heartbeat_pct,
+                )
+                msg_idx += 1
+
+    heartbeat_task = asyncio.create_task(_progress_heartbeat())
+
+    try:
+        agent_outputs: list[AgentOutput] = await asyncio.gather(
+            *(_run_agent_with_progress(agent, agent_input, i)
+              for i, agent in enumerate(detection_agents))
+        )
+    finally:
+        _heartbeat_running = False
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
 
     logger.info(
         "detection_agents_complete",
