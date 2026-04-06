@@ -76,6 +76,7 @@ def _embed_sync(texts: list[str]) -> NDArray[np.float32]:
         model = _load_model()
         embeddings: NDArray[np.float32] = model.encode(
             texts,
+            batch_size=128,
             convert_to_numpy=True,
             normalize_embeddings=True,
             show_progress_bar=False,

@@ -35,7 +35,8 @@ def _adaptive_query_count(text_length: int, plan_type: str = "free") -> tuple[in
 
     Short papers (< 5K chars) get the default 8 queries.
     Medium papers (5-20K) get 10.
-    Large papers (20K+) get 12.
+    Large papers (20-50K) get 12.
+    Very large papers (50K+) get 15.
 
     Premium users get a boost (configurable via settings).
 
@@ -45,8 +46,10 @@ def _adaptive_query_count(text_length: int, plan_type: str = "free") -> tuple[in
         base_web, base_scholar = settings.web_search_max_queries, settings.scholar_max_queries
     elif text_length < 20_000:
         base_web, base_scholar = 10, 10
-    else:
+    elif text_length < 50_000:
         base_web, base_scholar = 12, 12
+    else:
+        base_web, base_scholar = 15, 15
 
     if plan_type == "premium":
         base_web = max(base_web, settings.web_search_max_queries_premium)
@@ -160,7 +163,17 @@ async def run_pipeline(
 
     async def _run_agent_with_progress(agent, inp, idx):
         nonlocal agents_done
-        result = await agent.run(inp)
+        try:
+            result = await asyncio.wait_for(agent.run(inp), timeout=90.0)
+        except asyncio.TimeoutError:
+            logger.warning("agent_timed_out", agent=agent.name, document_id=document_id)
+            result = AgentOutput(
+                agent_name=agent.name,
+                score=0.0,
+                confidence=0.1,
+                flagged_passages=[],
+                details={"status": "timed_out"},
+            )
         agents_done += 1
         pct = 20 + (agents_done * 15)  # 35, 50, 65, 80
         tracker.emit(

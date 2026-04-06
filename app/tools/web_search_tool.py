@@ -85,6 +85,9 @@ async def _search_bing(query: str, count: int, language: str = "en") -> dict | N
 # DuckDuckGo backend (free, no key)
 # ---------------------------------------------------------------------------
 
+# Dedicated pool for DDG (sync lib) — limits concurrent requests to avoid rate-limits
+_ddg_pool = asyncio.Semaphore(3)
+
 def _search_ddg_sync(query: str, count: int, language: str = "en") -> list[dict]:
     """Run DuckDuckGo search synchronously (the library is sync-only)."""
     results: list[dict] = []
@@ -102,14 +105,15 @@ def _search_ddg_sync(query: str, count: int, language: str = "en") -> list[dict]
     except ImportError:
         logger.warning("ddgs_not_installed", hint="pip install ddgs")
     except Exception as exc:  # noqa: BLE001
-        logger.error("ddg_search_failed", error=str(exc))
+        logger.error("ddg_search_failed", query=query[:60], error=str(exc))
     return results
 
 
 async def _search_ddg(query: str, count: int, language: str = "en") -> dict:
-    """Async wrapper around the sync DuckDuckGo library."""
-    loop = asyncio.get_running_loop()
-    results = await loop.run_in_executor(None, _search_ddg_sync, query, count, language)
+    """Async wrapper around the sync DuckDuckGo library with concurrency control."""
+    async with _ddg_pool:
+        loop = asyncio.get_running_loop()
+        results = await loop.run_in_executor(None, _search_ddg_sync, query, count, language)
     return {"results": results}
 
 
@@ -159,11 +163,18 @@ async def search_multiple(queries: list[str], count_per_query: int = 3, language
     start = time.perf_counter()
 
     tasks = [search_web(q, count=count_per_query, language=language) for q in queries]
-    raw_results = await asyncio.gather(*tasks)
+    # Bounded timeout: don't let web searches take more than 30s total
+    try:
+        raw_results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=30.0)
+    except asyncio.TimeoutError:
+        logger.warning("search_multiple_timed_out", query_count=len(queries))
+        raw_results = []
 
     seen_urls: set[str] = set()
     all_results: list[dict] = []
     for r in raw_results:
+        if isinstance(r, Exception):
+            continue
         for item in r.get("results", []):
             if item["url"] not in seen_urls:
                 seen_urls.add(item["url"])

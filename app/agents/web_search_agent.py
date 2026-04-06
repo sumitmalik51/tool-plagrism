@@ -135,11 +135,6 @@ class WebSearchAgent(BaseAgent):
         doc_chunk_result = chunk_text(cleaned_text, chunk_size=500, overlap=50)
         doc_chunks = doc_chunk_result["chunks"]
 
-        # Cap doc chunks to keep embedding time reasonable
-        if len(doc_chunks) > 60:
-            step = len(doc_chunks) / 60
-            doc_chunks = [doc_chunks[int(i * step)] for i in range(60)]
-
         if not doc_chunks:
             doc_chunks = queries  # fallback
 

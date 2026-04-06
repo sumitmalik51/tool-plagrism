@@ -32,7 +32,7 @@ _openalex_client: httpx.AsyncClient | None = None
 def _get_openalex_client() -> httpx.AsyncClient:
     global _openalex_client
     if _openalex_client is None or _openalex_client.is_closed:
-        _openalex_client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
+        _openalex_client = httpx.AsyncClient(timeout=10.0, follow_redirects=True)
     return _openalex_client
 
 
@@ -217,9 +217,15 @@ async def search_openalex_multi(
     """
     start = time.perf_counter()
 
-    # Run all queries concurrently (OpenAlex allows it)
+    # Run all queries concurrently (OpenAlex allows it) with bounded timeout
     tasks = [search_openalex(q, max_results=max_per_query) for q in queries]
-    raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+    try:
+        raw_results = await asyncio.wait_for(
+            asyncio.gather(*tasks, return_exceptions=True), timeout=25.0
+        )
+    except asyncio.TimeoutError:
+        logger.warning("openalex_multi_timed_out", query_count=len(queries))
+        raw_results = []
 
     all_results: list[dict[str, Any]] = []
     seen_titles: set[str] = set()
