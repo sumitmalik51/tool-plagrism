@@ -225,11 +225,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         #   'unsafe-inline' with nonce-based CSP for full XSS protection.
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://checkout.razorpay.com https://cdn.jsdelivr.net; "
+            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://checkout.razorpay.com https://cdn.razorpay.com https://cdn.jsdelivr.net; "
             "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com https://cdn.jsdelivr.net; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: https://fastapi.tiangolo.com https://lh3.googleusercontent.com; "
-            "connect-src 'self' https://api.razorpay.com https://api.stripe.com; "
+            "connect-src 'self' https://api.razorpay.com https://api.stripe.com https://lumberjack.razorpay.com; "
             "frame-src https://api.razorpay.com https://js.stripe.com; "
             "object-src 'none'; "
             "base-uri 'self'; "

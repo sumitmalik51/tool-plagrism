@@ -53,10 +53,18 @@ async def scan_progress_sse(document_id: str):
     """
     tracker = scan_progress.get(document_id)
     if tracker is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No scan in progress for document {document_id}",
-        )
+        # Tracker not created yet (race) or scan already finished — wait briefly
+        for _ in range(10):
+            await asyncio.sleep(0.3)
+            tracker = scan_progress.get(document_id)
+            if tracker is not None:
+                break
+        if tracker is None:
+            # Still nothing — return a single "done" event so the EventSource
+            # closes gracefully instead of the browser retrying on 404.
+            async def _no_op():
+                yield 'data: {"stage": "done", "message": "Scan complete", "percent": 100}\n\n'
+            return StreamingResponse(_no_op(), media_type="text/event-stream")
 
     async def _event_stream():
         queue = tracker.subscribe()
