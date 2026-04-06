@@ -34,9 +34,8 @@ def _adaptive_query_count(text_length: int, plan_type: str = "free") -> tuple[in
     """Scale search query counts based on document length and plan tier.
 
     Short papers (< 5K chars) get the default 8 queries.
-    Medium papers (5-20K) get 12.
-    Large papers (20-50K) get 16.
-    Very large papers (50K+) get 20.
+    Medium papers (5-20K) get 10.
+    Large papers (20K+) get 12.
 
     Premium users get a boost (configurable via settings).
 
@@ -45,14 +44,11 @@ def _adaptive_query_count(text_length: int, plan_type: str = "free") -> tuple[in
     if text_length < 5_000:
         base_web, base_scholar = settings.web_search_max_queries, settings.scholar_max_queries
     elif text_length < 20_000:
-        base_web, base_scholar = 12, 12
-    elif text_length < 50_000:
-        base_web, base_scholar = 16, 16
+        base_web, base_scholar = 10, 10
     else:
-        base_web, base_scholar = 20, 20
+        base_web, base_scholar = 12, 12
 
     if plan_type == "premium":
-        # Premium gets at least the configured premium minimum
         base_web = max(base_web, settings.web_search_max_queries_premium)
         base_scholar = max(base_scholar, settings.web_search_max_queries_premium)
 
@@ -207,10 +203,26 @@ async def run_pipeline(
     heartbeat_task = asyncio.create_task(_progress_heartbeat())
 
     try:
-        agent_outputs: list[AgentOutput] = await asyncio.gather(
-            *(_run_agent_with_progress(agent, agent_input, i)
-              for i, agent in enumerate(detection_agents))
+        agent_outputs: list[AgentOutput] = await asyncio.wait_for(
+            asyncio.gather(
+                *(_run_agent_with_progress(agent, agent_input, i)
+                  for i, agent in enumerate(detection_agents))
+            ),
+            timeout=280.0,  # 4-minute hard limit for all agents
         )
+    except asyncio.TimeoutError:
+        logger.error("agents_timed_out", document_id=document_id)
+        tracker.emit("timeout", "Analysis agents timed out — using partial results", 75)
+        # Collect whatever results are available
+        agent_outputs = []
+        for agent in detection_agents:
+            agent_outputs.append(AgentOutput(
+                agent_name=agent.name,
+                score=0.0,
+                confidence=0.1,
+                flagged_passages=[],
+                details={"status": "timed_out"},
+            ))
     finally:
         _heartbeat_running = False
         heartbeat_task.cancel()

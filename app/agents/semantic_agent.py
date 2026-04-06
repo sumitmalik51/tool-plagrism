@@ -51,6 +51,13 @@ class SemanticAgent(BaseAgent):
         )
         chunks = agent_input.chunks or chunk_result["chunks"]
 
+        # Cap chunks for large documents to keep embedding time reasonable
+        MAX_EMBED_CHUNKS = 80
+        if len(chunks) > MAX_EMBED_CHUNKS:
+            # Sample evenly across the document
+            step = len(chunks) / MAX_EMBED_CHUNKS
+            chunks = [chunks[int(i * step)] for i in range(MAX_EMBED_CHUNKS)]
+
         if len(chunks) < 2:
             self.logger.info(
                 "insufficient_chunks",

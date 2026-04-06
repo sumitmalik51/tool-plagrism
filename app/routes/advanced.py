@@ -54,8 +54,8 @@ async def scan_progress_sse(document_id: str):
     tracker = scan_progress.get(document_id)
     if tracker is None:
         # Tracker not created yet (race) or scan already finished — wait briefly
-        for _ in range(10):
-            await asyncio.sleep(0.3)
+        for _ in range(20):
+            await asyncio.sleep(0.4)
             tracker = scan_progress.get(document_id)
             if tracker is not None:
                 break

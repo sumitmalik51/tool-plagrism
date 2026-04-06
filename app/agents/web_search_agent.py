@@ -135,6 +135,11 @@ class WebSearchAgent(BaseAgent):
         doc_chunk_result = chunk_text(cleaned_text, chunk_size=500, overlap=50)
         doc_chunks = doc_chunk_result["chunks"]
 
+        # Cap doc chunks to keep embedding time reasonable
+        if len(doc_chunks) > 60:
+            step = len(doc_chunks) / 60
+            doc_chunks = [doc_chunks[int(i * step)] for i in range(60)]
+
         if not doc_chunks:
             doc_chunks = queries  # fallback
 
@@ -165,13 +170,13 @@ class WebSearchAgent(BaseAgent):
         # --- 3. Fetch actual page content for top URLs ------------------------
         # This dramatically improves similarity by comparing against real
         # page text instead of just short search snippets.
-        urls_to_fetch = [r["url"] for r in web_results[:15] if r.get("url")]
+        urls_to_fetch = [r["url"] for r in web_results[:8] if r.get("url")]
         self.logger.info(
             "fetching_page_content",
             document_id=agent_input.document_id,
             url_count=len(urls_to_fetch),
         )
-        page_texts = await fetch_page_text(urls_to_fetch, timeout=10.0)
+        page_texts = await fetch_page_text(urls_to_fetch, timeout=6.0, max_concurrent=8)
 
         # Enrich each web_result with fetched page text
         for r in web_results:

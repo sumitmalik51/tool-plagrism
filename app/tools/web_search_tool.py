@@ -92,7 +92,7 @@ def _search_ddg_sync(query: str, count: int, language: str = "en") -> list[dict]
         from ddgs import DDGS  # lazy import
 
         region = _LANG_TO_DDG_REGION.get(language, "us-en")
-        with DDGS(timeout=20) as ddgs:
+        with DDGS(timeout=8) as ddgs:
             for r in ddgs.text(query, region=region, max_results=count):
                 results.append({
                     "url": r.get("href", ""),

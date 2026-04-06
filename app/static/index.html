@@ -1592,11 +1592,14 @@
     $('loader').classList.remove('hidden');
     $('loader').classList.add('flex');
     $('errorBox').classList.add('hidden');
-    $('loaderMsg').textContent = 'Running multi-agent analysis\u2026';
+    $('loaderMsg').textContent = 'Initializing scan\u2026';
 
     // Generate a document_id so we can connect SSE progress immediately
     const docId = crypto.randomUUID ? crypto.randomUUID().replaceAll('-','') : Math.random().toString(36).slice(2) + Date.now().toString(36);
     let eventSource = null;
+    let sseReceivedUpdate = false;
+    let sseReconnects = 0;
+    let currentPct = 0;  // track the highest percent shown
 
     function connectProgress() {
       try {
@@ -1605,24 +1608,71 @@
         eventSource.onmessage = function(e) {
           try {
             const d = JSON.parse(e.data);
-            if (d.percent >= 0) {
+            // Only let SSE take over when it's ahead of the trickle
+            if (d.percent > currentPct) {
+              sseReceivedUpdate = true;
+              currentPct = d.percent;
               $('progressBar').style.width = d.percent + '%';
               $('progressLabel').textContent = d.percent + '%';
             }
-            if (d.message) $('loaderMsg').textContent = d.message;
+            if (d.message && d.percent >= currentPct - 2) $('loaderMsg').textContent = d.message;
             if (d.stage === 'complete' || d.stage === 'done' || d.stage === 'timeout') eventSource.close();
           } catch {}
         };
-        eventSource.onerror = function() { eventSource.close(); };
+        eventSource.onerror = function() {
+          eventSource.close();
+          // Reconnect if SSE hasn't provided meaningful progress yet
+          if (!sseReceivedUpdate && sseReconnects < 3) {
+            sseReconnects++;
+            setTimeout(connectProgress, 1000);
+          }
+        };
       } catch {}
     }
 
-    // Connect SSE immediately — tracker is created before analysis starts
-    connectProgress();
+    // Show initial progress immediately so UI never looks stuck at 0%
+    $('progressWrap').classList.remove('hidden');
+    $('progressBar').style.width = '2%';
+    $('progressLabel').textContent = '2%';
+    $('loaderMsg').textContent = currentMode === 'file' ? 'Extracting text from document\u2026' : 'Preparing text for analysis\u2026';
+
+    // Smooth trickle animation that keeps going until SSE takes over or analysis completes
+    let fakePct = 2;
+    const trickleMessages = [
+      [5, 'Processing document\u2026'],
+      [15, 'Preparing analysis pipeline\u2026'],
+      [25, 'Searching web sources\u2026'],
+      [40, 'Comparing against databases\u2026'],
+      [55, 'Running semantic checks\u2026'],
+      [70, 'Analysing writing patterns\u2026'],
+      [80, 'Cross-referencing sources\u2026'],
+    ];
+    let trickleIdx = 0;
+    const trickleTimer = setInterval(() => {
+      if (fakePct >= 85) return; // hold near end
+      // Slow down as we progress: fast early, slow later
+      const increment = fakePct < 20 ? 2 : fakePct < 50 ? 1.5 : 0.8;
+      fakePct = Math.min(fakePct + increment, 85);
+      // Only update UI if trickle is ahead of SSE
+      if (fakePct > currentPct) {
+        currentPct = fakePct;
+        $('progressBar').style.width = Math.round(fakePct) + '%';
+        $('progressLabel').textContent = Math.round(fakePct) + '%';
+      }
+      // Update message at thresholds
+      if (trickleIdx < trickleMessages.length && fakePct >= trickleMessages[trickleIdx][0]) {
+        if (!sseReceivedUpdate) $('loaderMsg').textContent = trickleMessages[trickleIdx][1];
+        trickleIdx++;
+      }
+    }, 700);
+
+    // Short delay then connect SSE (give POST time to create tracker)
+    const sseTimer = setTimeout(connectProgress, 300);
 
     try {
       // --- Batch mode ---
       if (currentMode === 'file' && currentFiles.length > 1) {
+        clearTimeout(sseTimer);
         if (eventSource) try { eventSource.close(); } catch {}
         const form = new FormData();
         currentFiles.forEach(f => form.append('files', f));
@@ -1674,7 +1724,10 @@
     } catch (err) {
       showErrorWithRetry('errorBox', err.message, 'runAnalysis');
     } finally {
+      clearTimeout(sseTimer);
+      clearInterval(trickleTimer);
       if (eventSource) try { eventSource.close(); } catch {}
+      sseReceivedUpdate = true; // prevent reconnect after done
       $('loader').classList.add('hidden');
       $('loader').classList.remove('flex');
       $('progressWrap').classList.add('hidden');
