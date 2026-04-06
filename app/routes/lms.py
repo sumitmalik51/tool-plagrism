@@ -124,24 +124,31 @@ async def lti_login(request: Request):
     db.execute(
         "INSERT INTO lti_states (state, nonce, issuer, client_id, created_at) "
         "VALUES (?, ?, ?, ?, ?)",
-        (state, nonce, iss, client_id, __import__("datetime").datetime.utcnow().isoformat()),
+        (state, nonce, iss, client_id, __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()),
     )
 
     # Determine platform auth endpoint
     platform = db.fetch_one(
         "SELECT auth_endpoint FROM lti_platforms WHERE issuer = ?", (iss,)
     )
-    auth_url = platform["auth_endpoint"] if platform else f"{iss}/api/lti/authorize_redirect"
+    if not platform:
+        raise HTTPException(status_code=400, detail="Unknown LTI platform issuer")
+    auth_url = platform["auth_endpoint"]
 
-    redirect_url = (
-        f"{auth_url}?"
-        f"scope=openid&response_type=id_token&response_mode=form_post"
-        f"&prompt=none&client_id={client_id}"
-        f"&redirect_uri={target_link_uri}"
-        f"&login_hint={login_hint}"
-        f"&state={state}&nonce={nonce}"
-        f"&lti_message_hint={lti_message_hint}"
-    )
+    from urllib.parse import urlencode, quote
+    query_params = urlencode({
+        "scope": "openid",
+        "response_type": "id_token",
+        "response_mode": "form_post",
+        "prompt": "none",
+        "client_id": client_id,
+        "redirect_uri": target_link_uri,
+        "login_hint": login_hint,
+        "state": state,
+        "nonce": nonce,
+        "lti_message_hint": lti_message_hint,
+    }, quote_via=quote)
+    redirect_url = f"{auth_url}?{query_params}"
 
     from fastapi.responses import RedirectResponse
     return RedirectResponse(redirect_url, status_code=302)
@@ -156,21 +163,97 @@ async def lti_launch(request: Request):
 
     if not id_token_str:
         raise HTTPException(status_code=400, detail="Missing id_token")
+    if not state:
+        raise HTTPException(status_code=400, detail="Missing state parameter")
 
-    # In production: validate JWT signature against platform JWKS
-    # For now, decode without verification for the payload
+    # Validate state against stored lti_states (CSRF protection)
+    db = get_db()
+    state_row = db.fetch_one(
+        "SELECT nonce, created_at FROM lti_states WHERE state = ?", (state,)
+    )
+    if not state_row:
+        raise HTTPException(status_code=403, detail="Invalid or expired LTI state")
+    expected_nonce = state_row["nonce"]
+    # Delete the used state so it can't be replayed
+    db.execute("DELETE FROM lti_states WHERE state = ?", (state,))
+    # Clean up expired states older than 1 hour
+    db.execute(
+        "DELETE FROM lti_states WHERE created_at < ?",
+        ((__import__("datetime").datetime.now(__import__("datetime").timezone.utc) - __import__("datetime").timedelta(hours=1)).isoformat(),),
+    )
+
+    # Decode JWT header to extract issuer for platform lookup
     import base64
     try:
         parts = id_token_str.split(".")
+        if len(parts) != 3:
+            raise ValueError("Invalid JWT structure")
         payload_b64 = parts[1] + "=" * (4 - len(parts[1]) % 4)
-        claims = json.loads(base64.urlsafe_b64decode(payload_b64))
+        unverified_claims = json.loads(base64.urlsafe_b64decode(payload_b64))
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid id_token")
+
+    # Validate JWT signature against platform JWKS when available
+    issuer = unverified_claims.get("iss", "")
+    claims = unverified_claims  # fallback if no platform registered
+
+    platform = db.fetch_one(
+        "SELECT jwks_uri, client_id FROM lti_platforms WHERE issuer = ?",
+        (issuer,),
+    )
+    if platform and platform.get("jwks_uri"):
+        import jwt
+        import httpx
+
+        try:
+            resp = httpx.get(platform["jwks_uri"], timeout=10)
+            resp.raise_for_status()
+            jwks = resp.json()
+            public_keys = {}
+            for jwk in jwks.get("keys", []):
+                kid = jwk.get("kid")
+                if kid:
+                    public_keys[kid] = jwt.algorithms.RSAAlgorithm.from_jwk(jwk)
+
+            header_b64 = parts[0] + "=" * (4 - len(parts[0]) % 4)
+            header = json.loads(base64.urlsafe_b64decode(header_b64))
+            kid = header.get("kid")
+            if kid not in public_keys:
+                raise HTTPException(status_code=400, detail="Unknown signing key")
+
+            claims = jwt.decode(
+                id_token_str,
+                key=public_keys[kid],
+                algorithms=["RS256"],
+                audience=platform["client_id"],
+                issuer=issuer,
+            )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.warning("lti_jwt_verify_failed", error=str(exc)[:200])
+            raise HTTPException(status_code=400, detail="JWT signature verification failed")
+    else:
+        logger.warning("lti_no_jwks", issuer=issuer,
+                       detail="No JWKS URI registered — rejecting unverified token")
+        raise HTTPException(status_code=400, detail="Platform JWKS not registered — cannot verify token")
+
+    # Validate JWT nonce matches the one stored with the state (replay protection)
+    jwt_nonce = claims.get("nonce", "")
+    if not jwt_nonce or jwt_nonce != expected_nonce:
+        raise HTTPException(status_code=403, detail="Invalid or replayed nonce")
 
     user_name = claims.get("name", "Student")
     user_email = claims.get("email", "")
     course = claims.get("https://purl.imsglobal.org/spec/lti/claim/context", {}).get("title", "Course")
     resource = claims.get("https://purl.imsglobal.org/spec/lti/claim/resource_link", {}).get("title", "Assignment")
+
+    # Sanitize for safe HTML embedding
+    import html as _html
+    user_name = _html.escape(user_name)
+    user_email = _html.escape(user_email)
+    course = _html.escape(course)
+    resource = _html.escape(resource)
 
     # Render the in-LMS plagiarism checking interface
     return HTMLResponse(f"""
@@ -250,23 +333,45 @@ async def lti_launch(request: Request):
     """)
 
 
+# Simple IP-based rate limiter for unauthenticated LTI checks
+_lti_check_counts: dict[str, list[float]] = {}
+_LTI_CHECK_LIMIT = 10       # max checks per IP
+_LTI_CHECK_WINDOW = 3600    # per hour (seconds)
+_LTI_MAX_TEXT_LENGTH = 50000 # ~10K words
+
+
 @router.post("/check")
 async def lti_check(request: Request):
-    """Quick plagiarism check for LMS submissions (no auth required — launched from LTI)."""
+    """Quick plagiarism check for LMS submissions (launched from LTI)."""
+    # --- IP-based rate limiting ------------------------------------------------
+    import time as _time
+    client_ip = request.client.host if request.client else "unknown"
+    now = _time.time()
+    hits = _lti_check_counts.get(client_ip, [])
+    hits = [t for t in hits if now - t < _LTI_CHECK_WINDOW]
+    if len(hits) >= _LTI_CHECK_LIMIT:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded — max {_LTI_CHECK_LIMIT} checks per hour.",
+        )
+    hits.append(now)
+    _lti_check_counts[client_ip] = hits
+
     body = await request.json()
     text = body.get("text", "")
     if len(text) < 20:
         raise HTTPException(status_code=400, detail="Text too short")
+    if len(text) > _LTI_MAX_TEXT_LENGTH:
+        raise HTTPException(status_code=400, detail="Text too long (max 50 000 characters)")
 
     from app.services.orchestrator import run_pipeline
-    from app.models.schemas import AgentInput
-    from app.tools.chunker_tool import chunk_text
+    from app.tools.content_extractor_tool import chunk_text
 
-    chunks = chunk_text(text)
-    agent_input = AgentInput(document_id="lti-check", text=text, chunks=chunks)
+    chunks_result = chunk_text(text)
+    chunks = chunks_result["chunks"]
 
     try:
-        report = await run_pipeline(agent_input)
+        report = await run_pipeline(document_id="lti-check", text=text)
         return report.model_dump(mode="json")
     except Exception as exc:
         logger.error("lti_check_error", error=str(exc))

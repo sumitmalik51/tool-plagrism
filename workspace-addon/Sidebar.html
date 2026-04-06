@@ -221,6 +221,8 @@
       return score >= 60 ? "score-high" : score >= 30 ? "score-medium" : "score-low";
     }
 
+    function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
     // --- Scan Selected ---
     function scanSelected() {
       clearStatus();
@@ -342,7 +344,7 @@
       if (modelKeys.length > 0) {
         html += '<div style="padding-top:8px"><span class="metric-label">Suspected AI Models</span><div style="margin-top:4px">';
         modelKeys.forEach(function(m) {
-          html += '<span class="model-tag">' + m + ' (' + models[m] + ')</span>';
+          html += '<span class="model-tag">' + esc(m) + ' (' + esc(models[m]) + ')</span>';
         });
         html += '</div></div>';
       }
@@ -355,9 +357,9 @@
           html += '<div class="source-item">';
           var title = src.title || src.url || "Unknown";
           if (src.url) {
-            html += '<a href="' + src.url + '" target="_blank" class="source-title">' + title.substring(0, 50) + '</a>';
+            html += '<a href="' + encodeURI(src.url) + '" target="_blank" rel="noopener" class="source-title">' + esc(title.substring(0, 50)) + '</a>';
           } else {
-            html += '<span class="source-title">' + title.substring(0, 50) + '</span>';
+            html += '<span class="source-title">' + esc(title.substring(0, 50)) + '</span>';
           }
           html += '<div class="source-match">' + ((src.similarity || 0) * 100).toFixed(0) + '% match</div>';
           html += '</div>';
@@ -390,7 +392,7 @@
       if (modelKeys.length > 0) {
         html += '<div style="padding-top:8px"><span class="metric-label">Suspected Models</span><div style="margin-top:4px">';
         modelKeys.forEach(function(m) {
-          html += '<span class="model-tag">' + m + ' (' + models[m] + ')</span>';
+          html += '<span class="model-tag">' + esc(m) + ' (' + esc(models[m]) + ')</span>';
         });
         html += '</div></div>';
       }
@@ -408,12 +410,13 @@
 
       var text = result.rewritten_text || result.text || "";
       var html = '<h3>Humanized Text</h3>';
-      html += '<div class="humanized-text">' + text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>') + '</div>';
-      html += '<button class="btn btn-scan" style="font-size:12px;padding:8px" onclick="copyText(\'' + text.replace(/'/g, "\\'").replace(/\n/g, "\\n").substring(0, 3000) + '\')">📋 Copy to Clipboard</button>';
+      html += '<div class="humanized-text">' + esc(text).replace(/\n/g, '<br>') + '</div>';
+      html += '<button class="btn btn-scan" style="font-size:12px;padding:8px" id="copyHumanizedBtn">📋 Copy to Clipboard</button>';
 
       var el = document.getElementById("results");
       el.innerHTML = html;
       el.className = "results visible";
+      document.getElementById("copyHumanizedBtn").onclick = function() { copyText(text); };
       showStatus("Humanization complete!", "success");
     }
 

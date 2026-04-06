@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import secrets
+import socket
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, Header, HTTPException
@@ -20,13 +23,34 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
 
 
+def _is_private_url(url: str) -> bool:
+    """Check if a URL resolves to a private/internal/loopback IP address."""
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return True
+        # Resolve hostname to IP
+        addr_info = socket.getaddrinfo(hostname, parsed.port or 443, proto=socket.IPPROTO_TCP)
+        for family, _, _, _, sockaddr in addr_info:
+            ip = ipaddress.ip_address(sockaddr[0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return True
+    except (socket.gaierror, ValueError, OSError):
+        return True  # Reject if we can't resolve
+    return False
+
+
 def _get_user_id(authorization: str) -> int:
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header.")
     payload = verify_access_token(authorization[7:])
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token.")
-    return int(payload["sub"])
+    try:
+        return int(payload["sub"])
+    except (ValueError, KeyError, TypeError):
+        raise HTTPException(status_code=401, detail="Invalid token payload.")
 
 
 class CreateWebhookRequest(BaseModel):
@@ -38,6 +62,11 @@ class CreateWebhookRequest(BaseModel):
 async def route_create_webhook(body: CreateWebhookRequest, authorization: str = Header(default="")):
     """Register a webhook endpoint. URL must be HTTPS."""
     user_id = _get_user_id(authorization)
+
+    # Block SSRF: reject URLs that resolve to private/internal IPs
+    if _is_private_url(body.url):
+        raise HTTPException(status_code=400, detail="Webhook URL must not resolve to a private or internal address.")
+
     db = get_db()
 
     # Limit webhooks per user
@@ -105,6 +134,11 @@ async def fire_webhooks(user_id: int, event: str, payload: dict[str, Any]) -> No
         signature = hmac.new(sub["secret"].encode(), body_bytes, hashlib.sha256).hexdigest()
 
         try:
+            # Re-check at fire time to defend against DNS rebinding
+            if _is_private_url(sub["url"]):
+                logger.warning("webhook_blocked_private_ip", url=sub["url"])
+                continue
+
             async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.post(
                     sub["url"],

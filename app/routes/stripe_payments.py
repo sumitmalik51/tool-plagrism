@@ -155,8 +155,9 @@ async def create_checkout(request: Request):
             metadata={"pg_user_id": str(user_id)},
         )
         customer_id = customer.id
+        # Use WHERE stripe_customer_id IS NULL to prevent race conditions
         db.execute(
-            "UPDATE users SET stripe_customer_id = ? WHERE id = ?",
+            "UPDATE users SET stripe_customer_id = ? WHERE id = ? AND stripe_customer_id IS NULL",
             (customer_id, user_id),
         )
 
@@ -249,16 +250,28 @@ async def stripe_webhook(request: Request):
 
         if user_id:
             db.execute(
-                "UPDATE users SET plan = ?, stripe_customer_id = ? WHERE id = ?",
+                "UPDATE users SET plan_type = ?, stripe_customer_id = ? WHERE id = ?",
                 (tier, customer_id, int(user_id)),
             )
+            # Record the payment so _check_trial_expiry won't downgrade paying users
+            try:
+                amount = data.get("amount_total", 0)
+                currency = data.get("currency", "usd")
+                stripe_session_id = data.get("id", "")
+                db.execute(
+                    "INSERT INTO payments (user_id, razorpay_order_id, plan_name, amount, currency, status) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (int(user_id), stripe_session_id, tier, amount, currency, "paid"),
+                )
+            except Exception as pay_err:
+                logger.error("stripe_payment_record_failed", user_id=user_id, error=str(pay_err))
             logger.info("stripe_upgrade", user_id=user_id, tier=tier)
 
     elif event_type == "customer.subscription.deleted":
         customer_id = data.get("customer")
         if customer_id:
             db.execute(
-                "UPDATE users SET plan = 'free' WHERE stripe_customer_id = ?",
+                "UPDATE users SET plan_type = 'free' WHERE stripe_customer_id = ?",
                 (customer_id,),
             )
             logger.info("stripe_downgrade", customer_id=customer_id)

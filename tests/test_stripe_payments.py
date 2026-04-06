@@ -148,10 +148,12 @@ class TestStripeWebhook:
             assert resp.status_code == 200
             assert resp.json()["status"] == "ok"
 
-            # Verify DB update was called
-            mock_instance.execute.assert_called_once()
-            call_args = mock_instance.execute.call_args
-            assert "UPDATE users SET plan" in call_args[0][0]
+            # Verify DB was called (UPDATE users + INSERT payments)
+            assert mock_instance.execute.call_count == 2
+            update_call = mock_instance.execute.call_args_list[0]
+            assert "UPDATE users SET plan" in update_call[0][0]
+            insert_call = mock_instance.execute.call_args_list[1]
+            assert "INSERT INTO payments" in insert_call[0][0]
 
     @patch("app.routes.stripe_payments.get_db")
     @patch("app.routes.stripe_payments._get_stripe")

@@ -60,16 +60,22 @@ app = FastAPI(
     version=settings.app_version,
     description="AI-powered multi-agent plagiarism detection system",
     lifespan=lifespan,
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
+    openapi_url="/openapi.json" if settings.debug else None,
 )
 
 # --- CORS (needed for Foundry agents calling cross-origin) -------------------
 _allowed_origins = [
     "https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
 ]
 if settings.debug:
-    _allowed_origins.extend(["http://localhost:3000", "http://127.0.0.1:3000"])
+    _allowed_origins.extend([
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ])
 
 app.add_middleware(
     CORSMiddleware,
@@ -77,6 +83,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- GZip compression for API responses ---
+from starlette.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # --- Security middleware (outermost = runs last, innermost = runs first) ------
 app.add_middleware(SecurityHeadersMiddleware)
@@ -304,90 +314,22 @@ async def serve_sitemap() -> FileResponse:
 # --- Health check -------------------------------------------------------------
 @app.get("/health", tags=["system"])
 async def health_check() -> dict[str, Any]:
-    """Comprehensive health check — reports status of all services and endpoints."""
+    """Minimal health check for load balancers and uptime monitors."""
     start = time.time()
-    checks: dict[str, Any] = {}
-    overall = "healthy"
 
-    # 1. Database
+    # Quick database connectivity check
+    db_status = "connected"
     try:
         from app.services.database import get_db
         db = get_db()
         db.fetch_one("SELECT 1", ())
-        checks["database"] = {"status": "connected", "type": "Azure SQL" if settings.sql_connection_string else "SQLite"}
-    except Exception as e:
-        checks["database"] = {"status": "error", "error": str(e)[:120]}
-        overall = "degraded"
-
-    # 2. Embedding model
-    try:
-        from app.tools.embedding_tool import _load_model
-        model = _load_model()
-        if model is not None:
-            checks["embedding_model"] = {"status": "loaded", "model": settings.embedding_model}
-        else:
-            checks["embedding_model"] = {"status": "not_loaded", "model": settings.embedding_model}
-            overall = "degraded"
-    except Exception as e:
-        checks["embedding_model"] = {"status": "error", "error": str(e)[:120]}
-        overall = "degraded"
-
-    # 3. Azure OpenAI
-    if settings.azure_openai_endpoint and settings.azure_openai_api_key:
-        checks["azure_openai"] = {
-            "status": "configured",
-            "endpoint": settings.azure_openai_endpoint[:40] + "…" if len(settings.azure_openai_endpoint) > 40 else settings.azure_openai_endpoint,
-            "deployment": settings.azure_openai_deployment,
-        }
-    else:
-        checks["azure_openai"] = {"status": "not_configured"}
-        overall = "degraded"
-
-    # 4. Bing Search API (optional — DuckDuckGo fallback available)
-    if settings.bing_api_key:
-        checks["bing_search"] = {"status": "configured"}
-    else:
-        checks["bing_search"] = {"status": "not_configured"}
-
-    # 5. Razorpay (optional — payments)
-    if settings.razorpay_key_id and settings.razorpay_key_secret:
-        checks["razorpay"] = {"status": "configured", "key_prefix": settings.razorpay_key_id[:12] + "…"}
-    else:
-        checks["razorpay"] = {"status": "not_configured"}
-
-    # 6. Azure Communication Services (Email)
-    if settings.acs_connection_string:
-        checks["email_acs"] = {"status": "configured", "sender": settings.acs_sender_email}
-    else:
-        checks["email_acs"] = {"status": "not_configured"}
-
-    # 7. JWT Auth
-    if settings.jwt_secret:
-        checks["jwt_auth"] = {"status": "configured"}
-    else:
-        checks["jwt_auth"] = {"status": "using_default", "warning": "Set PG_JWT_SECRET in production"}
-
-    # 8. Collect all API endpoints
-    endpoints: list[dict[str, str]] = []
-    for route in app.routes:
-        if hasattr(route, "methods") and hasattr(route, "path"):
-            # Skip static/docs routes
-            if route.path.startswith("/static") or route.path in ("/openapi.json", "/docs", "/redoc"):
-                continue
-            methods = ",".join(sorted(route.methods - {"HEAD", "OPTIONS"})) if route.methods else ""
-            if methods:
-                endpoints.append({"method": methods, "path": route.path})
-
-    # Sort endpoints by path
-    endpoints.sort(key=lambda e: e["path"])
+    except Exception:
+        db_status = "error"
 
     elapsed_ms = round((time.time() - start) * 1000, 1)
 
     return {
-        "status": overall,
+        "status": "healthy" if db_status == "connected" else "degraded",
         "version": settings.app_version,
         "response_time_ms": elapsed_ms,
-        "services": checks,
-        "endpoints": endpoints,
-        "endpoint_count": len(endpoints),
     }

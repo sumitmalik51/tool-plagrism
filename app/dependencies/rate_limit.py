@@ -32,7 +32,9 @@ def _client_ip(request: Request) -> str:
     """Best-effort client IP (handles X-Forwarded-For behind proxies)."""
     forwarded = request.headers.get("X-Forwarded-For", "")
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        # Use rightmost IP (appended by trusted Azure App Service proxy)
+        parts = [p.strip() for p in forwarded.split(",") if p.strip()]
+        return parts[-1] if parts else (request.client.host if request.client else "unknown")
     return request.client.host if request.client else "unknown"
 
 

@@ -164,14 +164,15 @@ async def analyze_batch_endpoint(
     Returns a summary table with scores per document.
     """
     # --- Tier gate: require Pro or Premium ------------------------------------
-    from app.services.auth_service import get_user_by_id
-
     user_id: int | None = getattr(request.state, "user_id", None)
     tier = UserTier.ANONYMOUS
     if user_id:
-        user = get_user_by_id(user_id)
-        if user:
-            tier = PLAN_TO_TIER.get(user.get("plan_type", "free"), UserTier.FREE)
+        plan_type = getattr(request.state, "plan_type", None)
+        if not plan_type:
+            from app.services.auth_service import get_user_by_id
+            user = get_user_by_id(user_id)
+            plan_type = user.get("plan_type", "free") if user else "free"
+        tier = PLAN_TO_TIER.get(plan_type, UserTier.FREE)
 
     if tier not in (UserTier.PRO, UserTier.PREMIUM):
         raise HTTPException(
@@ -200,11 +201,11 @@ async def analyze_batch_endpoint(
     results: list[dict] = []
     errors: list[dict] = []
 
-    for file in files:
+    async def _process_file(file: UploadFile) -> dict | None:
+        """Process a single file, returning result dict or appending to errors."""
         if file.filename is None:
             errors.append({"filename": "unknown", "error": "Filename required"})
-            continue
-
+            return None
         try:
             file_bytes = await file.read()
             ingestion = await ingest_file(file.filename, file_bytes)
@@ -214,7 +215,12 @@ async def analyze_batch_endpoint(
                 text=ingestion["text"],
             )
 
-            results.append({
+            logger.info(
+                "batch_file_complete",
+                filename=file.filename,
+                score=report.plagiarism_score,
+            )
+            return {
                 "filename": file.filename,
                 "document_id": report.document_id,
                 "plagiarism_score": report.plagiarism_score,
@@ -222,14 +228,7 @@ async def analyze_batch_endpoint(
                 "risk_level": report.risk_level.value,
                 "flagged_count": len(report.flagged_passages),
                 "source_count": len(report.detected_sources),
-            })
-
-            logger.info(
-                "batch_file_complete",
-                filename=file.filename,
-                score=report.plagiarism_score,
-            )
-
+            }
         except Exception as exc:
             errors.append({
                 "filename": file.filename,
@@ -240,6 +239,17 @@ async def analyze_batch_endpoint(
                 filename=file.filename,
                 error=str(exc),
             )
+            return None
+
+    import asyncio
+    sem = asyncio.Semaphore(3)
+
+    async def _throttled(f):
+        async with sem:
+            return await _process_file(f)
+
+    outcomes = await asyncio.gather(*[_throttled(f) for f in files])
+    results = [r for r in outcomes if r is not None]
 
     return {
         "total_files": len(files),

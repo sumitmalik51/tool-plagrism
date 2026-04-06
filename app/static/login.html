@@ -208,8 +208,8 @@
       const input = $(inputId);
       const isPassword = input.type === 'password';
       input.type = isPassword ? 'text' : 'password';
-      btn.querySelector('.eye-open').classList.toggle('hidden', !isPassword);
-      btn.querySelector('.eye-closed').classList.toggle('hidden', isPassword);
+      btn.querySelector('.eye-open').classList.toggle('hidden', isPassword);
+      btn.querySelector('.eye-closed').classList.toggle('hidden', !isPassword);
     }
 
     async function handleLogin(e) {

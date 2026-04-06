@@ -241,10 +241,14 @@ class WebSearchAgent(BaseAgent):
         confidence = min(len(web_results) / 10, 1.0) * 0.6 + 0.2
 
         # --- 5b. N-gram fingerprint matching (catches exact copies) -----------
-        ref_full_texts = [
-            r.get("raw_full_text", "") for r in web_results
-            if r.get("raw_full_text")
-        ]
+        ref_full_texts = []
+        _ref_to_web_idx = []  # maps ref_full_texts index → web_results index
+        for i, r in enumerate(web_results):
+            ft = r.get("raw_full_text", "")
+            if ft:
+                ref_full_texts.append(ft)
+                _ref_to_web_idx.append(i)
+
         fp_result = fingerprint_match_score(
             cleaned_text, ref_full_texts, threshold=0.04,
         )
@@ -253,8 +257,9 @@ class WebSearchAgent(BaseAgent):
         # Boost flagged passages from fingerprint matches
         for fm in fp_result.get("matches", [])[:5]:
             ref_idx = fm["ref_index"]
-            if ref_idx < len(web_results):
-                src_url = web_results[ref_idx].get("url", "")
+            if ref_idx < len(_ref_to_web_idx):
+                orig_idx = _ref_to_web_idx[ref_idx]
+                src_url = web_results[orig_idx].get("url", "")
                 if src_url not in seen_sources:
                     flagged.append(FlaggedPassage(
                         text=f"[Exact-match fingerprint] Jaccard: {fm['jaccard']:.2%}",
@@ -263,7 +268,7 @@ class WebSearchAgent(BaseAgent):
                         reason=(
                             f"Exact text overlap detected via fingerprinting "
                             f"(Jaccard: {fm['jaccard']:.2%}) with: "
-                            f"{web_results[ref_idx].get('title', 'Unknown')}"
+                            f"{web_results[orig_idx].get('title', 'Unknown')}"
                         ),
                     ))
                     seen_sources.add(src_url)

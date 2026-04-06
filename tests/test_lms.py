@@ -54,7 +54,7 @@ class TestLTILogin:
     def test_login_get_redirects(self, mock_db) -> None:
         mock_instance = MagicMock()
         mock_instance.execute.return_value = None
-        mock_instance.fetch_one.return_value = None
+        mock_instance.fetch_one.return_value = {"auth_endpoint": "https://canvas.example.com/api/lti/authorize_redirect"}
         mock_db.return_value = mock_instance
 
         resp = client.get(
@@ -73,7 +73,7 @@ class TestLTILogin:
     def test_login_post_redirects(self, mock_db) -> None:
         mock_instance = MagicMock()
         mock_instance.execute.return_value = None
-        mock_instance.fetch_one.return_value = None
+        mock_instance.fetch_one.return_value = {"auth_endpoint": "https://canvas.example.com/api/lti/authorize_redirect"}
         mock_db.return_value = mock_instance
 
         resp = client.post(
@@ -99,34 +99,69 @@ class TestLTILaunch:
         assert resp.status_code == 400
 
     def test_launch_invalid_id_token_returns_400(self) -> None:
-        resp = client.post(
-            f"{LTI_PREFIX}/launch",
-            data={"id_token": "not.a.jwt", "state": "abc"},
-        )
-        assert resp.status_code == 400
+        with patch("app.routes.lms.get_db") as mock_db:
+            mock_instance = MagicMock()
+            mock_instance.fetch_one.return_value = {"nonce": "test-nonce", "created_at": "2025-01-01T00:00:00"}
+            mock_instance.execute.return_value = None
+            mock_db.return_value = mock_instance
+
+            resp = client.post(
+                f"{LTI_PREFIX}/launch",
+                data={"id_token": "not.a.jwt", "state": "abc"},
+            )
+            assert resp.status_code == 400
 
     def test_launch_valid_token_renders_html(self) -> None:
-        """Simulate a valid (unverified) JWT payload."""
+        """Simulate a valid JWT payload with JWKS verification."""
         import base64
         import json
 
-        header = base64.urlsafe_b64encode(json.dumps({"alg": "RS256"}).encode()).decode().rstrip("=")
-        payload = base64.urlsafe_b64encode(json.dumps({
+        # Build a mock JWT
+        header = base64.urlsafe_b64encode(json.dumps({"alg": "RS256", "kid": "test-kid"}).encode()).decode().rstrip("=")
+        payload_data = {
+            "iss": "https://canvas.example.com",
+            "aud": "test-client-id",
             "name": "Test Student",
             "email": "student@example.com",
+            "nonce": "test-nonce",
             "https://purl.imsglobal.org/spec/lti/claim/context": {"title": "Test Course"},
             "https://purl.imsglobal.org/spec/lti/claim/resource_link": {"title": "Test Assignment"},
-        }).encode()).decode().rstrip("=")
+        }
+        payload = base64.urlsafe_b64encode(json.dumps(payload_data).encode()).decode().rstrip("=")
         sig = base64.urlsafe_b64encode(b"fakesig").decode().rstrip("=")
-
         token = f"{header}.{payload}.{sig}"
-        resp = client.post(
-            f"{LTI_PREFIX}/launch",
-            data={"id_token": token, "state": "test-state"},
-        )
-        assert resp.status_code == 200
-        assert "PlagiarismGuard" in resp.text
-        assert "Test Student" in resp.text
+
+        with patch("app.routes.lms.get_db") as mock_db:
+            mock_instance = MagicMock()
+            # fetch_one calls: (1) state lookup, (2) platform lookup with JWKS
+            mock_instance.fetch_one.side_effect = [
+                {"nonce": "test-nonce", "created_at": "2025-01-01T00:00:00"},
+                {"jwks_uri": "https://canvas.example.com/jwks", "client_id": "test-client-id"},
+            ]
+            mock_instance.execute.return_value = None
+            mock_db.return_value = mock_instance
+
+            # Mock the JWKS fetch and JWT decode
+            with patch("httpx.get") as mock_httpx, \
+                 patch("jwt.decode", return_value=payload_data) as mock_jwt_decode:
+                mock_resp = MagicMock()
+                mock_resp.status_code = 200
+                mock_resp.json.return_value = {"keys": [{"kid": "test-kid", "kty": "RSA"}]}
+                mock_resp.raise_for_status.return_value = None
+                mock_httpx.return_value = mock_resp
+
+                # Patch RSAAlgorithm within the lms module's jwt import
+                import jwt as jwt_mod
+                with patch.object(jwt_mod.algorithms, "RSAAlgorithm", create=True) as mock_rsa:
+                    mock_rsa.from_jwk = MagicMock(return_value="mock-key")
+
+                    resp = client.post(
+                        f"{LTI_PREFIX}/launch",
+                        data={"id_token": token, "state": "test-state"},
+                    )
+                    assert resp.status_code == 200
+                    assert "PlagiarismGuard" in resp.text
+                    assert "Test Student" in resp.text
 
 
 # ---------------------------------------------------------------------------

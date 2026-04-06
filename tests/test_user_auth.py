@@ -55,7 +55,7 @@ class TestSignup:
             signup("Bob", "alice@example.com", "otherpass")
 
     def test_signup_short_password(self):
-        with pytest.raises(AuthError, match="at least 6"):
+        with pytest.raises(AuthError, match="at least 8"):
             signup("Alice", "alice@example.com", "ab")
 
     def test_signup_invalid_email(self):

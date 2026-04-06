@@ -80,7 +80,7 @@ class UsageRateLimiter:
     # In-memory cache: (identifier, today_str) → (count, expires_at_timestamp)
     _cache: dict[tuple[str, str], tuple[int, float]] = {}
     _cache_lock = threading.Lock()
-    _cache_ttl_seconds = 60  # Cache expires after 1 minute
+    _cache_ttl_seconds = 30  # Cache expires after 30 seconds
 
     # ------------------------------------------------------------------
     # Core operations

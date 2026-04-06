@@ -233,6 +233,8 @@
       });
     }
 
+    function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
     function showScanResult(data) {
       const score = data.plagiarism_score || 0;
       const risk = data.risk_level || 'LOW';
@@ -252,7 +254,7 @@
       if (passages.length) {
         html += '<div class="label" style="margin-top: 8px">Flagged Passages</div>';
         passages.forEach(p => {
-          html += `<div class="passage">"${(p.text || '').slice(0, 150)}..."${p.source ? `<div class="passage-source">${p.source}</div>` : ''}</div>`;
+          html += `<div class="passage">"${esc((p.text || '').slice(0, 150))}..."${p.source ? `<div class="passage-source">${esc(p.source)}</div>` : ''}</div>`;
         });
       }
       document.getElementById('scanResult').innerHTML = html;
@@ -276,7 +278,7 @@
       if (Object.keys(models).length) {
         html += '<div class="label" style="margin-top: 8px">Model Attribution</div><div class="result-card">';
         Object.entries(models).sort((a,b) => b[1] - a[1]).forEach(([model, score]) => {
-          html += `<div style="display:flex;justify-content:space-between;margin:3px 0"><span>${model}</span><span style="color:#6366f1">${(score * 100).toFixed(0)}%</span></div>`;
+          html += `<div style="display:flex;justify-content:space-between;margin:3px 0"><span>${esc(model)}</span><span style="color:#6366f1">${(score * 100).toFixed(0)}%</span></div>`;
         });
         html += '</div>';
       }

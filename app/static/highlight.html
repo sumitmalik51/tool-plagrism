@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Highlight View — PlagiarismGuard</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="/static/js/common.js"></script>
-  <script src="/static/js/auth.js"></script>
+  <script src="/static/js/common.js" defer></script>
+  <script src="/static/js/auth.js" defer></script>
   <link rel="stylesheet" href="/static/css/theme.css" />
   <style>
     .highlight-high { background: rgba(239, 68, 68, 0.25); border-bottom: 2px solid #EF4444; cursor: pointer; }
@@ -151,8 +151,8 @@
             <span class="text-xs font-bold text-primary">#${i + 1}</span>
             <span class="text-xs ${s.similarity > 0.7 ? 'text-red-400' : s.similarity > 0.4 ? 'text-yellow-400' : 'text-green-400'} font-mono">${(s.similarity * 100).toFixed(0)}%</span>
           </div>
-          <div class="text-xs font-medium truncate">${s.title || 'Unknown Source'}</div>
-          <div class="text-xs text-txt/40 truncate">${s.url || ''}</div>
+          <div class="text-xs font-medium truncate">${escHtml(s.title || 'Unknown Source')}</div>
+          <div class="text-xs text-txt/40 truncate">${escHtml(s.url || '')}</div>
           <div class="text-xs text-txt/50 mt-1">${s.text_blocks || 0} passages · ${s.matched_words || 0} words</div>
         </div>
       `).join('');
@@ -171,7 +171,7 @@
 
       const matchedPassages = (source.matched_passages || []).slice(0, 10);
       document.getElementById('detailPassages').innerHTML = matchedPassages.length
-        ? matchedPassages.map(p => `<div class="bg-border/10 rounded p-2 text-txt/70">"${(p.text || '').slice(0, 200)}..."</div>`).join('')
+        ? matchedPassages.map(p => `<div class="bg-border/10 rounded p-2 text-txt/70">"${escHtml((p.text || '').slice(0, 200))}..."</div>`).join('')
         : '<p class="text-txt/40">No passage details available.</p>';
 
       // Highlight active source card

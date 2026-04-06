@@ -29,7 +29,10 @@ def _get_user_id(authorization: str) -> int:
     payload = verify_access_token(authorization[7:])
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token.")
-    return int(payload["sub"])
+    try:
+        return int(payload["sub"])
+    except (ValueError, KeyError, TypeError):
+        raise HTTPException(status_code=401, detail="Invalid token payload.")
 
 
 class CreateTeamRequest(BaseModel):

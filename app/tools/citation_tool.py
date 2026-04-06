@@ -228,6 +228,9 @@ def generate_citations_from_sources(
                 year = int(year_match.group())
                 break
 
+        # Try to extract authors from source
+        authors = src.get("authors") or None
+
         publisher = None
         if url:
             domain = _domain(url)
@@ -238,6 +241,7 @@ def generate_citations_from_sources(
             style,
             title=title,
             url=url,
+            authors=authors,
             year=year,
             publisher=publisher,
             ref_number=idx,

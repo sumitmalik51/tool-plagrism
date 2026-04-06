@@ -10,7 +10,7 @@ import json
 from typing import Any
 
 from app.config import settings
-from app.services.database import get_db
+from app.services.database import get_db, SQLiteDatabase
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -174,12 +174,12 @@ def get_user_scans(
     # Apply OFFSET/LIMIT via SQL for proper pagination
     limit = min(max(limit, 1), 100)
     offset = max(offset, 0)
-    if settings.sql_connection_string:
-        # MSSQL syntax
-        query += f" OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY"
-    else:
+    if isinstance(db, SQLiteDatabase):
         # SQLite syntax
         query += f" LIMIT {limit} OFFSET {offset}"
+    else:
+        # MSSQL syntax
+        query += f" OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY"
 
     return db.fetch_all(query, tuple(params))
 

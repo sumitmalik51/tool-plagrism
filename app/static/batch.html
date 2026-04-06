@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Batch Upload — PlagiarismGuard</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="/static/js/common.js"></script>
-  <script src="/static/js/auth.js"></script>
+  <script src="/static/js/common.js" defer></script>
+  <script src="/static/js/auth.js" defer></script>
   <link rel="stylesheet" href="/static/css/theme.css" />
 </head>
 <body class="bg-bg text-txt min-h-screen">
@@ -106,7 +106,7 @@
           <div class="flex items-center gap-3">
             <span class="text-lg">${f.name.endsWith('.pdf') ? '📄' : f.name.endsWith('.docx') ? '📝' : f.name.endsWith('.pptx') ? '📊' : '📃'}</span>
             <div>
-              <div class="text-sm font-medium">${f.name}</div>
+              <div class="text-sm font-medium">${esc(f.name)}</div>
               <div class="text-xs text-txt/40">${(f.size / 1024).toFixed(1)} KB</div>
             </div>
           </div>
@@ -139,7 +139,7 @@
         const data = await resp.json();
 
         if (!resp.ok) {
-          resultsGrid.innerHTML = `<div class="col-span-2 bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400">${data.detail || 'Batch analysis failed'}</div>`;
+          resultsGrid.innerHTML = `<div class="col-span-2 bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400">${esc(data.detail || 'Batch analysis failed')}</div>`;
           return;
         }
 
@@ -151,14 +151,14 @@
           resultsGrid.innerHTML += `
             <div class="bg-card border border-border/30 rounded-xl p-4 ${isError ? 'border-red-500/30' : ''}">
               <div class="flex items-center justify-between mb-3">
-                <h4 class="font-medium text-sm truncate">${r.filename || 'Unknown'}</h4>
+                <h4 class="font-medium text-sm truncate">${esc(r.filename || 'Unknown')}</h4>
                 ${isError ? '<span class="text-xs text-red-400">Error</span>' :
                   `<span class="px-2 py-0.5 rounded-full text-xs font-bold ${
                     r.risk_level === 'HIGH' ? 'bg-red-500/20 text-red-400' :
                     r.risk_level === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' :
                     'bg-green-500/20 text-green-400'}">${r.risk_level}</span>`}
               </div>
-              ${isError ? `<p class="text-sm text-red-300">${r.error}</p>` : `
+              ${isError ? `<p class="text-sm text-red-300">${esc(r.error)}</p>` : `
                 <div class="flex items-center gap-4 text-sm text-txt/60">
                   <div>Score: <span class="font-bold text-txt">${r.plagiarism_score?.toFixed(1)}%</span></div>
                   <div>Sources: <span class="font-bold text-txt">${r.sources_count || 0}</span></div>
@@ -173,7 +173,7 @@
           `;
         });
       } catch (e) {
-        resultsGrid.innerHTML = `<div class="col-span-2 text-red-400">Error: ${e.message}</div>`;
+        resultsGrid.innerHTML = `<div class="col-span-2 text-red-400">Error: ${esc(e.message)}</div>`;
       } finally {
         btnAnalyze.disabled = false;
         btnAnalyze.textContent = 'Analyze All Files';

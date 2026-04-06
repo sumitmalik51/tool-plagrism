@@ -117,6 +117,11 @@ async def run_pipeline(
         ref_section_removed=citation_meta["reference_section_removed"],
     )
 
+    # Guard: if stripping removed all meaningful content, use original text
+    if len(scan_text.strip()) < 50:
+        logger.warning("citation_strip_empty", document_id=document_id)
+        scan_text = text
+
     # --- 1. Chunk the text (via content_extractor_tool) -----------------------
     tracker.emit("chunking", "Splitting document into chunks...", 15)
     chunk_result = chunk_text(scan_text, chunk_size=settings.chunk_size, overlap=settings.chunk_overlap)

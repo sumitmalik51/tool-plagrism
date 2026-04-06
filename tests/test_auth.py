@@ -108,14 +108,27 @@ class TestAuthEnabled:
             assert resp.status_code == 200
 
     def test_api_allowed_easy_auth(self) -> None:
-        """Azure Easy Auth header should bypass API key check."""
+        """Azure Easy Auth headers (principal + IDP) should bypass API key check."""
+        with _override_api_keys([self.API_KEY]):
+            resp = _client.post(
+                _PROTECTED_ENDPOINT,
+                json=_PROTECTED_PAYLOAD,
+                headers={
+                    "X-MS-CLIENT-PRINCIPAL": "eyJhbGciOi...dummytoken",
+                    "X-MS-CLIENT-PRINCIPAL-IDP": "aad",
+                },
+            )
+            assert resp.status_code == 200
+
+    def test_easy_auth_without_idp_rejected(self) -> None:
+        """X-MS-CLIENT-PRINCIPAL alone (no IDP header) should NOT bypass auth."""
         with _override_api_keys([self.API_KEY]):
             resp = _client.post(
                 _PROTECTED_ENDPOINT,
                 json=_PROTECTED_PAYLOAD,
                 headers={"X-MS-CLIENT-PRINCIPAL": "eyJhbGciOi...dummytoken"},
             )
-            assert resp.status_code == 200
+            assert resp.status_code == 401
 
     def test_multiple_keys_supported(self) -> None:
         """Multiple comma-separated keys should all work."""

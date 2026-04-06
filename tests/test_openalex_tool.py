@@ -82,8 +82,8 @@ def test_parse_work_minimal() -> None:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-@patch("app.tools.openalex_tool.httpx.AsyncClient")
-async def test_search_openalex_success(mock_client_cls: AsyncMock) -> None:
+@patch("app.tools.openalex_tool._get_openalex_client")
+async def test_search_openalex_success(mock_get_client: MagicMock) -> None:
     """Successful OpenAlex API call should return parsed results."""
     from unittest.mock import MagicMock
 
@@ -108,9 +108,7 @@ async def test_search_openalex_success(mock_client_cls: AsyncMock) -> None:
 
     mock_client = AsyncMock()
     mock_client.get.return_value = mock_resp
-    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client.__aexit__ = AsyncMock(return_value=False)
-    mock_client_cls.return_value = mock_client
+    mock_get_client.return_value = mock_client
 
     result = await search_openalex("test query", max_results=5)
 
@@ -120,8 +118,8 @@ async def test_search_openalex_success(mock_client_cls: AsyncMock) -> None:
 
 
 @pytest.mark.asyncio
-@patch("app.tools.openalex_tool.httpx.AsyncClient")
-async def test_search_openalex_http_error(mock_client_cls: AsyncMock) -> None:
+@patch("app.tools.openalex_tool._get_openalex_client")
+async def test_search_openalex_http_error(mock_get_client: MagicMock) -> None:
     """HTTP errors should log and return empty results."""
     import httpx
     from unittest.mock import MagicMock
@@ -136,9 +134,7 @@ async def test_search_openalex_http_error(mock_client_cls: AsyncMock) -> None:
 
     mock_client = AsyncMock()
     mock_client.get.return_value = mock_resp
-    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client.__aexit__ = AsyncMock(return_value=False)
-    mock_client_cls.return_value = mock_client
+    mock_get_client.return_value = mock_client
 
     result = await search_openalex("test query")
     assert result["result_count"] == 0

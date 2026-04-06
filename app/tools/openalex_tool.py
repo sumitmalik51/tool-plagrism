@@ -26,6 +26,15 @@ _OPENALEX_WORKS_URL = "https://api.openalex.org/works"
 # Polite-pool email — gets higher rate limits from OpenAlex
 _CONTACT_EMAIL = "plagiarismguard@example.com"
 
+_openalex_client: httpx.AsyncClient | None = None
+
+
+def _get_openalex_client() -> httpx.AsyncClient:
+    global _openalex_client
+    if _openalex_client is None or _openalex_client.is_closed:
+        _openalex_client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
+    return _openalex_client
+
 
 def _uninvert_abstract(inverted_index: dict[str, list[int]] | None) -> str:
     """Convert OpenAlex inverted abstract index to plain text.
@@ -121,25 +130,23 @@ async def _fetch_openalex(
     }
 
     try:
-        async with httpx.AsyncClient(
-            timeout=30.0, follow_redirects=True
-        ) as client:
-            resp = await client.get(_OPENALEX_WORKS_URL, params=params)
-            resp.raise_for_status()
+        client = _get_openalex_client()
+        resp = await client.get(_OPENALEX_WORKS_URL, params=params)
+        resp.raise_for_status()
 
-            data = resp.json()
-            works = data.get("results") or []
+        data = resp.json()
+        works = data.get("results") or []
 
-            parsed = [_parse_work(w) for w in works if w.get("title")]
+        parsed = [_parse_work(w) for w in works if w.get("title")]
 
-            logger.info(
-                "openalex_fetch_ok",
-                query=query[:80],
-                status_code=resp.status_code,
-                results_parsed=len(parsed),
-                total_available=data.get("meta", {}).get("count", 0),
-            )
-            return parsed[:max_results]
+        logger.info(
+            "openalex_fetch_ok",
+            query=query[:80],
+            status_code=resp.status_code,
+            results_parsed=len(parsed),
+            total_available=data.get("meta", {}).get("count", 0),
+        )
+        return parsed[:max_results]
 
     except httpx.HTTPStatusError as exc:
         logger.warning(

@@ -32,14 +32,15 @@ logger = get_logger(__name__)
 # Paths that never require authentication
 _PUBLIC_PATHS: set[str] = {
     "/health",
-    "/docs",
-    "/redoc",
-    "/openapi.json",
     "/openai-foundry.json",
     "/",
     "/login",
     "/signup",
 }
+
+# Only expose API docs when in debug mode
+if settings.debug:
+    _PUBLIC_PATHS.update({"/docs", "/redoc", "/openapi.json"})
 
 # Path prefixes that never require authentication
 _PUBLIC_PREFIXES: tuple[str, ...] = (
@@ -108,12 +109,30 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 # Stash user info on request state for downstream use
                 request.state.user_id = int(payload["sub"])
                 request.state.user_email = payload.get("email", "")
+                # Use plan_type from JWT if present; otherwise fall back to DB
+                if "plan_type" in payload:
+                    request.state.plan_type = payload["plan_type"]
+                else:
+                    try:
+                        import asyncio
+                        from app.services.auth_service import get_user_by_id
+                        loop = asyncio.get_running_loop()
+                        user = await loop.run_in_executor(
+                            None, get_user_by_id, int(payload["sub"])
+                        )
+                        if user:
+                            request.state.plan_type = user.get("plan_type", "free")
+                    except Exception:
+                        pass
                 return await call_next(request)
             # Invalid/expired token — fall through to other checks
 
         # 4. Azure Easy Auth — App Service injects this header for
-        #    authenticated browser users
-        if request.headers.get("X-MS-CLIENT-PRINCIPAL"):
+        #    authenticated browser users. Only trust if the IDP header is
+        #    also present (both are set by the App Service proxy and stripped
+        #    from external requests).
+        if (request.headers.get("X-MS-CLIENT-PRINCIPAL")
+                and request.headers.get("X-MS-CLIENT-PRINCIPAL-IDP")):
             return await call_next(request)
 
         # 5. API Key check (static admin keys from env)
@@ -200,8 +219,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
 
         # Content Security Policy
-        # NOTE: 'unsafe-inline' required for Tailwind CDN + inline <script> blocks.
-        # When migrating to build-time Tailwind, replace with nonce-based CSP.
+        # NOTE: 'unsafe-inline' is required while we use Tailwind CDN + inline
+        # <script> blocks.  This is a known trade-off.
+        # TODO(prod): Migrate to build-time Tailwind CSS and replace
+        #   'unsafe-inline' with nonce-based CSP for full XSS protection.
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://checkout.razorpay.com https://cdn.jsdelivr.net; "

@@ -74,16 +74,14 @@ class TestWebSearchLocalisation:
         """When calling Bing with language='es', the mkt param should be es-ES."""
         with patch("app.tools.web_search_tool.settings") as mock_settings:
             mock_settings.bing_api_key = "test-key"
-            with patch("app.tools.web_search_tool.httpx.AsyncClient") as mock_client_cls:
+            with patch("app.tools.web_search_tool._get_bing_client") as mock_get_client:
                 mock_client = AsyncMock()
                 mock_resp = MagicMock()
                 mock_resp.status_code = 200
                 mock_resp.json.return_value = {"webPages": {"value": []}}
                 mock_resp.raise_for_status = MagicMock()
                 mock_client.get = AsyncMock(return_value=mock_resp)
-                mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-                mock_client.__aexit__ = AsyncMock(return_value=False)
-                mock_client_cls.return_value = mock_client
+                mock_get_client.return_value = mock_client
 
                 await _search_bing("consulta de búsqueda", 5, language="es")
 

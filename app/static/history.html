@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Scan History — PlagiarismGuard</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="/static/js/common.js"></script>
-  <script src="/static/js/auth.js"></script>
+  <script src="/static/js/common.js" defer></script>
+  <script src="/static/js/auth.js" defer></script>
   <link rel="stylesheet" href="/static/css/theme.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4" defer></script>
   <style>
     .risk-badge { @apply px-2 py-0.5 rounded-full text-xs font-bold uppercase; }
     .risk-LOW { @apply bg-green-500/20 text-green-400; }
@@ -28,7 +28,7 @@
       <div class="flex items-center gap-3">
         <a href="/app" class="text-sm text-txt/60 hover:text-primary">Dashboard</a>
         <a href="/app#history" class="text-sm text-primary font-medium">History</a>
-        <button onclick="themeToggle()" class="p-2 rounded-lg hover:bg-border/30">🌓</button>
+        <button onclick="toggleTheme()" class="p-2 rounded-lg hover:bg-border/30">🌓</button>
       </div>
     </div>
   </nav>
@@ -132,6 +132,7 @@
     async function loadCharts() {
       try {
         const r = await fetch(`${API}/scans/chart-data`, { headers: hdr() });
+        if (!r.ok) { console.error('Chart data fetch failed:', r.status); return; }
         const data = await r.json();
 
         // Score Trend
@@ -213,10 +214,10 @@
       }
 
       tbody.innerHTML = scans.map(s => `
-        <tr class="hover:bg-border/10 transition-colors cursor-pointer" onclick="viewScan('${s.document_id}')">
+        <tr class="hover:bg-border/10 transition-colors cursor-pointer" onclick="viewScan('${encodeURIComponent(s.document_id)}')">
           <td class="px-4 py-3">
-            <div class="font-medium">${s.filename || s.document_id.slice(0,12)+'...'}</div>
-            <div class="text-xs text-txt/40">${s.document_id.slice(0,16)}...</div>
+            <div class="font-medium">${esc(s.filename || s.document_id.slice(0,12)+'...')}</div>
+            <div class="text-xs text-txt/40">${esc(s.document_id.slice(0,16))}...</div>
           </td>
           <td class="px-4 py-3">
             <div class="flex items-center gap-2">
@@ -227,11 +228,11 @@
               <span class="text-sm font-mono">${s.plagiarism_score.toFixed(1)}%</span>
             </div>
           </td>
-          <td class="px-4 py-3"><span class="risk-badge risk-${s.risk_level}">${s.risk_level}</span></td>
+          <td class="px-4 py-3"><span class="risk-badge risk-${esc(s.risk_level)}">${esc(s.risk_level)}</span></td>
           <td class="px-4 py-3 text-txt/60">${s.sources_count || 0}</td>
           <td class="px-4 py-3 text-txt/50 text-xs">${new Date(s.created_at).toLocaleString()}</td>
           <td class="px-4 py-3">
-            <button onclick="event.stopPropagation(); viewScan('${s.document_id}')" class="text-primary text-xs hover:underline">View</button>
+            <button onclick="event.stopPropagation(); viewScan('${encodeURIComponent(s.document_id)}')" class="text-primary text-xs hover:underline">View</button>
           </td>
         </tr>
       `).join('');
@@ -244,11 +245,14 @@
     function viewScan(docId) { window.location.href = `/app?scan=${docId}`; }
 
     document.getElementById('btnExportCSV').onclick = async () => {
-      const r = await fetch(`${API}/scans/export-csv`, { headers: hdr() });
-      const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'plagiarismguard-scans.csv'; a.click();
-      URL.revokeObjectURL(url);
+      try {
+        const r = await fetch(`${API}/scans/export-csv`, { headers: hdr() });
+        if (!r.ok) { alert('CSV export failed. Please try again.'); return; }
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'plagiarismguard-scans.csv'; a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) { alert('CSV export failed: ' + e.message); }
     };
 
     document.getElementById('btnPrev').onclick = () => { if (currentPage > 0) { currentPage--; loadScans(); } };

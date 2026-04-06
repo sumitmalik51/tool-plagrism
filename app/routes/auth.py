@@ -68,6 +68,9 @@ class _AuthRateLimiter:
         now = time.time()
         cutoff = now - self._WINDOW_SECONDS
         with self._lock:
+            # Lazy cleanup every 100 checks
+            if len(self._attempts) > 100:
+                self._cleanup_locked(cutoff)
             timestamps = self._attempts.get(ip, [])
             timestamps = [t for t in timestamps if t > cutoff]
             if len(timestamps) >= self._MAX_ATTEMPTS:
@@ -78,14 +81,18 @@ class _AuthRateLimiter:
             timestamps.append(now)
             self._attempts[ip] = timestamps
 
+    def _cleanup_locked(self, cutoff: float) -> None:
+        """Remove stale entries (must be called while holding self._lock)."""
+        stale = [k for k, v in self._attempts.items() if all(t <= cutoff for t in v)]
+        for k in stale:
+            del self._attempts[k]
+
     def cleanup(self) -> None:
         """Periodic cleanup of stale entries (called lazily)."""
         now = time.time()
         cutoff = now - self._WINDOW_SECONDS
         with self._lock:
-            stale = [k for k, v in self._attempts.items() if all(t <= cutoff for t in v)]
-            for k in stale:
-                del self._attempts[k]
+            self._cleanup_locked(cutoff)
 
 
 _auth_limiter = _AuthRateLimiter()
@@ -95,7 +102,9 @@ def _client_ip(request: Request) -> str:
     """Best-effort client IP (handles X-Forwarded-For behind proxies)."""
     forwarded = request.headers.get("X-Forwarded-For", "")
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        # Use rightmost IP (appended by trusted Azure App Service proxy)
+        parts = [p.strip() for p in forwarded.split(",") if p.strip()]
+        return parts[-1] if parts else (request.client.host if request.client else "unknown")
     return request.client.host if request.client else "unknown"
 
 
@@ -106,7 +115,7 @@ def _client_ip(request: Request) -> str:
 class SignupRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     email: str = Field(..., min_length=3, max_length=255)
-    password: str = Field(..., min_length=6, max_length=128)
+    password: str = Field(..., min_length=8, max_length=128)
     referral_code: str | None = Field(default=None, max_length=50)
 
 
@@ -121,7 +130,7 @@ class ForgotPasswordRequest(BaseModel):
 
 class ResetPasswordRequest(BaseModel):
     token: str = Field(..., min_length=1)
-    new_password: str = Field(..., min_length=6, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
 
 
 class RefreshTokenRequest(BaseModel):
@@ -191,7 +200,8 @@ async def route_refresh_token(body: RefreshTokenRequest):
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token.")
     user_id = int(payload["sub"])
     email = payload.get("email", "")
-    new_token = create_access_token(user_id, email)
+    plan_type = payload.get("plan_type", "free")
+    new_token = create_access_token(user_id, email, plan_type=plan_type)
     return {"token": new_token}
 
 
@@ -342,6 +352,91 @@ async def route_user_scans(
     return {"scans": scans}
 
 
+@router.get("/scans/export-csv")
+async def route_export_scans_csv(authorization: str = Header(default="")):
+    """Export all user scans as a CSV file download."""
+    from fastapi.responses import StreamingResponse
+    import csv
+    import io
+
+    user_id = _get_user_id(authorization)
+    scans = get_user_scans(user_id, limit=10000, offset=0)
+
+    output = io.StringIO()
+    writer = csv.writer(output, quoting=csv.QUOTE_ALL)
+    writer.writerow(["Document ID", "Filename", "Plagiarism Score", "Confidence",
+                     "Risk Level", "Sources", "Flagged Passages", "Date"])
+    for s in scans:
+        writer.writerow([
+            s.get("document_id", ""),
+            s.get("filename", ""),
+            s.get("plagiarism_score", 0),
+            s.get("confidence_score", 0),
+            s.get("risk_level", ""),
+            s.get("sources_count", 0),
+            s.get("flagged_count", 0),
+            s.get("created_at", ""),
+        ])
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=plagiarismguard-scans.csv"},
+    )
+
+
+@router.get("/scans/chart-data")
+async def route_scans_chart_data(authorization: str = Header(default="")):
+    """Return aggregated scan data for charts (score trends, risk distribution, daily counts)."""
+    user_id = _get_user_id(authorization)
+    from app.services.database import get_db
+    db = get_db()
+
+    # Score trend (last 30 scans)
+    _is_mssql_db = hasattr(db, "_connection_string")
+    if _is_mssql_db:
+        trend_rows = db.fetch_all(
+            "SELECT TOP 30 plagiarism_score, confidence_score, risk_level, created_at "
+            "FROM scans WHERE user_id = ? ORDER BY created_at DESC",
+            (user_id,),
+        )
+    else:
+        trend_rows = db.fetch_all(
+            "SELECT plagiarism_score, confidence_score, risk_level, created_at "
+            "FROM scans WHERE user_id = ? ORDER BY created_at DESC LIMIT 30",
+            (user_id,),
+        )
+    trend_rows = list(reversed(trend_rows))
+
+    # Risk distribution
+    risk_counts = {"LOW": 0, "MEDIUM": 0, "HIGH": 0}
+    for row in db.fetch_all("SELECT risk_level, COUNT(*) as cnt FROM scans WHERE user_id = ? GROUP BY risk_level", (user_id,)):
+        risk_counts[row["risk_level"]] = row["cnt"]
+
+    # Daily scan counts (last 30 days)
+    if _is_mssql_db:
+        daily = db.fetch_all(
+            "SELECT TOP 30 CAST(created_at AS DATE) as scan_date, COUNT(*) as cnt "
+            "FROM scans WHERE user_id = ? GROUP BY CAST(created_at AS DATE) "
+            "ORDER BY scan_date DESC",
+            (user_id,),
+        )
+    else:
+        daily = db.fetch_all(
+            "SELECT DATE(created_at) as scan_date, COUNT(*) as cnt "
+            "FROM scans WHERE user_id = ? GROUP BY DATE(created_at) "
+            "ORDER BY scan_date DESC LIMIT 30",
+            (user_id,),
+        )
+
+    return {
+        "score_trend": [{"score": r["plagiarism_score"], "confidence": r["confidence_score"],
+                         "risk": r["risk_level"], "date": str(r["created_at"])} for r in trend_rows],
+        "risk_distribution": risk_counts,
+        "daily_counts": [{"date": str(d["scan_date"]), "count": d["cnt"]} for d in reversed(list(daily))],
+    }
+
+
 @router.get("/scans/{document_id}")
 async def route_scan_detail(
     document_id: str,
@@ -374,75 +469,6 @@ async def route_user_stats(authorization: str = Header(default="")):
     """Return aggregate stats for the authenticated user's dashboard."""
     user_id = _get_user_id(authorization)
     return get_user_stats(user_id)
-
-
-@router.get("/scans/export-csv")
-async def route_export_scans_csv(authorization: str = Header(default="")):
-    """Export all user scans as a CSV file download."""
-    from fastapi.responses import StreamingResponse
-    import csv
-    import io
-
-    user_id = _get_user_id(authorization)
-    scans = get_user_scans(user_id, limit=10000, offset=0)
-
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["Document ID", "Filename", "Plagiarism Score", "Confidence",
-                     "Risk Level", "Sources", "Flagged Passages", "Date"])
-    for s in scans:
-        writer.writerow([
-            s.get("document_id", ""),
-            s.get("filename", ""),
-            s.get("plagiarism_score", 0),
-            s.get("confidence_score", 0),
-            s.get("risk_level", ""),
-            s.get("sources_count", 0),
-            s.get("flagged_count", 0),
-            s.get("created_at", ""),
-        ])
-    output.seek(0)
-    return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=plagiarismguard-scans.csv"},
-    )
-
-
-@router.get("/scans/chart-data")
-async def route_scans_chart_data(authorization: str = Header(default="")):
-    """Return aggregated scan data for charts (score trends, risk distribution, daily counts)."""
-    user_id = _get_user_id(authorization)
-    from app.services.database import get_db
-    db = get_db()
-
-    # Score trend (last 30 scans)
-    trend_rows = db.fetch_all(
-        "SELECT plagiarism_score, confidence_score, risk_level, created_at "
-        "FROM scans WHERE user_id = ? ORDER BY created_at DESC",
-        (user_id,),
-    )[:30]
-    trend_rows = list(reversed(trend_rows))
-
-    # Risk distribution
-    risk_counts = {"LOW": 0, "MEDIUM": 0, "HIGH": 0}
-    for row in db.fetch_all("SELECT risk_level, COUNT(*) as cnt FROM scans WHERE user_id = ? GROUP BY risk_level", (user_id,)):
-        risk_counts[row["risk_level"]] = row["cnt"]
-
-    # Daily scan counts (last 30 days)
-    daily = db.fetch_all(
-        "SELECT CAST(created_at AS DATE) as scan_date, COUNT(*) as cnt "
-        "FROM scans WHERE user_id = ? GROUP BY CAST(created_at AS DATE) "
-        "ORDER BY scan_date DESC",
-        (user_id,),
-    )[:30]
-
-    return {
-        "score_trend": [{"score": r["plagiarism_score"], "confidence": r["confidence_score"],
-                         "risk": r["risk_level"], "date": str(r["created_at"])} for r in trend_rows],
-        "risk_distribution": risk_counts,
-        "daily_counts": [{"date": str(d["scan_date"]), "count": d["cnt"]} for d in reversed(list(daily))],
-    }
 
 
 @router.get("/referral")
@@ -523,7 +549,7 @@ def _check_trial_emails(user: dict) -> None:
         db = get_db()
 
         # Ensure tracking table exists
-        _is_mssql = hasattr(db, "_conn_str")
+        _is_mssql = hasattr(db, "_connection_string")
         try:
             if _is_mssql:
                 db.execute(
@@ -870,7 +896,8 @@ async def route_razorpay_webhook(request: Request):
     raw_body = await request.body()
 
     # --- 2. Verify signature ------------------------------------------------
-    webhook_secret = settings.razorpay_webhook_secret or settings.razorpay_key_secret
+    webhook_secret = settings.razorpay_webhook_secret or settings.razorpay_key_secret or ""
+    webhook_secret = webhook_secret.strip()
     if not webhook_secret:
         logger.error("razorpay_webhook_secret_missing")
         raise HTTPException(status_code=503, detail="Webhook not configured.")
@@ -977,20 +1004,19 @@ async def route_create_checkout(
     }
 
 
-@router.get("/mock-upgrade")
-async def route_mock_upgrade(
-    plan: str = "pro",
-    authorization: str = Header(default=""),
-):
-    """Mock upgrade endpoint — immediately sets the user's plan (for testing only)."""
-    if not settings.debug:
-        raise HTTPException(status_code=404, detail="Not found")
-    user_id = _get_user_id(authorization)
-    try:
-        update_user_plan(user_id, plan)
-    except AuthError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    return {"success": True, "plan_type": plan, "message": f"Plan upgraded to {plan}."}
+if settings.debug:
+    @router.get("/mock-upgrade")
+    async def route_mock_upgrade(
+        plan: str = "pro",
+        authorization: str = Header(default=""),
+    ):
+        """Mock upgrade endpoint — immediately sets the user's plan (for testing only)."""
+        user_id = _get_user_id(authorization)
+        try:
+            update_user_plan(user_id, plan)
+        except AuthError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"success": True, "plan_type": plan, "message": f"Plan upgraded to {plan}."}
 
 
 class ChangePlanRequest(BaseModel):

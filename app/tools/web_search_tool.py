@@ -21,6 +21,15 @@ logger = get_logger(__name__)
 
 BING_SEARCH_URL = "https://api.bing.microsoft.com/v7.0/search"
 
+_bing_client: httpx.AsyncClient | None = None
+
+
+def _get_bing_client() -> httpx.AsyncClient:
+    global _bing_client
+    if _bing_client is None or _bing_client.is_closed:
+        _bing_client = httpx.AsyncClient(timeout=15.0)
+    return _bing_client
+
 # ISO language code → Bing market / DDG region
 _LANG_TO_MARKET: dict[str, str] = {
     "en": "en-US", "es": "es-ES", "fr": "fr-FR", "de": "de-DE",
@@ -51,13 +60,13 @@ async def _search_bing(query: str, count: int, language: str = "en") -> dict | N
     params = {"q": query, "count": min(count, 50), "mkt": mkt}
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.get(BING_SEARCH_URL, headers=headers, params=params)
-            if response.status_code == 401:
-                logger.warning("bing_api_key_unauthorized", hint="falling back to DuckDuckGo")
-                return None
-            response.raise_for_status()
-            data = response.json()
+        client = _get_bing_client()
+        response = await client.get(BING_SEARCH_URL, headers=headers, params=params)
+        if response.status_code == 401:
+            logger.warning("bing_api_key_unauthorized", hint="falling back to DuckDuckGo")
+            return None
+        response.raise_for_status()
+        data = response.json()
     except httpx.HTTPError as exc:
         logger.error("bing_search_http_error", error=str(exc))
         return None
@@ -83,7 +92,7 @@ def _search_ddg_sync(query: str, count: int, language: str = "en") -> list[dict]
         from ddgs import DDGS  # lazy import
 
         region = _LANG_TO_DDG_REGION.get(language, "us-en")
-        with DDGS() as ddgs:
+        with DDGS(timeout=20) as ddgs:
             for r in ddgs.text(query, region=region, max_results=count):
                 results.append({
                     "url": r.get("href", ""),
@@ -201,6 +210,7 @@ def _html_to_text(html: str) -> str:
 
 async def _fetch_one(client: httpx.AsyncClient, url: str) -> tuple[str, str]:
     """Fetch a single URL and return ``(url, plain_text)``."""
+    _MAX_PAGE_BYTES = 2 * 1024 * 1024  # 2 MB limit
     try:
         resp = await client.get(
             url,
@@ -219,7 +229,11 @@ async def _fetch_one(client: httpx.AsyncClient, url: str) -> tuple[str, str]:
         content_type = resp.headers.get("content-type", "")
         if "text/html" not in content_type and "text/plain" not in content_type:
             return url, ""
-        html = resp.text
+        # Guard against excessively large pages
+        cl = resp.headers.get("content-length", "")
+        if cl.isdigit() and int(cl) > _MAX_PAGE_BYTES:
+            return url, ""
+        html = resp.text[:_MAX_PAGE_BYTES]
         return url, _html_to_text(html)
     except Exception:  # noqa: BLE001
         return url, ""

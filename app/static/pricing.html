@@ -250,7 +250,7 @@ function updateDisplay() {
     const strikeFmt = isINR ? Math.round(strikeConverted).toString() : strikeConverted.toFixed(2);
 
     document.getElementById(tier + 'PriceDisplay').textContent = sym + fmt;
-    document.getElementById(tier + 'Interval').textContent = '/month';
+    document.getElementById(tier + 'Interval').textContent = isYearly ? '/year' : '/month';
     document.getElementById(tier + 'Strikethrough').textContent = sym + strikeFmt;
   }
 }
@@ -274,6 +274,10 @@ async function checkout(tier) {
       return;
     }
     var data = await r.json();
+    if (!data.checkout_url) {
+      alert('Unable to create checkout session. Please try again.');
+      return;
+    }
     window.location.href = data.checkout_url;
   } catch(err) {
     alert('Unable to connect to payment service. Please check your connection and try again.');

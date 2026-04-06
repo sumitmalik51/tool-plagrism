@@ -22,6 +22,15 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+_aoai_client: httpx.AsyncClient | None = None
+
+
+def _get_aoai_client() -> httpx.AsyncClient:
+    global _aoai_client
+    if _aoai_client is None or _aoai_client.is_closed:
+        _aoai_client = httpx.AsyncClient(timeout=30.0)
+    return _aoai_client
+
 
 # ---------------------------------------------------------------------------
 # GPT-based AI detection
@@ -99,10 +108,10 @@ async def _gpt_classify_chunks(chunks: list[str]) -> list[dict]:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.post(url, headers=headers, json=payload)
-                resp.raise_for_status()
-                data = resp.json()
+            client = _get_aoai_client()
+            resp = await client.post(url, headers=headers, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
 
             content = data["choices"][0]["message"]["content"].strip()
             # Parse JSON array from response

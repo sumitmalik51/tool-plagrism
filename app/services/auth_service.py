@@ -72,13 +72,14 @@ def _get_jwt_secret() -> str:
     return secret
 
 
-def create_access_token(user_id: int, email: str) -> str:
+def create_access_token(user_id: int, email: str, plan_type: str = "free") -> str:
     """Create a signed JWT for the given user."""
     now = time.time()
     payload = {
         "sub": str(user_id),
         "email": email,
         "type": "access",
+        "plan_type": plan_type,
         "iat": int(now),
         "exp": int(now + settings.jwt_expiry_seconds),
     }
@@ -121,6 +122,9 @@ def verify_access_token(token: str) -> dict[str, Any] | None:
         payload = jwt.decode(
             token, _get_jwt_secret(), algorithms=[_JWT_ALGORITHM]
         )
+        # Reject refresh tokens used as access tokens
+        if payload.get("type") == "refresh":
+            return None
         return payload
     except jwt.ExpiredSignatureError:
         logger.info("jwt_expired")
@@ -146,8 +150,8 @@ def signup(name: str, email: str, password: str, referral_code: str | None = Non
         raise AuthError("Name is required.")
     if not email or "@" not in email:
         raise AuthError("A valid email is required.")
-    if len(password) < 6:
-        raise AuthError("Password must be at least 6 characters.")
+    if len(password) < 8:
+        raise AuthError("Password must be at least 8 characters.")
 
     email = email.strip().lower()
     name = name.strip()
@@ -190,7 +194,7 @@ def signup(name: str, email: str, password: str, referral_code: str | None = Non
     except Exception as exc:
         logger.warning("email_verification_insert_failed", error=str(exc))
 
-    token = create_access_token(user_id, email)
+    token = create_access_token(user_id, email, plan_type="pro")
     refresh = create_refresh_token(user_id, email)
     logger.info("user_created", user_id=user_id, email=email)
 
@@ -220,15 +224,16 @@ def login(email: str, password: str) -> dict[str, Any]:
     if not _verify_password(password, row["password"]):
         raise AuthError("Invalid email or password.")
 
-    token = create_access_token(row["id"], row["email"])
-    refresh = create_refresh_token(row["id"], row["email"])
-    logger.info("user_login", user_id=row["id"], email=row["email"])
-
     # Fetch plan_type and trial info for the user
     _ensure_trial_ends_at_column(db)
     user_full = db.fetch_one(
         "SELECT plan_type, trial_ends_at FROM users WHERE id = ?", (row["id"],)
     )
+    user_plan = user_full.get("plan_type", "free") if user_full else "free"
+
+    token = create_access_token(row["id"], row["email"], plan_type=user_plan)
+    refresh = create_refresh_token(row["id"], row["email"])
+    logger.info("user_login", user_id=row["id"], email=row["email"])
     plan_type = user_full["plan_type"] if user_full else "free"
     trial_ends_at = user_full.get("trial_ends_at") if user_full else None
 
@@ -328,8 +333,8 @@ def create_password_reset_token(email: str) -> str | None:
 
 def reset_password(token: str, new_password: str) -> bool:
     """Reset a user's password using a valid token.  Returns True on success."""
-    if len(new_password) < 6:
-        raise AuthError("Password must be at least 6 characters.")
+    if len(new_password) < 8:
+        raise AuthError("Password must be at least 8 characters.")
 
     db = get_db()
 
@@ -592,8 +597,14 @@ def get_referral_info(user_id: int) -> dict[str, Any]:
     }
 
 
+_trial_column_ensured = False
+
+
 def _ensure_trial_ends_at_column(db) -> None:
-    """Add trial_ends_at column to users table if not present."""
+    """Add trial_ends_at column to users table if not present (runs once)."""
+    global _trial_column_ensured
+    if _trial_column_ensured:
+        return
     try:
         if _is_mssql(db):
             db.execute(
@@ -604,6 +615,7 @@ def _ensure_trial_ends_at_column(db) -> None:
             db.execute("ALTER TABLE users ADD COLUMN trial_ends_at TEXT NULL")
     except Exception:
         pass  # Column already exists
+    _trial_column_ensured = True
 
 
 def _check_trial_expiry(db, user_id: int, plan_type: str, trial_ends_at) -> tuple[str, str | None]:

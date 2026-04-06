@@ -50,7 +50,9 @@ async def extract_text(file_bytes: bytes, filename: str) -> dict:
         raise ValueError(f"Unsupported file type: {ext}")
 
     logger.info("extracting_text", filename=filename, file_type=ext)
-    text = extractor(file_bytes)
+    import asyncio
+    loop = asyncio.get_running_loop()
+    text = await loop.run_in_executor(None, extractor, file_bytes)
 
     if not text.strip():
         raise ValueError("Extracted text is empty — the file may be scanned or corrupt.")

@@ -150,7 +150,7 @@ class Settings(BaseSettings):
                 f"Production mode requires these environment variables: "
                 f"{', '.join(missing)}. Set PG_DEBUG=true to bypass."
             )
-            warnings.warn(msg, stacklevel=2)
+            raise ValueError(msg)
         return self
 
     model_config = {"env_prefix": "PG_", "env_file": ".env"}

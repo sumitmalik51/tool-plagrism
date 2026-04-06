@@ -103,6 +103,11 @@ class SQLiteDatabase(Database):
             conn.execute("SELECT word_count FROM usage_logs LIMIT 1")
         except Exception:
             conn.execute("ALTER TABLE usage_logs ADD COLUMN word_count INTEGER NOT NULL DEFAULT 0")
+        # Migration: add stripe_customer_id column if missing
+        try:
+            conn.execute("SELECT stripe_customer_id FROM users LIMIT 1")
+        except Exception:
+            conn.execute("ALTER TABLE users ADD COLUMN stripe_customer_id TEXT NULL")
         conn.commit()
         logger.info("db_schema_initialized", backend="sqlite")
 
@@ -326,6 +331,7 @@ CREATE TABLE IF NOT EXISTS users (
     is_paid     INTEGER       NOT NULL DEFAULT 0,
     plan_type   TEXT          NOT NULL DEFAULT 'free',
     trial_ends_at TEXT        NULL,
+    stripe_customer_id TEXT   NULL,
     created_at  TEXT          NOT NULL DEFAULT (datetime('now')),
     updated_at  TEXT          NOT NULL DEFAULT (datetime('now'))
 );
@@ -419,6 +425,65 @@ CREATE TABLE IF NOT EXISTS shared_reports (
     created_at  TEXT          NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_shared_reports_share ON shared_reports(share_id);
+
+CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER       NOT NULL REFERENCES users(id),
+    url         TEXT          NOT NULL,
+    events      TEXT          NOT NULL DEFAULT 'scan.complete',
+    secret      TEXT          NOT NULL,
+    is_active   INTEGER       NOT NULL DEFAULT 1,
+    created_at  TEXT          NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_webhooks_user ON webhook_subscriptions(user_id);
+
+CREATE TABLE IF NOT EXISTS teams (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT          NOT NULL,
+    owner_id    INTEGER       NOT NULL REFERENCES users(id),
+    max_seats   INTEGER       NOT NULL DEFAULT 5,
+    created_at  TEXT          NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS team_members (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    team_id     INTEGER       NOT NULL REFERENCES teams(id),
+    user_id     INTEGER       NOT NULL REFERENCES users(id),
+    role        TEXT          NOT NULL DEFAULT 'member',
+    joined_at   TEXT          NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(team_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS team_invites (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    team_id     INTEGER       NOT NULL REFERENCES teams(id),
+    email       TEXT          NOT NULL,
+    token       TEXT          NOT NULL UNIQUE,
+    status      TEXT          NOT NULL DEFAULT 'pending',
+    invited_by  INTEGER       NOT NULL REFERENCES users(id),
+    created_at  TEXT          NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS lti_platforms (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    issuer          TEXT          NOT NULL UNIQUE,
+    client_id       TEXT          NOT NULL,
+    auth_endpoint   TEXT          NOT NULL,
+    token_endpoint  TEXT          NULL,
+    jwks_uri        TEXT          NULL,
+    created_at      TEXT          NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS lti_states (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    state       TEXT          NOT NULL UNIQUE,
+    nonce       TEXT          NOT NULL,
+    issuer      TEXT          NOT NULL,
+    client_id   TEXT          NOT NULL,
+    created_at  TEXT          NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_scans_doc_user ON scans(document_id, user_id);
 """
 
 _MSSQL_SCHEMA = """
@@ -559,6 +624,77 @@ CREATE INDEX idx_shared_reports_share ON shared_reports(share_id);
 ---
 IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('usage_logs') AND name = 'word_count')
 ALTER TABLE usage_logs ADD word_count INT NOT NULL DEFAULT 0;
+---
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('users') AND name = 'stripe_customer_id')
+ALTER TABLE users ADD stripe_customer_id NVARCHAR(255) NULL;
+---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'webhook_subscriptions')
+CREATE TABLE webhook_subscriptions (
+    id          INT IDENTITY(1,1) PRIMARY KEY,
+    user_id     INT               NOT NULL REFERENCES users(id),
+    url         NVARCHAR(500)     NOT NULL,
+    events      NVARCHAR(255)     NOT NULL DEFAULT 'scan.complete',
+    secret      NVARCHAR(255)     NOT NULL,
+    is_active   BIT               NOT NULL DEFAULT 1,
+    created_at  DATETIME2         NOT NULL DEFAULT GETUTCDATE()
+);
+---
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_webhooks_user')
+CREATE INDEX idx_webhooks_user ON webhook_subscriptions(user_id);
+---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'teams')
+CREATE TABLE teams (
+    id          INT IDENTITY(1,1) PRIMARY KEY,
+    name        NVARCHAR(100)     NOT NULL,
+    owner_id    INT               NOT NULL REFERENCES users(id),
+    max_seats   INT               NOT NULL DEFAULT 5,
+    created_at  DATETIME2         NOT NULL DEFAULT GETUTCDATE()
+);
+---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'team_members')
+CREATE TABLE team_members (
+    id          INT IDENTITY(1,1) PRIMARY KEY,
+    team_id     INT               NOT NULL REFERENCES teams(id),
+    user_id     INT               NOT NULL REFERENCES users(id),
+    role        NVARCHAR(20)      NOT NULL DEFAULT 'member',
+    joined_at   DATETIME2         NOT NULL DEFAULT GETUTCDATE(),
+    UNIQUE(team_id, user_id)
+);
+---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'team_invites')
+CREATE TABLE team_invites (
+    id          INT IDENTITY(1,1) PRIMARY KEY,
+    team_id     INT               NOT NULL REFERENCES teams(id),
+    email       NVARCHAR(255)     NOT NULL,
+    token       NVARCHAR(255)     NOT NULL UNIQUE,
+    status      NVARCHAR(20)      NOT NULL DEFAULT 'pending',
+    invited_by  INT               NOT NULL REFERENCES users(id),
+    created_at  DATETIME2         NOT NULL DEFAULT GETUTCDATE()
+);
+---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'lti_platforms')
+CREATE TABLE lti_platforms (
+    id              INT IDENTITY(1,1) PRIMARY KEY,
+    issuer          NVARCHAR(255)     NOT NULL UNIQUE,
+    client_id       NVARCHAR(255)     NOT NULL,
+    auth_endpoint   NVARCHAR(500)     NOT NULL,
+    token_endpoint  NVARCHAR(500)     NULL,
+    jwks_uri        NVARCHAR(500)     NULL,
+    created_at      DATETIME2         NOT NULL DEFAULT GETUTCDATE()
+);
+---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'lti_states')
+CREATE TABLE lti_states (
+    id          INT IDENTITY(1,1) PRIMARY KEY,
+    state       NVARCHAR(255)     NOT NULL UNIQUE,
+    nonce       NVARCHAR(255)     NOT NULL,
+    issuer      NVARCHAR(255)     NOT NULL,
+    client_id   NVARCHAR(255)     NOT NULL,
+    created_at  DATETIME2         NOT NULL
+);
+---
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_scans_doc_user')
+CREATE INDEX idx_scans_doc_user ON scans(document_id, user_id);
 """
 
 

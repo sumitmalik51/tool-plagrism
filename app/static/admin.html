@@ -437,7 +437,7 @@
       } else {
         topDiv.innerHTML = topUsers.map((u, i) => `
           <div class="flex items-center justify-between">
-            <span class="text-muted">${i + 1}. ${u.name || u.email}</span>
+            <span class="text-muted">${i + 1}. ${esc(u.name || u.email)}</span>
             <span class="text-txt font-semibold">${u.scan_count} scans</span>
           </div>`).join('');
       }
