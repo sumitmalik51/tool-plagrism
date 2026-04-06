@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, stat
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from app.config import settings
 from app.dependencies.rate_limit import enforce_scan_limit, record_scan
 from app.models.schemas import PlagiarismReport
 from app.services.ingestion import ingest_file
@@ -342,67 +343,143 @@ async def export_pdf_report(document_id: str, request: Request):
     except ImportError:
         raise HTTPException(status_code=503, detail="PDF generation not available")
 
+    def _sanitize(text: str) -> str:
+        """Replace chars unsupported by Helvetica with ASCII equivalents."""
+        return text.encode("ascii", "replace").decode("ascii")
+
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
 
-    # Header
-    pdf.set_font("Helvetica", "B", 20)
-    pdf.set_text_color(79, 70, 229)
-    pdf.cell(0, 12, "PlagiarismGuard Report", ln=True, align="C")
-    pdf.set_font("Helvetica", "", 10)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(0, 6, f"Document: {document_id}", ln=True, align="C")
-    pdf.cell(0, 6, f"Generated: {scan.get('created_at', 'N/A')}", ln=True, align="C")
-    pdf.ln(10)
+    # ── Header Banner ──
+    pdf.set_fill_color(79, 70, 229)
+    pdf.rect(0, 0, 210, 28, "F")
+    pdf.set_font("Helvetica", "B", 22)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_y(6)
+    pdf.cell(0, 10, "PlagiarismGuard", ln=True, align="C")
+    pdf.set_font("Helvetica", "", 9)
+    pdf.cell(0, 5, "Originality Report", ln=True, align="C")
+    pdf.ln(6)
 
-    # Score Summary
+    # ── Document Info ──
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(0, 5, f"Document ID: {document_id}", ln=True)
+    pdf.cell(0, 5, f"Date: {scan.get('created_at', 'N/A')}", ln=True)
+    pdf.ln(4)
+
+    # ── Score Summary Box ──
     score = scan.get("plagiarism_score", 0)
     risk = scan.get("risk_level", "LOW")
-    pdf.set_font("Helvetica", "B", 14)
-    pdf.set_text_color(30, 30, 30)
-    pdf.cell(0, 10, "Score Summary", ln=True)
-    pdf.set_font("Helvetica", "", 11)
-    pdf.set_text_color(60, 60, 60)
-    pdf.cell(0, 7, f"Plagiarism Score: {score:.1f}%", ln=True)
-    pdf.cell(0, 7, f"Confidence: {scan.get('confidence_score', 0):.1%}", ln=True)
-    pdf.cell(0, 7, f"Risk Level: {risk}", ln=True)
-    pdf.cell(0, 7, f"Sources Found: {scan.get('sources_count', 0)}", ln=True)
-    pdf.cell(0, 7, f"Flagged Passages: {scan.get('flagged_count', 0)}", ln=True)
-    pdf.ln(8)
+    risk_colors = {"LOW": (0, 184, 148), "MEDIUM": (253, 203, 110), "HIGH": (225, 112, 85)}
+    rc = risk_colors.get(risk, (100, 100, 100))
 
-    # Detected Sources
+    pdf.set_draw_color(*rc)
+    pdf.set_line_width(0.6)
+    pdf.rect(10, pdf.get_y(), 190, 28, "D")
+    y_box = pdf.get_y() + 3
+
+    pdf.set_xy(15, y_box)
+    pdf.set_font("Helvetica", "B", 28)
+    pdf.set_text_color(*rc)
+    pdf.cell(40, 12, f"{score:.0f}%", ln=False)
+
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(60, 60, 60)
+    pdf.set_xy(55, y_box)
+    pdf.cell(0, 6, f"Plagiarism Score  |  Risk: {risk}", ln=True)
+    pdf.set_xy(55, y_box + 7)
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(0, 5, f"Confidence: {scan.get('confidence_score', 0):.0%}  |  "
+                    f"Sources: {scan.get('sources_count', 0)}  |  "
+                    f"Flagged: {scan.get('flagged_count', 0)}", ln=True)
+    pdf.set_y(y_box + 25)
+    pdf.ln(4)
+
+    # ── Detected Sources Table ──
     sources = report_data.get("detected_sources", [])
     if sources:
-        pdf.set_font("Helvetica", "B", 14)
+        pdf.set_font("Helvetica", "B", 13)
         pdf.set_text_color(30, 30, 30)
         pdf.cell(0, 10, "Detected Sources", ln=True)
-        pdf.set_font("Helvetica", "", 9)
-        for i, src in enumerate(sources[:20], 1):
-            pdf.set_text_color(60, 60, 60)
-            title = src.get("title", "Unknown Source")[:80]
-            url = src.get("url", "N/A")[:80]
-            sim = src.get("similarity", 0)
-            pdf.cell(0, 6, f"{i}. {title} ({sim:.0%} match)", ln=True)
-            pdf.set_text_color(100, 116, 139)
-            pdf.cell(0, 5, f"   {url}", ln=True)
-        pdf.ln(6)
 
-    # Flagged Passages
+        # Table header
+        pdf.set_font("Helvetica", "B", 8)
+        pdf.set_fill_color(240, 240, 245)
+        pdf.set_text_color(60, 60, 60)
+        pdf.cell(8, 6, "#", border=1, fill=True, align="C")
+        pdf.cell(80, 6, "Source", border=1, fill=True)
+        pdf.cell(25, 6, "Similarity", border=1, fill=True, align="C")
+        pdf.cell(20, 6, "Passages", border=1, fill=True, align="C")
+        pdf.cell(22, 6, "Words", border=1, fill=True, align="C")
+        pdf.cell(25, 6, "Type", border=1, fill=True, align="C")
+        pdf.ln()
+
+        pdf.set_font("Helvetica", "", 7)
+        for i, src in enumerate(sources[:25], 1):
+            pdf.set_text_color(60, 60, 60)
+            title = _sanitize((src.get("title") or src.get("url", "Unknown"))[:55])
+            sim = src.get("similarity", 0)
+            sim_color = (225, 112, 85) if sim > 0.7 else (253, 203, 110) if sim > 0.4 else (0, 184, 148)
+            pdf.cell(8, 5, str(i), border=1, align="C")
+            pdf.cell(80, 5, title, border=1)
+            pdf.set_text_color(*sim_color)
+            pdf.cell(25, 5, f"{sim:.0%}", border=1, align="C")
+            pdf.set_text_color(60, 60, 60)
+            pdf.cell(20, 5, str(src.get("text_blocks", 0)), border=1, align="C")
+            pdf.cell(22, 5, str(src.get("matched_words", 0)), border=1, align="C")
+            pdf.cell(25, 5, src.get("source_type", "Internet")[:10], border=1, align="C")
+            pdf.ln()
+
+        # Source URLs
+        pdf.ln(2)
+        pdf.set_font("Helvetica", "", 6)
+        pdf.set_text_color(100, 116, 139)
+        for i, src in enumerate(sources[:25], 1):
+            url = src.get("url", "")[:100]
+            if url:
+                pdf.cell(0, 4, f"  [{i}] {url}", ln=True)
+        pdf.ln(4)
+
+    # ── Flagged Passages with Source References ──
     passages = report_data.get("flagged_passages", [])
     if passages:
-        pdf.set_font("Helvetica", "B", 14)
+        pdf.set_font("Helvetica", "B", 13)
         pdf.set_text_color(30, 30, 30)
         pdf.cell(0, 10, "Flagged Passages", ln=True)
-        pdf.set_font("Helvetica", "", 9)
+
+        # Build source index for quick lookup
+        src_idx = {}
+        for i, s in enumerate(sources, 1):
+            if s.get("url"):
+                src_idx[s["url"]] = i
+
+        pdf.set_font("Helvetica", "", 8)
         for i, p in enumerate(passages[:30], 1):
-            pdf.set_text_color(60, 60, 60)
-            text = p.get("text", "")[:200].replace("\n", " ")
-            pdf.multi_cell(0, 5, f"{i}. \"{text}\"")
+            text = p.get("text", "")[:250].replace("\n", " ")
+            sim = p.get("similarity_score", 0)
             src_url = p.get("source", "")
-            if src_url:
-                pdf.set_text_color(100, 116, 139)
-                pdf.cell(0, 5, f"   Source: {src_url[:80]}", ln=True)
+            src_num = src_idx.get(src_url, "")
+
+            # Similarity color bar
+            sim_color = (225, 112, 85) if sim > 0.7 else (253, 203, 110) if sim > 0.4 else (0, 184, 148)
+            pdf.set_draw_color(*sim_color)
+            pdf.set_line_width(1.5)
+            pdf.line(10, pdf.get_y(), 10, pdf.get_y() + 4)
+            pdf.set_line_width(0.2)
+
+            pdf.set_text_color(*sim_color)
+            pdf.set_font("Helvetica", "B", 8)
+            label = f"#{i}  {sim:.0%} match"
+            if src_num:
+                label += f"  [Source {src_num}]"
+            pdf.cell(0, 5, label, ln=True)
+
+            pdf.set_text_color(60, 60, 60)
+            pdf.set_font("Helvetica", "I", 7)
+            pdf.multi_cell(0, 4, f'"{_sanitize(text)}"')
             pdf.ln(2)
 
     # Footer
@@ -410,7 +487,7 @@ async def export_pdf_report(document_id: str, request: Request):
     pdf.set_font("Helvetica", "I", 8)
     pdf.set_text_color(150, 150, 150)
     base_url = str(settings.app_base_url or "https://plagiarismguard.com").rstrip("/")
-    pdf.cell(0, 5, f"Generated by PlagiarismGuard — {base_url}", ln=True, align="C")
+    pdf.cell(0, 5, f"Generated by PlagiarismGuard - {base_url}", ln=True, align="C")
 
     buf = BytesIO()
     buf.write(pdf.output())

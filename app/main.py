@@ -269,6 +269,12 @@ async def serve_highlight() -> FileResponse:
     return FileResponse(STATIC_DIR / "highlight.html")
 
 
+@app.get("/compare", include_in_schema=False)
+async def serve_compare() -> FileResponse:
+    """Serve the scan comparison page."""
+    return FileResponse(STATIC_DIR / "compare.html")
+
+
 @app.get("/pricing", include_in_schema=False)
 async def serve_pricing() -> FileResponse:
     """Serve the pricing / subscription page."""

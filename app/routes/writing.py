@@ -33,6 +33,225 @@ router = APIRouter(prefix="/api/v1", tags=["writing-tools"])
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Writing Improvement Suggestions (for flagged passages)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ImprovementRequest(BaseModel):
+    """Request to get rewrite/citation suggestions for flagged passages."""
+    document_id: str = Field(..., description="Scan document ID")
+
+
+@router.post(
+    "/improvement-suggestions",
+    status_code=status.HTTP_200_OK,
+    summary="Get rewrite and citation suggestions for flagged passages",
+)
+async def improvement_suggestions_endpoint(
+    body: ImprovementRequest, request: Request,
+) -> dict:
+    """Analyze flagged passages from a completed scan and suggest how to
+    properly paraphrase or cite each one."""
+    user_id = getattr(request.state, "user_id", None)
+    if user_id is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+
+    from app.services.database import get_db
+    import json as _json
+
+    db = get_db()
+    scan = db.fetch_one(
+        "SELECT report_json FROM scans WHERE document_id = ? AND user_id = ?",
+        (body.document_id, user_id),
+    )
+    if not scan or not scan.get("report_json"):
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    report_data = _json.loads(scan["report_json"])
+    flagged = report_data.get("flagged_passages", [])
+    sources = report_data.get("detected_sources", [])
+
+    # Build source lookup by URL
+    source_map = {s.get("url", ""): s for s in sources if s.get("url")}
+
+    suggestions = []
+    for i, fp in enumerate(flagged[:20]):
+        text = fp.get("text", "")
+        sim = fp.get("similarity_score", 0)
+        source_url = fp.get("source", "")
+        source_info = source_map.get(source_url, {})
+
+        suggestion = {
+            "passage_index": i,
+            "original_text": text[:300],
+            "similarity_score": sim,
+            "source_url": source_url,
+            "source_title": source_info.get("title", "Unknown Source"),
+        }
+
+        # Generate rewrite suggestion (simple paraphrase guidance)
+        if sim > 0.7:
+            suggestion["action"] = "rewrite_required"
+            suggestion["advice"] = (
+                "This passage closely matches the source. Rewrite it entirely in your own words, "
+                "or quote it directly with proper citation."
+            )
+        elif sim > 0.4:
+            suggestion["action"] = "paraphrase_and_cite"
+            suggestion["advice"] = (
+                "This passage has moderate overlap. Paraphrase the key ideas and add an in-text citation."
+            )
+        else:
+            suggestion["action"] = "add_citation"
+            suggestion["advice"] = (
+                "Minor overlap detected. Adding a citation to acknowledge the source should suffice."
+            )
+
+        # Generate citation for the source
+        if source_info:
+            citation_input = {
+                "url": source_url,
+                "title": source_info.get("title"),
+                "source_type": source_info.get("source_type", "Internet"),
+            }
+            try:
+                from app.tools.citation_tool import generate_citation
+                citation = generate_citation(citation_input, style="apa")
+                suggestion["suggested_citation"] = citation
+            except Exception:
+                suggestion["suggested_citation"] = None
+        else:
+            suggestion["suggested_citation"] = None
+
+        suggestions.append(suggestion)
+
+    return {
+        "document_id": body.document_id,
+        "total_flagged": len(flagged),
+        "suggestions": suggestions,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Scan Comparison (diff two documents)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ScanComparisonRequest(BaseModel):
+    """Compare two scans side-by-side."""
+    document_id_a: str = Field(..., description="First scan document ID")
+    document_id_b: str = Field(..., description="Second scan document ID")
+
+
+@router.post(
+    "/compare-scans",
+    status_code=status.HTTP_200_OK,
+    summary="Compare two scan results side-by-side",
+)
+async def compare_scans_endpoint(
+    body: ScanComparisonRequest, request: Request,
+) -> dict:
+    """Return a diff-style comparison of two scans showing score changes,
+    new/removed flagged passages, and source differences."""
+    user_id = getattr(request.state, "user_id", None)
+    if user_id is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+
+    from app.services.database import get_db
+    import json as _json
+
+    db = get_db()
+    scan_a = db.fetch_one(
+        "SELECT * FROM scans WHERE document_id = ? AND user_id = ?",
+        (body.document_id_a, user_id),
+    )
+    scan_b = db.fetch_one(
+        "SELECT * FROM scans WHERE document_id = ? AND user_id = ?",
+        (body.document_id_b, user_id),
+    )
+
+    if not scan_a:
+        raise HTTPException(status_code=404, detail=f"Scan A not found: {body.document_id_a}")
+    if not scan_b:
+        raise HTTPException(status_code=404, detail=f"Scan B not found: {body.document_id_b}")
+
+    report_a = _json.loads(scan_a.get("report_json", "{}")) if scan_a.get("report_json") else {}
+    report_b = _json.loads(scan_b.get("report_json", "{}")) if scan_b.get("report_json") else {}
+
+    # Score comparison
+    score_diff = {
+        "plagiarism_score": {
+            "a": scan_a.get("plagiarism_score", 0),
+            "b": scan_b.get("plagiarism_score", 0),
+            "change": round((scan_b.get("plagiarism_score", 0) - scan_a.get("plagiarism_score", 0)), 2),
+        },
+        "confidence_score": {
+            "a": scan_a.get("confidence_score", 0),
+            "b": scan_b.get("confidence_score", 0),
+            "change": round((scan_b.get("confidence_score", 0) - scan_a.get("confidence_score", 0)), 2),
+        },
+        "risk_level": {
+            "a": scan_a.get("risk_level", "LOW"),
+            "b": scan_b.get("risk_level", "LOW"),
+        },
+        "sources_count": {
+            "a": scan_a.get("sources_count", 0),
+            "b": scan_b.get("sources_count", 0),
+            "change": (scan_b.get("sources_count", 0) - scan_a.get("sources_count", 0)),
+        },
+        "flagged_count": {
+            "a": scan_a.get("flagged_count", 0),
+            "b": scan_b.get("flagged_count", 0),
+            "change": (scan_b.get("flagged_count", 0) - scan_a.get("flagged_count", 0)),
+        },
+    }
+
+    # Source comparison — find new, removed, and common sources
+    sources_a = {s.get("url", ""): s for s in report_a.get("detected_sources", []) if s.get("url")}
+    sources_b = {s.get("url", ""): s for s in report_b.get("detected_sources", []) if s.get("url")}
+
+    urls_a = set(sources_a.keys())
+    urls_b = set(sources_b.keys())
+
+    new_sources = [sources_b[u] for u in (urls_b - urls_a)]
+    removed_sources = [sources_a[u] for u in (urls_a - urls_b)]
+    common_sources = []
+    for u in (urls_a & urls_b):
+        common_sources.append({
+            "url": u,
+            "title": sources_b[u].get("title", sources_a[u].get("title", "")),
+            "similarity_a": sources_a[u].get("similarity", 0),
+            "similarity_b": sources_b[u].get("similarity", 0),
+        })
+
+    # Passage comparison — find new and resolved passages
+    passages_a_texts = {p.get("text", "").lower().strip() for p in report_a.get("flagged_passages", [])}
+    passages_b_texts = {p.get("text", "").lower().strip() for p in report_b.get("flagged_passages", [])}
+
+    new_passages = [p for p in report_b.get("flagged_passages", [])
+                    if p.get("text", "").lower().strip() not in passages_a_texts]
+    resolved_passages = [p for p in report_a.get("flagged_passages", [])
+                         if p.get("text", "").lower().strip() not in passages_b_texts]
+
+    return {
+        "scan_a": {
+            "document_id": body.document_id_a,
+            "created_at": str(scan_a.get("created_at", "")),
+        },
+        "scan_b": {
+            "document_id": body.document_id_b,
+            "created_at": str(scan_b.get("created_at", "")),
+        },
+        "score_diff": score_diff,
+        "new_sources": new_sources[:20],
+        "removed_sources": removed_sources[:20],
+        "common_sources": common_sources[:20],
+        "new_passages": [{"text": p.get("text", "")[:200], "source": p.get("source", "")}
+                         for p in new_passages[:15]],
+        "resolved_passages": [{"text": p.get("text", "")[:200], "source": p.get("source", "")}
+                              for p in resolved_passages[:15]],
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Citation Generator
 # ═══════════════════════════════════════════════════════════════════════════
 

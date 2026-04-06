@@ -31,7 +31,13 @@
       <div class="flex items-center gap-3">
         <span id="scoreDisplay" class="text-sm font-mono"></span>
         <a href="/app" class="text-sm text-txt/60 hover:text-primary">← Back to Dashboard</a>
+        <button id="btnSuggestions" class="px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs hover:bg-green-500" title="Get improvement suggestions">Suggestions</button>
+        <button id="btnCitations" class="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs hover:bg-purple-500" title="Generate citations for all sources">Citations</button>
         <button id="btnExportPdf" class="px-3 py-1.5 rounded-lg bg-primary text-white text-xs hover:bg-primary/80">Download PDF</button>
+        <button id="themeToggle" onclick="toggleTheme()" class="p-1.5 rounded-lg border border-border/30 hover:bg-surface2 transition-colors" title="Toggle theme">
+          <svg class="w-4 h-4 theme-icon-moon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+          <svg class="w-4 h-4 theme-icon-sun hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        </button>
       </div>
     </div>
   </nav>
@@ -60,12 +66,44 @@
         <p class="text-txt/40 text-sm">Loading sources...</p>
       </div>
 
-      <!-- Source detail -->
+      <!-- Source detail with side-by-side comparison -->
       <div id="sourceDetail" class="hidden mt-4 border-t border-border/20 pt-4">
         <h4 class="text-sm font-bold mb-2" id="detailTitle">Source</h4>
         <a id="detailUrl" href="#" target="_blank" class="text-xs text-primary hover:underline block mb-2 truncate"></a>
-        <div class="text-xs text-txt/50 mb-2"><span id="detailSimilarity"></span> similarity</div>
-        <div id="detailPassages" class="space-y-2 text-xs"></div>
+        <div class="text-xs text-txt/50 mb-3"><span id="detailSimilarity"></span> similarity · <span id="detailType"></span></div>
+
+        <!-- Side-by-side comparison -->
+        <div id="sideByComparison" class="space-y-3">
+          <p class="text-xs font-bold text-txt/60 uppercase tracking-wide">Matched Passages — Side by Side</p>
+        </div>
+      </div>
+
+      <!-- Suggestions panel (hidden by default) -->
+      <div id="suggestionsPanel" class="hidden mt-4 border-t border-border/20 pt-4">
+        <h4 class="text-sm font-bold mb-3 flex items-center gap-2">
+          <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Improvement Suggestions
+        </h4>
+        <div id="suggestionsList" class="space-y-3 text-xs">
+          <p class="text-txt/40">Loading suggestions...</p>
+        </div>
+      </div>
+
+      <!-- Citations panel (hidden by default) -->
+      <div id="citationsPanel" class="hidden mt-4 border-t border-border/20 pt-4">
+        <h4 class="text-sm font-bold mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16h6M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Generated Citations
+        </h4>
+        <div class="flex gap-1 mb-3">
+          <button class="cite-style-btn px-2 py-1 rounded text-xs bg-primary/20 text-primary" data-style="apa">APA</button>
+          <button class="cite-style-btn px-2 py-1 rounded text-xs bg-surface2 text-txt/60" data-style="mla">MLA</button>
+          <button class="cite-style-btn px-2 py-1 rounded text-xs bg-surface2 text-txt/60" data-style="chicago">Chicago</button>
+          <button class="cite-style-btn px-2 py-1 rounded text-xs bg-surface2 text-txt/60" data-style="ieee">IEEE</button>
+        </div>
+        <div id="citationsList" class="space-y-2 text-xs">
+          <p class="text-txt/40">Loading citations...</p>
+        </div>
       </div>
     </div>
   </div>
@@ -161,6 +199,8 @@
     function showSourceDetail(url, data, sourceIdx) {
       const detail = document.getElementById('sourceDetail');
       detail.classList.remove('hidden');
+      document.getElementById('suggestionsPanel').classList.add('hidden');
+      document.getElementById('citationsPanel').classList.add('hidden');
 
       const source = (data.detected_sources || []).find(s => s.url === url) || {};
       document.getElementById('detailTitle').textContent = source.title || 'Source';
@@ -168,14 +208,142 @@
       urlEl.href = url || '#';
       urlEl.textContent = url || 'N/A';
       document.getElementById('detailSimilarity').textContent = `${((source.similarity || 0) * 100).toFixed(0)}%`;
+      document.getElementById('detailType').textContent = source.source_type || 'Internet';
 
-      const matchedPassages = (source.matched_passages || []).slice(0, 10);
-      document.getElementById('detailPassages').innerHTML = matchedPassages.length
-        ? matchedPassages.map(p => `<div class="bg-border/10 rounded p-2 text-txt/70">"${escHtml((p.text || '').slice(0, 200))}..."</div>`).join('')
-        : '<p class="text-txt/40">No passage details available.</p>';
+      // Side-by-side comparison: your text vs matched source text
+      const matchedPassages = (source.matched_passages || []).slice(0, 8);
+      const flagged = data.flagged_passages || [];
+      const container = document.getElementById('sideByComparison');
+
+      if (!matchedPassages.length) {
+        container.innerHTML = '<p class="text-txt/40 text-xs">No passage details available.</p>';
+      } else {
+        container.innerHTML = matchedPassages.map((mp, i) => {
+          // Find the matching flagged passage
+          const fp = flagged.find(f => f.source === url && f.text && mp.text &&
+            f.text.toLowerCase().includes(mp.text.toLowerCase().slice(0, 40))) || {};
+          const yourText = (fp.text || mp.text || '').slice(0, 250);
+          const sourceText = (mp.text || '').slice(0, 250);
+          const sim = mp.similarity_score || 0;
+          const simColor = sim > 0.7 ? 'text-red-400' : sim > 0.4 ? 'text-yellow-400' : 'text-green-400';
+
+          return `
+            <div class="rounded-lg border border-border/20 overflow-hidden">
+              <div class="flex items-center justify-between px-3 py-1.5 bg-surface2/50">
+                <span class="text-xs text-txt/50">Passage ${i + 1}</span>
+                <span class="text-xs font-mono ${simColor}">${(sim * 100).toFixed(0)}% match</span>
+              </div>
+              <div class="grid grid-cols-2 gap-0 divide-x divide-border/20">
+                <div class="p-2.5">
+                  <div class="text-[10px] font-bold text-txt/40 uppercase mb-1">Your Text</div>
+                  <div class="text-xs text-txt/70 leading-relaxed">"${escHtml(yourText)}${yourText.length >= 250 ? '…' : ''}"</div>
+                </div>
+                <div class="p-2.5">
+                  <div class="text-[10px] font-bold text-txt/40 uppercase mb-1">Source Text</div>
+                  <div class="text-xs text-txt/70 leading-relaxed">"${escHtml(sourceText)}${sourceText.length >= 250 ? '…' : ''}"</div>
+                </div>
+              </div>
+            </div>`;
+        }).join('');
+      }
 
       // Highlight active source card
       document.querySelectorAll('.source-card').forEach((c, i) => c.classList.toggle('active', i === sourceIdx));
+    }
+
+    // ── Improvement Suggestions ──
+    let _suggestionsCache = null;
+    document.getElementById('btnSuggestions').onclick = async () => {
+      document.getElementById('suggestionsPanel').classList.toggle('hidden');
+      document.getElementById('sourceDetail').classList.add('hidden');
+      document.getElementById('citationsPanel').classList.add('hidden');
+      if (_suggestionsCache) { renderSuggestions(_suggestionsCache); return; }
+      document.getElementById('suggestionsList').innerHTML = '<p class="text-txt/40">Loading suggestions...</p>';
+      try {
+        const r = await fetch('/api/v1/improvement-suggestions', {
+          method: 'POST', headers: hdr(),
+          body: JSON.stringify({ document_id: docId }),
+        });
+        if (!r.ok) throw new Error('Failed to load suggestions');
+        _suggestionsCache = await r.json();
+        renderSuggestions(_suggestionsCache);
+      } catch (e) {
+        document.getElementById('suggestionsList').innerHTML = `<p class="text-red-400">${escHtml(e.message)}</p>`;
+      }
+    };
+
+    function renderSuggestions(data) {
+      const list = data.suggestions || [];
+      if (!list.length) { document.getElementById('suggestionsList').innerHTML = '<p class="text-green-400">No flagged passages to improve!</p>'; return; }
+      const actionColors = { rewrite_required: 'border-red-500/40 bg-red-500/5', paraphrase_and_cite: 'border-yellow-500/40 bg-yellow-500/5', add_citation: 'border-green-500/40 bg-green-500/5' };
+      const actionLabels = { rewrite_required: 'Rewrite Required', paraphrase_and_cite: 'Paraphrase & Cite', add_citation: 'Add Citation' };
+      const actionIcons = { rewrite_required: '🔴', paraphrase_and_cite: '🟡', add_citation: '🟢' };
+      document.getElementById('suggestionsList').innerHTML = list.map(s => `
+        <div class="rounded-lg border p-3 ${actionColors[s.action] || 'border-border/20'}">
+          <div class="flex items-center gap-2 mb-1">
+            <span>${actionIcons[s.action] || '📝'}</span>
+            <span class="font-bold text-xs">${actionLabels[s.action] || s.action}</span>
+            <span class="text-txt/40 ml-auto">${((s.similarity_score || 0) * 100).toFixed(0)}%</span>
+          </div>
+          <div class="text-txt/60 mb-2 italic">"${escHtml((s.original_text || '').slice(0, 150))}…"</div>
+          <div class="text-txt/80 mb-1">💡 ${escHtml(s.advice || '')}</div>
+          ${s.suggested_citation ? `<div class="text-primary/80 mt-1 bg-primary/5 rounded p-1.5 font-mono text-[10px]">${escHtml(s.suggested_citation)}</div>` : ''}
+        </div>`).join('');
+    }
+
+    // ── Citation Generator ──
+    let _citationsCache = {};
+    let _currentCiteStyle = 'apa';
+
+    document.getElementById('btnCitations').onclick = async () => {
+      document.getElementById('citationsPanel').classList.toggle('hidden');
+      document.getElementById('sourceDetail').classList.add('hidden');
+      document.getElementById('suggestionsPanel').classList.add('hidden');
+      loadCitations(_currentCiteStyle);
+    };
+
+    document.querySelectorAll('.cite-style-btn').forEach(btn => {
+      btn.onclick = () => {
+        _currentCiteStyle = btn.dataset.style;
+        document.querySelectorAll('.cite-style-btn').forEach(b => {
+          b.className = b.dataset.style === _currentCiteStyle
+            ? 'cite-style-btn px-2 py-1 rounded text-xs bg-primary/20 text-primary'
+            : 'cite-style-btn px-2 py-1 rounded text-xs bg-surface2 text-txt/60';
+        });
+        loadCitations(_currentCiteStyle);
+      };
+    });
+
+    async function loadCitations(style) {
+      if (_citationsCache[style]) { renderCitations(_citationsCache[style]); return; }
+      document.getElementById('citationsList').innerHTML = '<p class="text-txt/40">Generating citations...</p>';
+      if (!reportData || !reportData.detected_sources) return;
+      const sources = reportData.detected_sources.map(s => ({
+        url: s.url, title: s.title, source_type: s.source_type, similarity: s.similarity,
+      }));
+      try {
+        const r = await fetch('/api/v1/citations/generate', {
+          method: 'POST', headers: hdr(),
+          body: JSON.stringify({ sources, style }),
+        });
+        if (!r.ok) throw new Error('Citation generation failed');
+        const data = await r.json();
+        _citationsCache[style] = data;
+        renderCitations(data);
+      } catch (e) {
+        document.getElementById('citationsList').innerHTML = `<p class="text-red-400">${escHtml(e.message)}</p>`;
+      }
+    }
+
+    function renderCitations(data) {
+      const citations = data.citations || [];
+      if (!citations.length) { document.getElementById('citationsList').innerHTML = '<p class="text-txt/40">No sources to cite.</p>'; return; }
+      document.getElementById('citationsList').innerHTML = citations.map((c, i) => `
+        <div class="bg-surface2/50 rounded-lg p-2.5 group relative">
+          <div class="text-txt/80 font-mono text-[11px] leading-relaxed">${escHtml(c.citation || 'N/A')}</div>
+          <button onclick="navigator.clipboard.writeText(this.parentElement.querySelector('.font-mono').textContent);showToast('Copied!','success')"
+            class="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary transition-opacity">Copy</button>
+        </div>`).join('');
     }
 
     function escHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
