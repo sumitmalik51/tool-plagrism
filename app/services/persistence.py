@@ -206,23 +206,17 @@ def get_user_stats(user_id: int) -> dict[str, Any]:
     """Aggregate statistics for a user's dashboard."""
     db = get_db()
 
-    total_row = db.fetch_one(
-        "SELECT COUNT(*) AS total_scans FROM scans WHERE user_id = ?",
-        (user_id,),
+    # Single combined query instead of 4 separate round trips
+    summary = db.fetch_one(
+        "SELECT "
+        "(SELECT COUNT(*) FROM scans WHERE user_id = ?) AS total_scans, "
+        "(SELECT COUNT(*) FROM documents WHERE user_id = ?) AS total_docs, "
+        "(SELECT AVG(plagiarism_score) FROM scans WHERE user_id = ?) AS avg_score",
+        (user_id, user_id, user_id),
     )
-    total_scans = total_row["total_scans"] if total_row else 0
-
-    doc_row = db.fetch_one(
-        "SELECT COUNT(*) AS total_docs FROM documents WHERE user_id = ?",
-        (user_id,),
-    )
-    total_docs = doc_row["total_docs"] if doc_row else 0
-
-    avg_row = db.fetch_one(
-        "SELECT AVG(plagiarism_score) AS avg_score FROM scans WHERE user_id = ?",
-        (user_id,),
-    )
-    avg_score = round(avg_row["avg_score"] or 0, 1) if avg_row else 0
+    total_scans = summary["total_scans"] if summary else 0
+    total_docs = summary["total_docs"] if summary else 0
+    avg_score = round(summary["avg_score"] or 0, 1) if summary and summary["avg_score"] else 0
 
     risk_rows = db.fetch_all(
         "SELECT risk_level, COUNT(*) AS cnt FROM scans WHERE user_id = ? GROUP BY risk_level",
@@ -236,3 +230,99 @@ def get_user_stats(user_id: int) -> dict[str, Any]:
         "average_score": avg_score,
         "risk_breakdown": risk_breakdown,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Research Writer — cache, embeddings, versions
+# ═══════════════════════════════════════════════════════════════════════════
+
+def rw_cache_get(request_hash: str, max_age_hours: int = 24) -> dict[str, Any] | None:
+    """Return cached research-writer response if it exists and is fresh."""
+    db = get_db()
+    row = db.fetch_one(
+        "SELECT response_json, created_at FROM rw_cache WHERE request_hash = ?",
+        (request_hash,),
+    )
+    if not row:
+        return None
+    # Check freshness
+    from datetime import datetime, timedelta, timezone
+    try:
+        created = datetime.fromisoformat(str(row["created_at"]).replace("Z", "+00:00"))
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) - created > timedelta(hours=max_age_hours):
+            return None
+    except Exception:
+        pass  # If timestamp parsing fails, return the cached data anyway
+    return json.loads(row["response_json"])
+
+
+def rw_cache_set(request_hash: str, user_id: int, response_json: str) -> None:
+    """Store a research-writer response in the cache."""
+    db = get_db()
+    # Upsert: delete old + insert
+    db.execute("DELETE FROM rw_cache WHERE request_hash = ?", (request_hash,))
+    db.execute(
+        "INSERT INTO rw_cache (request_hash, user_id, response_json) VALUES (?, ?, ?)",
+        (request_hash, user_id, response_json),
+    )
+
+
+def rw_store_embedding(user_id: int, text_hash: str, paragraph_text: str, embedding_blob: bytes) -> None:
+    """Store a paragraph embedding for internal similarity comparison."""
+    db = get_db()
+    db.execute(
+        "INSERT INTO rw_embeddings (user_id, text_hash, paragraph_text, embedding_blob) VALUES (?, ?, ?, ?)",
+        (user_id, text_hash, paragraph_text, embedding_blob),
+    )
+
+
+def rw_get_user_embeddings(user_id: int, limit: int = 200) -> list[dict[str, Any]]:
+    """Return stored embeddings for a user (for internal similarity check)."""
+    db = get_db()
+    rows = db.fetch_all(
+        "SELECT text_hash, paragraph_text, embedding_blob FROM rw_embeddings "
+        "WHERE user_id = ? ORDER BY created_at DESC",
+        (user_id,),
+    )
+    return rows[:limit]
+
+
+def rw_store_version(
+    session_id: str,
+    user_id: int,
+    version_number: int,
+    paragraph_text: str,
+    section_type: str,
+    level: str,
+    image_hash: str,
+) -> None:
+    """Store a version of a generated paragraph."""
+    db = get_db()
+    db.execute(
+        "INSERT INTO rw_versions "
+        "(session_id, user_id, version_number, paragraph_text, section_type, level, image_hash) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (session_id, user_id, version_number, paragraph_text, section_type, level, image_hash),
+    )
+
+
+def rw_get_versions(session_id: str, user_id: int) -> list[dict[str, Any]]:
+    """Return all versions for a session, ordered by version number."""
+    db = get_db()
+    return db.fetch_all(
+        "SELECT id, session_id, version_number, paragraph_text, section_type, level, created_at "
+        "FROM rw_versions WHERE session_id = ? AND user_id = ? ORDER BY version_number ASC",
+        (session_id, user_id),
+    )
+
+
+def rw_get_next_version_number(session_id: str, user_id: int) -> int:
+    """Return the next version number for a session."""
+    db = get_db()
+    row = db.fetch_one(
+        "SELECT MAX(version_number) AS max_ver FROM rw_versions WHERE session_id = ? AND user_id = ?",
+        (session_id, user_id),
+    )
+    return (row["max_ver"] or 0) + 1 if row else 1

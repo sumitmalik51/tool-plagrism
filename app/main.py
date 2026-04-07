@@ -29,6 +29,7 @@ from app.routes.webhooks import router as webhooks_router
 from app.routes.lms import router as lms_router
 from app.routes.stripe_payments import router as stripe_router
 from app.routes.chatbot import router as chatbot_router
+from app.routes.research_writer import router as research_writer_router
 from app.utils.logger import setup_logging, get_logger
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -39,19 +40,25 @@ _logger = get_logger(__name__)
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan: runs setup on startup and teardown on shutdown."""
     setup_logging(settings.log_level)
+    import threading
+
     # Preload the embedding model in background so the app answers health
     # checks immediately (Azure kills containers that don't respond in 10 min).
-    import threading
     from app.tools.embedding_tool import preload_model
     threading.Thread(target=preload_model, daemon=True, name="model-preload").start()
-    # Initialise database schema (creates tables if needed).
-    # Non-fatal: if Azure SQL is temporarily unavailable the app still starts
-    # and will connect lazily on first request.
-    try:
-        from app.services.database import get_db
-        get_db()
-    except Exception as exc:
-        _logger.warning("db_init_deferred", error=str(exc)[:120])
+
+    # Initialise database in background — Azure SQL serverless can take
+    # 10-15 s to wake from auto-pause; doing this synchronously blocks the
+    # entire app startup.  First request that needs the DB will wait via
+    # the get_db() lazy singleton, so nothing is lost.
+    def _init_db():
+        try:
+            from app.services.database import get_db
+            get_db()
+        except Exception as exc:
+            _logger.warning("db_init_deferred", error=str(exc)[:120])
+
+    threading.Thread(target=_init_db, daemon=True, name="db-init").start()
     yield
 
 
@@ -106,6 +113,7 @@ app.include_router(webhooks_router)
 app.include_router(lms_router)
 app.include_router(stripe_router)
 app.include_router(chatbot_router)
+app.include_router(research_writer_router)
 
 
 # --- Custom OpenAPI schema with security schemes -----------------------------
@@ -273,6 +281,12 @@ async def serve_highlight() -> FileResponse:
 async def serve_compare() -> FileResponse:
     """Serve the scan comparison page."""
     return FileResponse(STATIC_DIR / "compare.html")
+
+
+@app.get("/research-writer", include_in_schema=False)
+async def serve_research_writer() -> FileResponse:
+    """Serve the Research Writer tool page."""
+    return FileResponse(STATIC_DIR / "research-writer.html")
 
 
 @app.get("/pricing", include_in_schema=False)

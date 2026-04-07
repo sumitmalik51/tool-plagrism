@@ -147,3 +147,76 @@ def record_usage(request: Request, tool_type: str = "scan", word_count: int = 0)
 def record_scan(request: Request) -> int:
     """Legacy shim — records a scan usage."""
     return record_usage(request, tool_type="scan")
+
+
+def enforce_rw_limit(tool_type: str):
+    """Factory that returns a FastAPI dependency enforcing a per-tool daily limit.
+
+    When the daily limit is exhausted, falls back to deducting from the
+    user's purchased RW credit pack (if any) before raising 429.
+
+    Usage::
+
+        @router.post("/generate", dependencies=[Depends(enforce_rw_limit("rw_generate"))])
+        async def generate(...):
+            ...
+    """
+    async def _check(request: Request) -> None:
+        identifier, tier = _resolve_identity(request)
+        request.state.rate_limit_identifier = identifier
+        request.state.rate_limit_tier = tier
+
+        try:
+            remaining = limiter.check(identifier, tier, tool_type=tool_type)
+            request.state.rate_limit_remaining = remaining
+            return
+        except LimitExceeded as exc:
+            # Daily limit exhausted — try credit pack fallback
+            user_id: int | None = getattr(request.state, "user_id", None)
+            if user_id is not None:
+                from app.config import settings
+                from app.services.auth_service import deduct_rw_credit, get_rw_credits
+
+                _cost_map = {
+                    "rw_generate": settings.rw_credit_cost_generate,
+                    "rw_check": settings.rw_credit_cost_check,
+                    "rw_expand": settings.rw_credit_cost_expand,
+                    "rw_improve": settings.rw_credit_cost_improve,
+                    "rw_caption": settings.rw_credit_cost_caption,
+                }
+                cost = _cost_map.get(tool_type, 1)
+                credits_available = get_rw_credits(user_id)
+
+                if credits_available >= cost:
+                    if deduct_rw_credit(user_id, cost):
+                        logger.info(
+                            "rw_credit_used",
+                            user_id=user_id,
+                            tool_type=tool_type,
+                            cost=cost,
+                            credits_after=credits_available - cost,
+                        )
+                        request.state.rate_limit_remaining = -2  # sentinel: credit used
+                        return
+
+            logger.warning(
+                "rw_limit_reached",
+                identifier=identifier,
+                tier=tier.value,
+                tool_type=tool_type,
+                limit=exc.limit,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "error": "limit_reached",
+                    "message": f"Daily {tool_type} limit ({exc.limit}) reached. "
+                               f"Purchase a credit pack or upgrade your plan.",
+                    "limit": exc.limit,
+                    "remaining": 0,
+                    "resets_at": exc.resets_at,
+                    "upgrade_url": "/pricing",
+                },
+            )
+
+    return _check

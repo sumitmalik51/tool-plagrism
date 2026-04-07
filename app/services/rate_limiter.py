@@ -86,26 +86,25 @@ class UsageRateLimiter:
     # Core operations
     # ------------------------------------------------------------------
 
-    def get_count(self, identifier: str) -> int:
+    def get_count(self, identifier: str, tool_type: str | None = None) -> int:
         """Return the total tool‐usage count for *identifier* today.
 
+        When *tool_type* is given, count only that specific tool type.
         Uses a range comparison (``>= today AND < tomorrow``) that works
         identically on both SQLite (TEXT dates) and Azure SQL (DATETIME2).
         
         Results are cached for 1 minute to reduce DB load.
         """
         today = self._today()
-        cache_key = (identifier, today)
+        cache_key = (identifier, today, tool_type or "__all__")
 
         # Check cache first
         with self._cache_lock:
             if cache_key in self._cache:
                 count, expires_at = self._cache[cache_key]
                 if time.time() < expires_at:
-                    # Cache hit!
                     return count
                 else:
-                    # Stale — remove and refresh
                     del self._cache[cache_key]
 
         # Cache miss — query database
@@ -113,30 +112,35 @@ class UsageRateLimiter:
         db = get_db()
         tomorrow = self._tomorrow()
 
+        # Build optional tool_type filter
+        tt_clause = ""
+        tt_params: tuple = ()
+        if tool_type:
+            tt_clause = " AND tool_type = ?"
+            tt_params = (tool_type,)
+
         if identifier.startswith("user:"):
             raw = identifier.split(":", 1)[1]
             try:
                 user_id = int(raw)
                 row = db.fetch_one(
                     "SELECT COUNT(*) AS cnt FROM usage_logs "
-                    "WHERE user_id = ? AND created_at >= ? AND created_at < ?",
-                    (user_id, today, tomorrow),
+                    f"WHERE user_id = ? AND created_at >= ? AND created_at < ?{tt_clause}",
+                    (user_id, today, tomorrow) + tt_params,
                 )
             except ValueError:
-                # Non-numeric user identifier (e.g. tests with "user:pro")
                 row = db.fetch_one(
                     "SELECT COUNT(*) AS cnt FROM usage_logs "
-                    "WHERE ip_address = ? AND created_at >= ? AND created_at < ?",
-                    (identifier, today, tomorrow),
+                    f"WHERE ip_address = ? AND created_at >= ? AND created_at < ?{tt_clause}",
+                    (identifier, today, tomorrow) + tt_params,
                 )
         else:
-            # ip:x.x.x.x
             ip = identifier.split(":", 1)[1]
             row = db.fetch_one(
                 "SELECT COUNT(*) AS cnt FROM usage_logs "
-                "WHERE ip_address = ? AND user_id IS NULL "
-                "AND created_at >= ? AND created_at < ?",
-                (ip, today, tomorrow),
+                f"WHERE ip_address = ? AND user_id IS NULL "
+                f"AND created_at >= ? AND created_at < ?{tt_clause}",
+                (ip, today, tomorrow) + tt_params,
             )
 
         count = row["cnt"] if row else 0
@@ -172,10 +176,11 @@ class UsageRateLimiter:
 
         # Invalidate cache for this identifier so next query is fresh
         today = self._today()
-        cache_key = (identifier, today)
         with self._cache_lock:
-            if cache_key in self._cache:
-                del self._cache[cache_key]
+            # Remove all cache entries for this identifier today (any tool_type)
+            keys_to_remove = [k for k in self._cache if k[0] == identifier and k[1] == today]
+            for k in keys_to_remove:
+                del self._cache[k]
 
         count = self.get_count(identifier)
         logger.debug(
@@ -204,16 +209,17 @@ class UsageRateLimiter:
             identifier, "scan", user_id=user_id, ip_address=ip_address,
         )
 
-    def get_remaining(self, identifier: str, tier: UserTier) -> int:
+    def get_remaining(self, identifier: str, tier: UserTier, tool_type: str | None = None) -> int:
         """Return how many uses remain for *identifier* today.
 
-        Returns ``-1`` for pro/premium users (unlimited).
+        When *tool_type* is given, checks against the tool-specific limit.
+        Returns ``-1`` for unlimited tiers/tools.
         """
-        if tier in (UserTier.PRO, UserTier.PREMIUM):
+        limit = self._limit_for_tier(tier, tool_type)
+        if limit == 0:
             return -1  # unlimited
 
-        limit = self._limit_for_tier(tier)
-        used = self.get_count(identifier)
+        used = self.get_count(identifier, tool_type)
         return max(limit - used, 0)
 
     def get_monthly_word_count(self, user_id: int) -> int:
@@ -243,18 +249,18 @@ class UsageRateLimiter:
         allowed = remaining >= word_count
         return {"allowed": allowed, "used": used, "limit": quota, "remaining": remaining}
 
-    def check(self, identifier: str, tier: UserTier) -> int:
+    def check(self, identifier: str, tier: UserTier, tool_type: str | None = None) -> int:
         """Check whether *identifier* can still use tools today.
 
-        Returns the number of remaining uses.
+        When *tool_type* is given, checks against the tool-specific limit.
+        Returns the number of remaining uses, or -1 for unlimited.
         Raises ``LimitExceeded`` if 0 remaining.
         """
-        if tier in (UserTier.PRO, UserTier.PREMIUM):
+        remaining = self.get_remaining(identifier, tier, tool_type)
+        if remaining == -1:
             return -1  # unlimited
-
-        remaining = self.get_remaining(identifier, tier)
         if remaining <= 0:
-            limit = self._limit_for_tier(tier)
+            limit = self._limit_for_tier(tier, tool_type)
             resets = self._tomorrow()
             raise LimitExceeded(
                 limit=limit,
@@ -297,12 +303,47 @@ class UsageRateLimiter:
         return (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%d")
 
     @staticmethod
-    def _limit_for_tier(tier: UserTier) -> int:
+    def _limit_for_tier(tier: UserTier, tool_type: str | None = None) -> int:
+        """Return the daily limit for a tier + tool combination.
+
+        Returns 0 for unlimited (Pro/Premium general scans, or Premium RW tools
+        configured with 0).
+        """
+        # Tool-specific limits (research writer) — tiered per plan
+        _rw_limits: dict[str, dict[str, int]] = {
+            "rw_generate": {
+                "free": settings.rw_generate_limit_free,
+                "pro": settings.rw_generate_limit_pro,
+                "premium": settings.rw_generate_limit_premium,
+            },
+            "rw_check": {
+                "free": settings.rw_check_limit_free,
+                "pro": settings.rw_check_limit_pro,
+                "premium": settings.rw_check_limit_premium,
+            },
+            "rw_expand": {
+                "free": settings.rw_expand_limit_free,
+                "pro": settings.rw_expand_limit_pro,
+                "premium": settings.rw_expand_limit_premium,
+            },
+            "rw_improve": {
+                "free": settings.rw_improve_limit_free,
+                "pro": settings.rw_improve_limit_pro,
+                "premium": settings.rw_improve_limit_premium,
+            },
+        }
+        if tool_type and tool_type in _rw_limits:
+            tier_key = tier.value  # "free", "pro", "premium", "anonymous"
+            if tier_key == "anonymous":
+                tier_key = "free"
+            return _rw_limits[tool_type].get(tier_key, 0)
+
+        # General scan limits
         if tier == UserTier.ANONYMOUS:
             return settings.scan_limit_anonymous
         if tier == UserTier.FREE:
             return settings.scan_limit_free
-        return 0  # PRO/PREMIUM — never called
+        return 0  # PRO/PREMIUM general scans = unlimited
 
     @staticmethod
     def _word_quota_for_tier(tier: UserTier) -> int:

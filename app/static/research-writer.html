@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Research Writer — PlagiarismGuard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/static/js/common.js"></script>
+  <script src="/static/js/auth.js"></script>
+  <link rel="stylesheet" href="/static/css/theme.css" />
+  <style>
+    .drop-zone { transition: border-color .2s, background .2s; }
+    .drop-zone.dragover { border-color: #6c5ce7; background: rgba(108,92,231,.08); }
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: rgba(34,197,94,.15); color: #22c55e; }
+    .badge-yellow { background: rgba(234,179,8,.15); color: #eab308; }
+    .badge-red { background: rgba(239,68,68,.15); color: #ef4444; }
+    .badge-blue { background: rgba(59,130,246,.15); color: #3b82f6; }
+    .version-item { cursor: pointer; transition: background .15s; }
+    .version-item:hover { background: rgba(108,92,231,.08); }
+    .version-item.active { background: rgba(108,92,231,.15); border-left: 3px solid #6c5ce7; }
+    @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+    .pulse-dot { animation: pulse-dot 1.2s ease-in-out infinite; }
+  </style>
+</head>
+<body class="bg-bg text-txt min-h-screen">
+
+  <!-- Navbar -->
+  <nav class="fixed top-0 left-0 right-0 z-50 bg-bg/80 backdrop-blur-xl border-b border-border/50">
+    <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2 text-lg font-bold">
+        <svg viewBox="0 0 40 40" class="w-7 h-7" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="8" fill="#4F46E5"/><rect x="10" y="7" width="18" height="24" rx="2" fill="white"/><path d="M22 7v6h6" fill="#E0E7FF"/><rect x="13" y="15" width="12" height="1.5" rx=".75" fill="#A5B4FC"/><rect x="13" y="19" width="10" height="1.5" rx=".75" fill="#A5B4FC"/><rect x="13" y="23" width="8" height="1.5" rx=".75" fill="#A5B4FC"/><circle cx="26" cy="27" r="7" fill="#22C55E"/><path d="M23 27l2 2 4-4" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        PlagiarismGuard
+      </a>
+      <div class="flex items-center gap-3">
+        <a href="/app" class="text-sm text-txt/60 hover:text-primary">← Dashboard</a>
+        <button onclick="toggleTheme()" class="p-1.5 rounded-lg border border-border/30 hover:bg-surface2 transition-colors" title="Toggle theme">
+          <svg class="w-4 h-4 theme-icon-moon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+          <svg class="w-4 h-4 theme-icon-sun hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-6xl mx-auto pt-20 px-4 pb-16">
+
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-2xl font-bold flex items-center gap-3">
+        <span class="w-10 h-10 rounded-xl bg-[#e84393]/15 grid place-items-center text-xl">📈</span>
+        Research Writer
+      </h1>
+      <div class="flex items-center gap-3 mt-1">
+        <p class="text-sm text-muted">Upload a graph or chart, describe what it shows, and get an original academic paragraph with a plagiarism check.</p>
+        <span id="creditBadge" class="hidden flex-shrink-0 px-3 py-1 rounded-full bg-warn/10 text-warn text-xs font-semibold border border-warn/20"></span>
+      </div>
+    </div>
+
+    <div class="grid lg:grid-cols-3 gap-6">
+
+      <!-- ══════════ LEFT: Input Panel ══════════ -->
+      <div class="lg:col-span-2 space-y-5">
+
+        <!-- Image Upload -->
+        <div class="bg-surface border border-border/30 rounded-2xl p-5">
+          <label class="text-sm font-semibold mb-3 block">Graph / Chart Image</label>
+
+          <!-- Tabs: Upload / URL / Paste -->
+          <div class="flex gap-2 mb-3">
+            <button data-tab="upload" class="img-tab px-3 py-1.5 text-xs rounded-lg bg-accent/15 text-accent font-medium transition-colors">Upload</button>
+            <button data-tab="url" class="img-tab px-3 py-1.5 text-xs rounded-lg text-muted hover:bg-surface2 transition-colors">From URL</button>
+            <button data-tab="paste" class="img-tab px-3 py-1.5 text-xs rounded-lg text-muted hover:bg-surface2 transition-colors">Paste</button>
+          </div>
+
+          <!-- Upload tab -->
+          <div id="tab-upload" class="img-panel">
+            <div id="dropZone" class="drop-zone border-2 border-dashed border-border/40 rounded-xl p-8 text-center cursor-pointer hover:border-accent/50">
+              <input type="file" id="imgFile" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" />
+              <svg class="mx-auto w-10 h-10 text-muted/40 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              <p class="text-sm text-muted">Click or drag an image here<br><span class="text-xs text-muted/60">PNG, JPG, WebP, GIF — max 20 MB</span></p>
+            </div>
+          </div>
+
+          <!-- URL tab -->
+          <div id="tab-url" class="img-panel hidden">
+            <input type="url" id="imgUrl" placeholder="https://example.com/chart.png" class="w-full bg-bg border border-border/30 rounded-lg px-3 py-2 text-sm glow-input" />
+          </div>
+
+          <!-- Paste tab -->
+          <div id="tab-paste" class="img-panel hidden">
+            <div id="pasteZone" class="border-2 border-dashed border-border/40 rounded-xl p-8 text-center cursor-pointer hover:border-accent/50 focus:border-accent/70 focus:outline-none" tabindex="0">
+              <p class="text-sm text-muted">Press <kbd class="px-1.5 py-0.5 bg-surface2 rounded text-xs">Ctrl+V</kbd> to paste an image from clipboard</p>
+            </div>
+          </div>
+
+          <!-- Preview -->
+          <div id="imgPreview" class="hidden mt-3 relative">
+            <img id="previewImg" class="max-h-48 rounded-lg border border-border/20" />
+            <button id="removeImg" class="absolute top-1 right-1 w-6 h-6 bg-bg/80 rounded-full grid place-items-center text-muted hover:text-danger text-xs">&times;</button>
+          </div>
+        </div>
+
+        <!-- Explanation -->
+        <div class="bg-surface border border-border/30 rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-sm font-semibold">Your Explanation</label>
+            <button id="btnImprove" class="text-xs text-accent hover:underline hidden">✨ Improve with AI</button>
+          </div>
+          <textarea id="explanation" rows="4" placeholder="Describe what the graph/chart shows — trends, values, comparisons..." class="w-full bg-bg border border-border/30 rounded-lg px-3 py-2 text-sm resize-y glow-input"></textarea>
+          <p class="text-xs text-muted mt-1">Min 20 characters. The more detail you provide, the better the result.</p>
+        </div>
+
+        <!-- Options Bar -->
+        <div class="bg-surface border border-border/30 rounded-2xl p-5">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <label class="text-xs text-muted mb-1 block">Section Type</label>
+              <select id="sectionType" class="w-full bg-bg border border-border/30 rounded-lg px-2 py-1.5 text-sm">
+                <option value="results">Results</option>
+                <option value="discussion">Discussion</option>
+                <option value="methodology">Methodology</option>
+                <option value="introduction">Introduction</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-muted mb-1 block">Academic Level</label>
+              <select id="level" class="w-full bg-bg border border-border/30 rounded-lg px-2 py-1.5 text-sm">
+                <option value="undergraduate">Undergraduate</option>
+                <option value="masters">Masters</option>
+                <option value="phd">PhD / Research</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-muted mb-1 block">Citation Style</label>
+              <select id="citationStyle" class="w-full bg-bg border border-border/30 rounded-lg px-2 py-1.5 text-sm">
+                <option value="apa">APA</option>
+                <option value="mla">MLA</option>
+                <option value="chicago">Chicago</option>
+                <option value="ieee">IEEE</option>
+                <option value="harvard">Harvard</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-muted mb-1 block">Tone</label>
+              <select id="tone" class="w-full bg-bg border border-border/30 rounded-lg px-2 py-1.5 text-sm">
+                <option value="academic">Academic</option>
+                <option value="formal">Formal</option>
+                <option value="neutral">Neutral</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Generate Button -->
+        <button id="btnGenerate" class="w-full py-3 rounded-xl bg-gradient-to-r from-accent to-[#e84393] text-white font-semibold text-sm hover:shadow-lg hover:shadow-accent/20 transition-all pulse-btn disabled:opacity-50 disabled:cursor-not-allowed">
+          <span id="genLabel">Generate Academic Paragraph</span>
+          <span id="genSpinner" class="hidden"><svg class="inline w-4 h-4 spinner mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="3" stroke-dasharray="31.42" stroke-dashoffset="10"/></svg> Generating...</span>
+        </button>
+
+        <!-- Output -->
+        <div id="outputSection" class="hidden space-y-4">
+
+          <!-- AI Vision Panel -->
+          <div class="bg-surface border border-border/30 rounded-2xl p-5">
+            <h3 class="text-sm font-semibold mb-3 flex items-center gap-2">🤖 What AI Sees</h3>
+            <div class="flex flex-wrap gap-2" id="aiInsights">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <!-- Generated Paragraph -->
+          <div class="bg-surface border border-border/30 rounded-2xl p-5">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-semibold">Generated Paragraph</h3>
+              <div class="flex items-center gap-2">
+                <button id="btnCopy" class="text-xs text-muted hover:text-accent" title="Copy">📋 Copy</button>
+                <button id="btnRegenerate" class="text-xs text-muted hover:text-accent" title="Regenerate">🔄 Regenerate</button>
+              </div>
+            </div>
+            <textarea id="outputText" rows="6" readonly class="w-full bg-bg border border-border/30 rounded-lg px-3 py-2 text-sm resize-y"></textarea>
+
+            <!-- Figure caption -->
+            <div id="captionBox" class="hidden mt-3 bg-bg/60 border border-border/20 rounded-lg p-3">
+              <p class="text-xs text-muted mb-1">Figure Caption</p>
+              <p id="captionText" class="text-sm italic"></p>
+            </div>
+
+            <!-- Key Findings -->
+            <div id="findingsBox" class="hidden mt-3">
+              <p class="text-xs text-muted mb-1">Key Findings</p>
+              <ul id="findingsList" class="text-sm space-y-1 list-disc list-inside text-muted"></ul>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex flex-wrap gap-3">
+            <button id="btnCheck" class="px-5 py-2 rounded-xl bg-[#00b894]/15 text-[#00b894] font-medium text-sm hover:bg-[#00b894]/25 transition-colors">
+              🔍 Plagiarism Check
+            </button>
+            <button id="btnExpand" class="px-5 py-2 rounded-xl bg-accent/15 text-accent font-medium text-sm hover:bg-accent/25 transition-colors">
+              📑 Expand to Full Section
+            </button>
+            <button id="btnCaption" class="px-5 py-2 rounded-xl bg-[#e84393]/15 text-[#e84393] font-medium text-sm hover:bg-[#e84393]/25 transition-colors">
+              🏷️ Generate Caption
+            </button>
+          </div>
+
+          <!-- Plagiarism Result -->
+          <div id="plagSection" class="hidden bg-surface border border-border/30 rounded-2xl p-5">
+            <h3 class="text-sm font-semibold mb-3">Originality Check</h3>
+            <div class="flex items-center gap-3 mb-3">
+              <span id="plagVerdict" class="badge"></span>
+              <span id="plagScore" class="text-sm text-muted"></span>
+              <span id="plagTime" class="text-xs text-muted/50 ml-auto"></span>
+            </div>
+            <div id="plagMatches"></div>
+          </div>
+
+          <!-- Expanded Section -->
+          <div id="expandSection" class="hidden bg-surface border border-border/30 rounded-2xl p-5">
+            <h3 class="text-sm font-semibold mb-3">Expanded Section</h3>
+            <textarea id="expandText" rows="10" readonly class="w-full bg-bg border border-border/30 rounded-lg px-3 py-2 text-sm resize-y"></textarea>
+            <p id="expandMeta" class="text-xs text-muted mt-2"></p>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══════════ RIGHT: Version Sidebar ══════════ -->
+      <div class="space-y-5">
+
+        <!-- Session Info -->
+        <div class="bg-surface border border-border/30 rounded-2xl p-5">
+          <h3 class="text-sm font-semibold mb-2">Session</h3>
+          <p class="text-xs text-muted break-all" id="sessionIdDisplay">No session yet</p>
+        </div>
+
+        <!-- Version History -->
+        <div class="bg-surface border border-border/30 rounded-2xl p-5">
+          <h3 class="text-sm font-semibold mb-3">Version History</h3>
+          <div id="versionList" class="space-y-2 max-h-80 overflow-y-auto">
+            <p class="text-xs text-muted">Generate a paragraph to start version tracking.</p>
+          </div>
+        </div>
+
+        <!-- Tips -->
+        <div class="bg-surface border border-border/30 rounded-2xl p-5">
+          <h3 class="text-sm font-semibold mb-2">Tips</h3>
+          <ul class="text-xs text-muted space-y-1.5 list-disc list-inside">
+            <li>Use clear, high-resolution graph images</li>
+            <li>Describe specific trends, values, and comparisons</li>
+            <li>Run a plagiarism check before using in your paper</li>
+            <li>Use "Expand" to build a full multi-paragraph section</li>
+            <li>Each generation creates a version for easy comparison</li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <footer class="py-4 text-center text-[11px] text-muted/60">Developed by Sumit Malik</footer>
+
+  <script>
+  (function() {
+    'use strict';
+
+    const API = '/api/v1/research-writer';
+    let sessionId = null;
+    let currentImageFile = null;     // File object
+    let currentImageUrl = null;      // URL string
+    let currentImageBase64 = null;   // data URI string
+
+    // ── Auth guard (uses requireAuth from auth.js) ──
+    if (!requireAuth()) return;
+
+    // ── DOM refs ──
+    const $dropZone = document.getElementById('dropZone');
+    const $imgFile = document.getElementById('imgFile');
+    const $imgUrl = document.getElementById('imgUrl');
+    const $pasteZone = document.getElementById('pasteZone');
+    const $imgPreview = document.getElementById('imgPreview');
+    const $previewImg = document.getElementById('previewImg');
+    const $removeImg = document.getElementById('removeImg');
+    const $explanation = document.getElementById('explanation');
+    const $btnImprove = document.getElementById('btnImprove');
+    const $btnGenerate = document.getElementById('btnGenerate');
+    const $genLabel = document.getElementById('genLabel');
+    const $genSpinner = document.getElementById('genSpinner');
+    const $outputSection = document.getElementById('outputSection');
+    const $outputText = document.getElementById('outputText');
+    const $aiInsights = document.getElementById('aiInsights');
+    const $captionBox = document.getElementById('captionBox');
+    const $captionText = document.getElementById('captionText');
+    const $findingsBox = document.getElementById('findingsBox');
+    const $findingsList = document.getElementById('findingsList');
+    const $plagSection = document.getElementById('plagSection');
+    const $plagVerdict = document.getElementById('plagVerdict');
+    const $plagScore = document.getElementById('plagScore');
+    const $plagTime = document.getElementById('plagTime');
+    const $plagMatches = document.getElementById('plagMatches');
+    const $expandSection = document.getElementById('expandSection');
+    const $expandText = document.getElementById('expandText');
+    const $expandMeta = document.getElementById('expandMeta');
+    const $sessionIdDisplay = document.getElementById('sessionIdDisplay');
+    const $versionList = document.getElementById('versionList');
+
+    // ── Image state helpers ──
+    function clearImageState() {
+      currentImageFile = null;
+      currentImageUrl = null;
+      currentImageBase64 = null;
+      $imgPreview.classList.add('hidden');
+      $imgFile.value = '';
+      $imgUrl.value = '';
+    }
+
+    function showPreviewFromSrc(src) {
+      $previewImg.src = src;
+      $imgPreview.classList.remove('hidden');
+      $btnImprove.classList.remove('hidden');
+    }
+
+    // ── Image Tab Switching ──
+    document.querySelectorAll('.img-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.img-tab').forEach(b => { b.className = 'img-tab px-3 py-1.5 text-xs rounded-lg text-muted hover:bg-surface2 transition-colors'; });
+        btn.className = 'img-tab px-3 py-1.5 text-xs rounded-lg bg-accent/15 text-accent font-medium transition-colors';
+        document.querySelectorAll('.img-panel').forEach(p => p.classList.add('hidden'));
+        document.getElementById('tab-' + btn.dataset.tab).classList.remove('hidden');
+      });
+    });
+
+    // ── Image Upload (file) ──
+    $dropZone.addEventListener('click', () => $imgFile.click());
+    $dropZone.addEventListener('dragover', e => { e.preventDefault(); $dropZone.classList.add('dragover'); });
+    $dropZone.addEventListener('dragleave', () => $dropZone.classList.remove('dragover'));
+    $dropZone.addEventListener('drop', e => {
+      e.preventDefault(); $dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    $imgFile.addEventListener('change', () => { if ($imgFile.files.length) handleFile($imgFile.files[0]); });
+
+    function handleFile(file) {
+      if (!file || !file.type.startsWith('image/')) return;
+      if (file.size > 20 * 1024 * 1024) { alert('Image too large (max 20 MB)'); return; }
+      currentImageFile = file;
+      currentImageUrl = null;
+      currentImageBase64 = null;
+      const reader = new FileReader();
+      reader.onload = () => showPreviewFromSrc(reader.result);
+      reader.readAsDataURL(file);
+    }
+
+    // ── Image from URL ──
+    let _urlDebounce = null;
+    $imgUrl.addEventListener('input', () => {
+      clearTimeout(_urlDebounce);
+      _urlDebounce = setTimeout(() => {
+        const url = $imgUrl.value.trim();
+        if (!url) { $imgPreview.classList.add('hidden'); return; }
+        // Set state — the backend will fetch & validate
+        currentImageFile = null;
+        currentImageUrl = url;
+        currentImageBase64 = null;
+        // Show preview (browser will load if CORS allows, fallback is fine)
+        const img = new Image();
+        img.onload = () => showPreviewFromSrc(url);
+        img.onerror = () => {
+          // Can't preview cross-origin, but URL is still valid — show placeholder
+          $previewImg.src = '';
+          $imgPreview.classList.remove('hidden');
+          $previewImg.alt = 'Image will be fetched from URL';
+          $previewImg.style.minHeight = '60px';
+          $previewImg.style.background = 'var(--surface2, #2a2d3a)';
+          $btnImprove.classList.remove('hidden');
+        };
+        img.src = url;
+      }, 400);
+    });
+
+    // ── Clipboard Paste ──
+    $pasteZone.setAttribute('tabindex', '0');
+    $pasteZone.addEventListener('click', () => $pasteZone.focus());
+    document.addEventListener('paste', e => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (!file) return;
+          // Convert to base64 for paste input
+          currentImageFile = null;
+          currentImageUrl = null;
+          const reader = new FileReader();
+          reader.onload = () => {
+            currentImageBase64 = reader.result; // data:image/png;base64,...
+            showPreviewFromSrc(reader.result);
+            // Visual feedback on paste zone
+            $pasteZone.innerHTML = '<p class="text-sm text-ok">✅ Image pasted!</p>';
+          };
+          reader.readAsDataURL(file);
+          return;
+        }
+      }
+    });
+
+    // ── Remove image ──
+    $removeImg.addEventListener('click', () => {
+      clearImageState();
+      $pasteZone.innerHTML = '<p class="text-sm text-muted">Press <kbd class="px-1.5 py-0.5 bg-surface2 rounded text-xs">Ctrl+V</kbd> to paste an image from clipboard</p>';
+      $previewImg.style.minHeight = '';
+      $previewImg.style.background = '';
+      $previewImg.alt = '';
+    });
+
+    // ── Helpers ──
+    function headers() { return _authHeaders(); }
+    function jsonHeaders() { return { ..._authHeaders(), 'Content-Type': 'application/json' }; }
+
+    function showError(msg) { alert(msg); }
+
+    function setGenerating(on) {
+      $btnGenerate.disabled = on;
+      $genLabel.classList.toggle('hidden', on);
+      $genSpinner.classList.toggle('hidden', !on);
+    }
+
+    // ── Generate ──
+    $btnGenerate.addEventListener('click', generate);
+
+    async function generate() {
+      const explanation = $explanation.value.trim();
+      if (explanation.length < 20) { showError('Please describe what the graph shows (min 20 characters).'); return; }
+
+      // Resolve image source
+      const urlVal = $imgUrl.value.trim();
+      if (!currentImageFile && !urlVal && !currentImageBase64) {
+        showError('Please provide an image.'); return;
+      }
+
+      setGenerating(true);
+      try {
+        const form = new FormData();
+        if (currentImageFile) form.append('image', currentImageFile);
+        else if (urlVal) form.append('image_url', urlVal);
+        else if (currentImageBase64) form.append('image_base64', currentImageBase64);
+
+        form.append('explanation', explanation);
+        form.append('section_type', document.getElementById('sectionType').value);
+        form.append('citation_style', document.getElementById('citationStyle').value);
+        form.append('tone', document.getElementById('tone').value);
+        form.append('level', document.getElementById('level').value);
+        if (sessionId) form.append('session_id', sessionId);
+
+        const resp = await fetch(API + '/generate', { method: 'POST', headers: headers(), body: form });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || `Error ${resp.status}`);
+        }
+        const data = await resp.json();
+        renderResult(data);
+      } catch (e) {
+        showError(e.message);
+      } finally {
+        setGenerating(false);
+      }
+    }
+
+    function renderResult(data) {
+      $outputSection.classList.remove('hidden');
+
+      // Session
+      if (data.session_id) {
+        sessionId = data.session_id;
+        $sessionIdDisplay.textContent = sessionId.substring(0, 12) + '...';
+      }
+
+      // Output text
+      $outputText.value = data.paragraph || '';
+
+      // AI Insights
+      $aiInsights.innerHTML = '';
+      const insights = [];
+      if (data.graph_type) {
+        const conf = Math.round((data.graph_type_confidence || 0) * 100);
+        insights.push({ label: `${data.graph_type} (${conf}%)`, cls: conf > 70 ? 'badge-blue' : 'badge-yellow', warn: data.graph_type_warning });
+      }
+      if (typeof data.confidence === 'number') {
+        const c = Math.round(data.confidence * 100);
+        const cls = c >= 70 ? 'badge-green' : c >= 40 ? 'badge-yellow' : 'badge-red';
+        insights.push({ label: `Confidence: ${c}%`, cls });
+      }
+      if (typeof data.image_quality_score === 'number') {
+        const q = Math.round(data.image_quality_score * 100);
+        insights.push({ label: `Image Quality: ${q}%`, cls: q >= 50 ? 'badge-green' : 'badge-yellow' });
+      }
+      if (data.image_used === false) {
+        insights.push({ label: '⚠️ Image not used (text-only fallback)', cls: 'badge-yellow' });
+      }
+      insights.forEach(i => {
+        const el = document.createElement('span');
+        el.className = 'badge ' + i.cls;
+        el.textContent = i.label;
+        if (i.warn) el.title = i.warn;
+        $aiInsights.appendChild(el);
+      });
+
+      // Caption
+      if (data.figure_caption) {
+        $captionBox.classList.remove('hidden');
+        $captionText.textContent = data.figure_caption;
+      } else {
+        $captionBox.classList.add('hidden');
+      }
+
+      // Key findings
+      if (data.key_findings && data.key_findings.length) {
+        $findingsBox.classList.remove('hidden');
+        $findingsList.innerHTML = '';
+        data.key_findings.forEach(f => {
+          const li = document.createElement('li');
+          li.textContent = f;
+          $findingsList.appendChild(li);
+        });
+      } else {
+        $findingsBox.classList.add('hidden');
+      }
+
+      // Version
+      if (data.version_number) {
+        addVersionToList(data.version_number, data.paragraph);
+      }
+
+      // Reset plag & expand
+      $plagSection.classList.add('hidden');
+      $expandSection.classList.add('hidden');
+    }
+
+    // ── Copy ──
+    document.getElementById('btnCopy').addEventListener('click', () => {
+      navigator.clipboard.writeText($outputText.value).then(() => {
+        document.getElementById('btnCopy').textContent = '✅ Copied!';
+        setTimeout(() => document.getElementById('btnCopy').textContent = '📋 Copy', 1500);
+      });
+    });
+
+    // ── Regenerate ──
+    document.getElementById('btnRegenerate').addEventListener('click', generate);
+
+    // ── Plagiarism Check ──
+    document.getElementById('btnCheck').addEventListener('click', async () => {
+      const text = $outputText.value.trim();
+      if (!text) return;
+      $plagSection.classList.remove('hidden');
+      $plagVerdict.textContent = '⏳ Checking...';
+      $plagVerdict.className = 'badge badge-blue';
+      $plagScore.textContent = '';
+      $plagMatches.innerHTML = '';
+      $plagTime.textContent = '';
+
+      try {
+        const resp = await fetch(API + '/check', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ text }) });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || `Error ${resp.status}`);
+        }
+        const data = await resp.json();
+        renderPlag(data);
+      } catch (e) {
+        $plagVerdict.textContent = '❌ ' + e.message;
+        $plagVerdict.className = 'badge badge-red';
+      }
+    });
+
+    function renderPlag(data) {
+      const verdictMap = {
+        original: { label: '✅ Original', cls: 'badge-green' },
+        needs_review: { label: '⚠️ Needs Review', cls: 'badge-yellow' },
+        likely_plagiarized: { label: '❌ Likely Plagiarized', cls: 'badge-red' },
+      };
+      const v = verdictMap[data.verdict] || verdictMap.original;
+      $plagVerdict.textContent = v.label;
+      $plagVerdict.className = 'badge ' + v.cls;
+      $plagScore.textContent = `Similarity: ${Math.round(data.similarity_score * 100)}%`;
+      $plagTime.textContent = data.elapsed_s + 's';
+
+      $plagMatches.innerHTML = '';
+      if (data.web_matches && data.web_matches.length) {
+        data.web_matches.forEach(m => {
+          const div = document.createElement('div');
+          div.className = 'flex items-center justify-between text-xs py-1.5 border-b border-border/20';
+          div.innerHTML = `<a href="${escHtml(m.url)}" target="_blank" rel="noopener" class="text-accent hover:underline truncate max-w-[70%]">${escHtml(m.title || m.url)}</a><span class="text-muted">${Math.round(m.similarity * 100)}%</span>`;
+          $plagMatches.appendChild(div);
+        });
+      }
+      if (data.internal_matches > 0) {
+        const div = document.createElement('div');
+        div.className = 'text-xs text-yellow-500 mt-2';
+        div.textContent = `⚠️ ${data.internal_matches} similar passage(s) found in your previous generations.`;
+        $plagMatches.appendChild(div);
+      }
+    }
+
+    // ── Expand ──
+    document.getElementById('btnExpand').addEventListener('click', async () => {
+      const paragraph = $outputText.value.trim();
+      if (!paragraph) return;
+      $expandSection.classList.remove('hidden');
+      $expandText.value = 'Expanding...';
+      $expandMeta.textContent = '';
+
+      try {
+        const resp = await fetch(API + '/expand', {
+          method: 'POST', headers: jsonHeaders(),
+          body: JSON.stringify({
+            paragraph,
+            section_type: document.getElementById('sectionType').value,
+            level: document.getElementById('level').value,
+            target_length: 'medium',
+          })
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || `Error ${resp.status}`);
+        }
+        const data = await resp.json();
+        $expandText.value = data.expanded_text || '';
+        $expandMeta.textContent = `${data.word_count || 0} words • ${data.paragraph_count || 0} paragraphs`;
+      } catch (e) {
+        $expandText.value = 'Error: ' + e.message;
+      }
+    });
+
+    // ── Standalone Caption ──
+    document.getElementById('btnCaption').addEventListener('click', async () => {
+      const urlVal = $imgUrl.value.trim();
+      if (!currentImageFile && !urlVal && !currentImageBase64) { showError('Provide an image first.'); return; }
+      $captionBox.classList.remove('hidden');
+      $captionText.textContent = 'Generating caption...';
+
+      try {
+        const form = new FormData();
+        if (currentImageFile) form.append('image', currentImageFile);
+        else if (urlVal) form.append('image_url', urlVal);
+        else if (currentImageBase64) form.append('image_base64', currentImageBase64);
+        form.append('explanation', $explanation.value.trim());
+
+        const resp = await fetch(API + '/caption', { method: 'POST', headers: headers(), body: form });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || `Error ${resp.status}`);
+        }
+        const data = await resp.json();
+        $captionText.textContent = data.caption || '';
+      } catch (e) {
+        $captionText.textContent = 'Error: ' + e.message;
+      }
+    });
+
+    // ── Improve Explanation ──
+    $btnImprove.addEventListener('click', async () => {
+      if ($explanation.value.trim().length < 5) { showError('Type something first.'); return; }
+      const urlVal = $imgUrl.value.trim();
+      if (!currentImageFile && !urlVal && !currentImageBase64) { showError('Provide an image first.'); return; }
+
+      $btnImprove.textContent = '⏳ Improving...';
+      $btnImprove.disabled = true;
+      try {
+        const form = new FormData();
+        if (currentImageFile) form.append('image', currentImageFile);
+        else if (urlVal) form.append('image_url', urlVal);
+        else if (currentImageBase64) form.append('image_base64', currentImageBase64);
+        form.append('explanation', $explanation.value.trim());
+
+        const resp = await fetch(API + '/improve', { method: 'POST', headers: headers(), body: form });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || `Error ${resp.status}`);
+        }
+        const data = await resp.json();
+        $explanation.value = data.improved_explanation || $explanation.value;
+      } catch (e) {
+        showError(e.message);
+      } finally {
+        $btnImprove.textContent = '✨ Improve with AI';
+        $btnImprove.disabled = false;
+      }
+    });
+
+    // ── Versions ──
+    function addVersionToList(num, text) {
+      if ($versionList.querySelector('.no-versions')) $versionList.innerHTML = '';
+      const div = document.createElement('div');
+      div.className = 'version-item rounded-lg p-3 border border-border/20';
+      div.innerHTML = `<div class="flex items-center justify-between mb-1"><span class="text-xs font-semibold">v${num}</span><span class="text-[10px] text-muted">${new Date().toLocaleTimeString()}</span></div><p class="text-xs text-muted line-clamp-2">${escHtml(text.substring(0, 120))}...</p>`;
+      div.addEventListener('click', () => {
+        $outputText.value = text;
+        document.querySelectorAll('.version-item').forEach(v => v.classList.remove('active'));
+        div.classList.add('active');
+      });
+      $versionList.prepend(div);
+    }
+
+    async function loadVersions() {
+      if (!sessionId) return;
+      try {
+        const resp = await fetch(API + '/versions/' + sessionId, { headers: headers() });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.versions && data.versions.length) {
+          $versionList.innerHTML = '';
+          data.versions.forEach(v => addVersionToList(v.version_number, v.paragraph_text));
+        }
+      } catch {}
+    }
+
+    // ── XSS helper ──
+    function escHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    // Load credit balance
+    (async () => {
+      try {
+        const r = await fetch('/api/v1/auth/rw-credits', { headers: headers() });
+        if (r.ok) {
+          const d = await r.json();
+          const badge = document.getElementById('creditBadge');
+          if (d.credits > 0) {
+            badge.textContent = d.credits + ' credits';
+            badge.classList.remove('hidden');
+          }
+        }
+      } catch(e) {}
+    })();
+
+  })();
+  </script>
+</body>
+</html>

@@ -28,6 +28,9 @@ from app.services.auth_service import (
     is_email_verified,
     resend_verification_token,
     get_referral_info,
+    get_rw_credits,
+    deduct_rw_credit,
+    add_rw_credits,
 )
 from app.services.api_key_service import (
     create_api_key,
@@ -944,6 +947,7 @@ async def route_razorpay_webhook(request: Request):
     notes = payment_entity.get("notes", {})
     user_id_str = notes.get("user_id", "")
     plan = notes.get("plan", "")
+    addon = notes.get("addon", "")
 
     logger.info(
         "razorpay_webhook_received",
@@ -962,24 +966,38 @@ async def route_razorpay_webhook(request: Request):
 
     # --- 4. Handle events ---------------------------------------------------
     if event == "payment.captured":
-        # Update payment record
-        try:
-            db.execute(
-                "UPDATE payments SET razorpay_payment_id = ?, status = ? "
-                "WHERE razorpay_order_id = ? AND status != ?",
-                (payment_id, "paid", order_id, "paid"),
-            )
-        except Exception as exc:
-            logger.error("webhook_payment_update_failed", error=str(exc), order_id=order_id)
-
-        # Upgrade the user's plan (only if we have the info from order notes)
-        if user_id_str and plan:
+        # Handle add-on credit pack purchases
+        if addon == "rw_credit_pack" and user_id_str:
             try:
-                uid = int(user_id_str)
-                update_user_plan(uid, plan)
-                logger.info("webhook_plan_upgraded", user_id=uid, plan=plan, order_id=order_id)
-            except (ValueError, AuthError) as exc:
-                logger.error("webhook_plan_upgrade_failed", error=str(exc), user_id=user_id_str)
+                db.execute(
+                    "UPDATE rw_credits SET razorpay_payment_id = ?, "
+                    "credits_remaining = credits_purchased, status = 'paid', "
+                    "updated_at = CURRENT_TIMESTAMP "
+                    "WHERE razorpay_order_id = ? AND status != 'paid'",
+                    (payment_id, order_id),
+                )
+                logger.info("webhook_addon_credits_activated", user_id=user_id_str, order_id=order_id)
+            except Exception as exc:
+                logger.error("webhook_addon_activate_failed", error=str(exc), order_id=order_id)
+        else:
+            # Regular plan upgrade — update payments table
+            try:
+                db.execute(
+                    "UPDATE payments SET razorpay_payment_id = ?, status = ? "
+                    "WHERE razorpay_order_id = ? AND status != ?",
+                    (payment_id, "paid", order_id, "paid"),
+                )
+            except Exception as exc:
+                logger.error("webhook_payment_update_failed", error=str(exc), order_id=order_id)
+
+            # Upgrade the user's plan (only if we have the info from order notes)
+            if user_id_str and plan:
+                try:
+                    uid = int(user_id_str)
+                    update_user_plan(uid, plan)
+                    logger.info("webhook_plan_upgraded", user_id=uid, plan=plan, order_id=order_id)
+                except (ValueError, AuthError) as exc:
+                    logger.error("webhook_plan_upgrade_failed", error=str(exc), user_id=user_id_str)
 
     elif event == "payment.failed":
         try:
@@ -994,6 +1012,153 @@ async def route_razorpay_webhook(request: Request):
 
     # Always return 200 so Razorpay doesn't retry endlessly
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Research Writer Credit Pack add-on (one-time purchase)
+# ---------------------------------------------------------------------------
+
+ADDON_AMOUNTS = {
+    "rw_credit_pack": settings.rw_credit_pack_amount,  # ₹149
+}
+
+
+@router.post("/create-addon-order")
+async def route_create_addon_order(
+    authorization: str = Header(default=""),
+):
+    """Create a Razorpay order for the Research Writer Credit Pack add-on."""
+    user_id = _get_user_id(authorization)
+
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    amount = ADDON_AMOUNTS["rw_credit_pack"]
+
+    try:
+        client = _get_razorpay_client()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("razorpay_client_init_failed", error=str(exc))
+        raise HTTPException(status_code=503, detail="Payment gateway unavailable.")
+
+    try:
+        order = client.order.create({
+            "amount": amount,
+            "currency": "INR",
+            "receipt": f"user_{user_id}_rw_credits",
+            "notes": {
+                "user_id": str(user_id),
+                "addon": "rw_credit_pack",
+                "credits": str(settings.rw_credit_pack_size),
+                "user_email": user.get("email", ""),
+            },
+        })
+    except Exception as exc:
+        logger.error("razorpay_addon_order_failed", error=str(exc), user_id=user_id)
+        raise HTTPException(status_code=502, detail="Failed to create payment order.")
+
+    from app.services.database import get_db
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO rw_credits "
+            "(user_id, credits_remaining, credits_purchased, razorpay_order_id, status) "
+            "VALUES (?, 0, ?, ?, 'created')",
+            (user_id, settings.rw_credit_pack_size, order["id"]),
+        )
+    except Exception as exc:
+        logger.error("addon_record_insert_failed", error=str(exc), order_id=order["id"])
+
+    logger.info("addon_order_created", order_id=order["id"], user_id=user_id, credits=settings.rw_credit_pack_size)
+
+    return {
+        "order_id": order["id"],
+        "amount": amount,
+        "currency": "INR",
+        "razorpay_key": settings.razorpay_key_id,
+        "addon": "rw_credit_pack",
+        "credits": settings.rw_credit_pack_size,
+        "user_name": user.get("name", ""),
+        "user_email": user.get("email", ""),
+    }
+
+
+class VerifyAddonPaymentRequest(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+
+
+@router.post("/verify-addon-payment")
+async def route_verify_addon_payment(
+    body: VerifyAddonPaymentRequest,
+    authorization: str = Header(default=""),
+):
+    """Verify Razorpay payment for the Research Writer Credit Pack add-on."""
+    user_id = _get_user_id(authorization)
+
+    message = f"{body.razorpay_order_id}|{body.razorpay_payment_id}"
+    expected_signature = hmac.new(
+        settings.razorpay_key_secret.encode("utf-8"),
+        message.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    from app.services.database import get_db
+    db = get_db()
+
+    if not hmac.compare_digest(expected_signature, body.razorpay_signature):
+        logger.warning("addon_signature_mismatch", order_id=body.razorpay_order_id, user_id=user_id)
+        try:
+            db.execute(
+                "UPDATE rw_credits SET status = 'failed' WHERE razorpay_order_id = ?",
+                (body.razorpay_order_id,),
+            )
+        except Exception as exc:
+            logger.error("addon_status_update_failed", error=str(exc))
+        raise HTTPException(status_code=400, detail="Payment verification failed. Invalid signature.")
+
+    # Signature valid — activate credits
+    try:
+        db.execute(
+            "UPDATE rw_credits SET razorpay_payment_id = ?, "
+            "credits_remaining = credits_purchased, status = 'paid', "
+            "updated_at = CURRENT_TIMESTAMP "
+            "WHERE razorpay_order_id = ? AND status != 'paid'",
+            (body.razorpay_payment_id, body.razorpay_order_id),
+        )
+    except Exception as exc:
+        logger.error("addon_credit_activate_failed", error=str(exc), order_id=body.razorpay_order_id)
+        raise HTTPException(status_code=500, detail="Payment recorded but credit activation failed. Contact support.")
+
+    total = get_rw_credits(user_id)
+    logger.info(
+        "addon_payment_verified",
+        order_id=body.razorpay_order_id,
+        user_id=user_id,
+        total_credits=total,
+    )
+
+    return {
+        "success": True,
+        "addon": "rw_credit_pack",
+        "credits_added": settings.rw_credit_pack_size,
+        "total_credits": total,
+        "message": f"{settings.rw_credit_pack_size} Research Writer credits added!",
+    }
+
+
+@router.get("/rw-credits")
+async def route_get_rw_credits(
+    authorization: str = Header(default=""),
+):
+    """Return the user's remaining Research Writer credits."""
+    user_id = _get_user_id(authorization)
+    total = get_rw_credits(user_id)
+    return {"credits": total}
 
 
 # Keep legacy endpoints for backwards compatibility

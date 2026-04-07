@@ -6,6 +6,7 @@
 <title>Pricing — PlagiarismGuard</title>
 <link rel="stylesheet" href="/static/css/theme.css" />
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script>tailwind.config={theme:{extend:{colors:{accent:'#6c5ce7','accent-l':'#a29bfe',ok:'#00b894',danger:'#e17055',warn:'#fdcb6e',surface:'#181c2e',surface2:'#232842',bg:'#0f1221',border:'#2e3348',txt:'#e6e8f0',muted:'#8b8fa3'}}}}</script>
 <style>
   body { background: #0f1221; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
@@ -79,6 +80,7 @@
         <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> AI content detection</li>
         <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Readability & grammar</li>
         <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> 50 MB uploads</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Research Writer (3/day)</li>
         <li class="flex items-center gap-3 text-muted"><span class="w-5 h-5 rounded-full bg-border/50 grid place-items-center text-muted text-xs">✗</span> API access</li>
         <li class="flex items-center gap-3 text-muted"><span class="w-5 h-5 rounded-full bg-border/50 grid place-items-center text-muted text-xs">✗</span> Batch uploads</li>
       </ul>
@@ -106,6 +108,7 @@
         <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> 5 API keys</li>
         <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> PDF & DOCX reports</li>
         <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Scan history & analytics</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Research Writer (25/day)</li>
       </ul>
       <button onclick="checkout('pro')" id="btnPro" class="w-full py-3 rounded-xl bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-bold text-center hover:shadow-2xl hover:shadow-accent/30 hover:-translate-y-0.5 transition-all duration-300">
         Upgrade to Research
@@ -131,10 +134,42 @@
         <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Webhook notifications</li>
         <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> LMS integrations</li>
         <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> 100 MB uploads</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Research Writer (75/day)</li>
       </ul>
       <button onclick="checkout('premium')" id="btnPremium" class="w-full py-3 rounded-xl bg-surface2 text-txt text-sm font-semibold border border-accent/30 text-center hover:bg-accent hover:text-white hover:border-accent transition-all duration-300">
         Upgrade to Advanced
       </button>
+    </div>
+  </div>
+
+  <!-- Research Writer Credit Pack Add-on -->
+  <div class="mt-12 max-w-xl mx-auto">
+    <div class="text-center mb-6">
+      <span class="px-3 py-1 rounded-full bg-warn/10 text-warn text-xs font-semibold border border-warn/20 mb-4 inline-block">ADD-ON</span>
+      <h2 class="text-2xl font-bold text-white">Need more Research Writer credits?</h2>
+      <p class="text-muted text-sm mt-2">One-time purchase. No subscription. Never expires.</p>
+    </div>
+    <div class="plan-card bg-surface rounded-2xl p-8 border border-warn/30 flex flex-col sm:flex-row items-center gap-6">
+      <div class="flex-1">
+        <h3 class="text-lg font-bold text-white mb-1">Research Writer Credit Pack</h3>
+        <p class="text-sm text-muted mb-3">100 credits — use for any Research Writer action when your daily free limit runs out.</p>
+        <ul class="space-y-1.5 text-xs text-muted">
+          <li class="flex items-center gap-2"><span class="text-ok">✓</span> Generate: 2 credits</li>
+          <li class="flex items-center gap-2"><span class="text-ok">✓</span> Check / Expand / Improve / Caption: 1 credit each</li>
+          <li class="flex items-center gap-2"><span class="text-ok">✓</span> Works on any plan (Free, Pro, or Premium)</li>
+          <li class="flex items-center gap-2"><span class="text-ok">✓</span> Credits never expire — use at your own pace</li>
+        </ul>
+      </div>
+      <div class="text-center flex-shrink-0">
+        <div class="flex items-end gap-1 mb-3">
+          <span class="text-4xl font-extrabold text-white" id="addonPriceDisplay">₹149</span>
+          <span class="text-muted text-xs mb-1">one-time</span>
+        </div>
+        <button onclick="buyAddon()" id="btnAddon" class="px-8 py-3 rounded-xl bg-gradient-to-r from-warn to-[#f0932b] text-white text-sm font-bold hover:shadow-xl hover:shadow-warn/20 hover:-translate-y-0.5 transition-all duration-300">
+          Buy 100 Credits
+        </button>
+        <p class="text-[10px] text-muted mt-2" id="addonCreditsDisplay"></p>
+      </div>
     </div>
   </div>
 
@@ -253,6 +288,12 @@ function updateDisplay() {
     document.getElementById(tier + 'Interval').textContent = isYearly ? '/year' : '/month';
     document.getElementById(tier + 'Strikethrough').textContent = sym + strikeFmt;
   }
+
+  // Add-on credit pack price
+  const addonINR = 149;
+  const addonConverted = addonINR * rate;
+  const addonFmt = isINR ? Math.round(addonConverted).toString() : addonConverted.toFixed(2);
+  document.getElementById('addonPriceDisplay').textContent = sym + addonFmt;
 }
 
 async function checkout(tier) {
@@ -308,6 +349,94 @@ async function openPortal() {
 
 // Show manage section if user is logged in
 if (TOKEN) document.getElementById('manageSection').classList.remove('hidden');
+
+async function buyAddon() {
+  if (!TOKEN) { window.location.href = '/login'; return; }
+  var btn = document.getElementById('btnAddon');
+  var origText = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Processing...';
+  try {
+    var r = await fetch('/api/v1/auth/create-addon-order', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + TOKEN }
+    });
+    if (!r.ok) {
+      var e = await r.json().catch(function() { return {}; });
+      alert(e.detail || 'Unable to create order. Please try again.');
+      return;
+    }
+    var data = await r.json();
+    // Open Razorpay checkout
+    var options = {
+      key: data.razorpay_key,
+      amount: data.amount,
+      currency: data.currency,
+      name: 'PlagiarismGuard',
+      description: 'Research Writer Credit Pack (100 credits)',
+      order_id: data.order_id,
+      prefill: { name: data.user_name, email: data.user_email },
+      handler: async function(response) {
+        // Verify payment
+        try {
+          var vr = await fetch('/api/v1/auth/verify-addon-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            })
+          });
+          var vd = await vr.json();
+          if (vr.ok && vd.success) {
+            var banner = document.createElement('div');
+            banner.className = 'fixed top-20 left-1/2 -translate-x-1/2 bg-ok text-white px-8 py-4 rounded-xl shadow-2xl z-50 font-semibold text-sm';
+            banner.textContent = '\uD83C\uDF89 ' + vd.message;
+            document.body.appendChild(banner);
+            loadCredits();
+            setTimeout(function() { banner.style.transition = 'opacity 0.5s'; banner.style.opacity = '0'; setTimeout(function() { banner.remove(); }, 500); }, 4000);
+          } else {
+            alert(vd.detail || 'Payment verification failed.');
+          }
+        } catch(err) {
+          alert('Verification failed. If you were charged, credits will be added automatically.');
+        }
+      },
+      theme: { color: '#6c5ce7' }
+    };
+    if (typeof Razorpay !== 'undefined') {
+      var rzp = new Razorpay(options);
+      rzp.open();
+    } else {
+      alert('Razorpay SDK not loaded. Please refresh the page and try again.');
+    }
+  } catch(err) {
+    alert('Unable to connect to payment service.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
+async function loadCredits() {
+  if (!TOKEN) return;
+  try {
+    var r = await fetch('/api/v1/auth/rw-credits', {
+      headers: { 'Authorization': 'Bearer ' + TOKEN }
+    });
+    if (r.ok) {
+      var d = await r.json();
+      var el = document.getElementById('addonCreditsDisplay');
+      if (d.credits > 0) {
+        el.textContent = 'You have ' + d.credits + ' credits remaining';
+        el.className = 'text-xs text-ok mt-2 font-medium';
+      } else {
+        el.textContent = '';
+      }
+    }
+  } catch(e) {}
+}
+loadCredits();
 
 // Handle success/cancel from URL
 var params = new URLSearchParams(location.search);

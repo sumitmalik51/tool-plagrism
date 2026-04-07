@@ -301,9 +301,14 @@ class AzureSQLDatabase(Database):
         conn = self._conn()
         cursor = conn.cursor()
         try:
-            for statement in _split_sql_statements(_MSSQL_SCHEMA):
-                if statement.strip():
-                    cursor.execute(statement)
+            # Combine all IF NOT EXISTS / CREATE statements into a single
+            # batch separated by semicolons — one round trip to Azure SQL
+            # instead of ~35 individual executions.
+            batch = ";\n".join(
+                s for s in _split_sql_statements(_MSSQL_SCHEMA) if s.strip()
+            )
+            if batch:
+                cursor.execute(batch)
             conn.commit()
             logger.info("db_schema_initialized", backend="azure_sql")
         except Exception:
@@ -484,6 +489,50 @@ CREATE TABLE IF NOT EXISTS lti_states (
 );
 
 CREATE INDEX IF NOT EXISTS idx_scans_doc_user ON scans(document_id, user_id);
+
+CREATE TABLE IF NOT EXISTS rw_cache (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_hash TEXT          NOT NULL UNIQUE,
+    user_id      INTEGER,
+    response_json TEXT         NOT NULL,
+    created_at   TEXT          NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS rw_embeddings (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id        INTEGER       NOT NULL,
+    text_hash      TEXT          NOT NULL,
+    paragraph_text TEXT          NOT NULL,
+    embedding_blob BLOB          NOT NULL,
+    created_at     TEXT          NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_rw_emb_user ON rw_embeddings(user_id);
+
+CREATE TABLE IF NOT EXISTS rw_versions (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id     TEXT          NOT NULL,
+    user_id        INTEGER       NOT NULL,
+    version_number INTEGER       NOT NULL DEFAULT 1,
+    paragraph_text TEXT          NOT NULL,
+    section_type   TEXT,
+    level          TEXT,
+    image_hash     TEXT,
+    created_at     TEXT          NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_rw_ver_session ON rw_versions(session_id);
+
+CREATE TABLE IF NOT EXISTS rw_credits (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id             INTEGER       NOT NULL,
+    credits_remaining   INTEGER       NOT NULL DEFAULT 0,
+    credits_purchased   INTEGER       NOT NULL DEFAULT 0,
+    razorpay_order_id   TEXT          NULL,
+    razorpay_payment_id TEXT          NULL,
+    status              TEXT          NOT NULL DEFAULT 'created',
+    created_at          TEXT          NOT NULL DEFAULT (datetime('now')),
+    updated_at          TEXT          NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_rw_credits_user ON rw_credits(user_id);
 """
 
 _MSSQL_SCHEMA = """
@@ -695,6 +744,60 @@ CREATE TABLE lti_states (
 ---
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_scans_doc_user')
 CREATE INDEX idx_scans_doc_user ON scans(document_id, user_id);
+---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'rw_cache')
+CREATE TABLE rw_cache (
+    id            INT IDENTITY(1,1) PRIMARY KEY,
+    request_hash  NVARCHAR(128)     NOT NULL UNIQUE,
+    user_id       INT               NULL,
+    response_json NVARCHAR(MAX)     NOT NULL,
+    created_at    DATETIME2         NOT NULL DEFAULT GETUTCDATE()
+);
+---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'rw_embeddings')
+CREATE TABLE rw_embeddings (
+    id             INT IDENTITY(1,1) PRIMARY KEY,
+    user_id        INT               NOT NULL,
+    text_hash      NVARCHAR(128)     NOT NULL,
+    paragraph_text NVARCHAR(MAX)     NOT NULL,
+    embedding_blob VARBINARY(MAX)    NOT NULL,
+    created_at     DATETIME2         NOT NULL DEFAULT GETUTCDATE()
+);
+---
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_rw_emb_user')
+CREATE INDEX idx_rw_emb_user ON rw_embeddings(user_id);
+---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'rw_versions')
+CREATE TABLE rw_versions (
+    id             INT IDENTITY(1,1) PRIMARY KEY,
+    session_id     NVARCHAR(64)      NOT NULL,
+    user_id        INT               NOT NULL,
+    version_number INT               NOT NULL DEFAULT 1,
+    paragraph_text NVARCHAR(MAX)     NOT NULL,
+    section_type   NVARCHAR(20)      NULL,
+    level          NVARCHAR(20)      NULL,
+    image_hash     NVARCHAR(128)     NULL,
+    created_at     DATETIME2         NOT NULL DEFAULT GETUTCDATE()
+);
+---
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_rw_ver_session')
+CREATE INDEX idx_rw_ver_session ON rw_versions(session_id);
+---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'rw_credits')
+CREATE TABLE rw_credits (
+    id                  INT IDENTITY(1,1) PRIMARY KEY,
+    user_id             INT               NOT NULL REFERENCES users(id),
+    credits_remaining   INT               NOT NULL DEFAULT 0,
+    credits_purchased   INT               NOT NULL DEFAULT 0,
+    razorpay_order_id   NVARCHAR(100)     NULL,
+    razorpay_payment_id NVARCHAR(100)     NULL,
+    status              NVARCHAR(20)      NOT NULL DEFAULT 'created',
+    created_at          DATETIME2         NOT NULL DEFAULT GETUTCDATE(),
+    updated_at          DATETIME2         NOT NULL DEFAULT GETUTCDATE()
+);
+---
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_rw_credits_user')
+CREATE INDEX idx_rw_credits_user ON rw_credits(user_id);
 """
 
 

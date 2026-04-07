@@ -96,6 +96,29 @@ class Settings(BaseSettings):
     api_keys_limit_premium: int = 20       # Premium API key limit
     web_search_max_queries_premium: int = 15  # Premium gets more web search queries
 
+    # Research Writer rate limits (per day)
+    rw_generate_limit_free: int = 3        # Free: GPT-4o vision = expensive
+    rw_generate_limit_pro: int = 25        # Pro: solid daily session
+    rw_generate_limit_premium: int = 75    # Premium: heavy usage
+    rw_check_limit_free: int = 5           # Free: plagiarism check
+    rw_check_limit_pro: int = 40           # Pro
+    rw_check_limit_premium: int = 0        # Premium: unlimited (0 = unlimited)
+    rw_expand_limit_free: int = 5          # Free: section expansion
+    rw_expand_limit_pro: int = 30          # Pro
+    rw_expand_limit_premium: int = 0       # Premium: unlimited
+    rw_improve_limit_free: int = 8         # Free: explanation improvement
+    rw_improve_limit_pro: int = 50         # Pro
+    rw_improve_limit_premium: int = 0      # Premium: unlimited
+
+    # Research Writer credit pack (one-time add-on)
+    rw_credit_pack_size: int = 100         # Credits per pack
+    rw_credit_pack_amount: int = 149_00    # Price in paise (₹149)
+    rw_credit_cost_generate: int = 2       # Credits per generate
+    rw_credit_cost_check: int = 1          # Credits per check
+    rw_credit_cost_expand: int = 1         # Credits per expand
+    rw_credit_cost_improve: int = 1        # Credits per improve
+    rw_credit_cost_caption: int = 1        # Credits per caption
+
     # Razorpay payment gateway
     razorpay_key_id: str = ""       # Set PG_RAZORPAY_KEY_ID
     razorpay_key_secret: str = ""   # Set PG_RAZORPAY_KEY_SECRET

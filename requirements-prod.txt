@@ -21,6 +21,9 @@ httpx==0.28.1
 ddgs>=9.0.0
 
 
+# Image processing
+Pillow>=10.0.0
+
 # Embeddings & ML
 sentence-transformers>=3.0.0
 numpy>=1.26.0

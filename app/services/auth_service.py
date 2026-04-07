@@ -295,6 +295,67 @@ def update_user_plan(user_id: int, plan_type: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Research Writer credit helpers
+# ---------------------------------------------------------------------------
+
+def get_rw_credits(user_id: int) -> int:
+    """Return the total remaining RW credits for a user across all packs."""
+    db = get_db()
+    row = db.fetch_one(
+        "SELECT COALESCE(SUM(credits_remaining), 0) AS total "
+        "FROM rw_credits WHERE user_id = ? AND status = 'paid'",
+        (user_id,),
+    )
+    return row["total"] if row else 0
+
+
+def deduct_rw_credit(user_id: int, amount: int = 1) -> bool:
+    """Deduct *amount* credits from the user's oldest active pack.
+
+    Uses FIFO — deducts from the earliest purchased pack first.
+    Returns True if enough credits were available and deducted.
+    """
+    db = get_db()
+    rows = db.fetch_all(
+        "SELECT id, credits_remaining FROM rw_credits "
+        "WHERE user_id = ? AND status = 'paid' AND credits_remaining > 0 "
+        "ORDER BY created_at ASC",
+        (user_id,),
+    )
+    remaining_to_deduct = amount
+    for row in rows:
+        if remaining_to_deduct <= 0:
+            break
+        can_take = min(row["credits_remaining"], remaining_to_deduct)
+        db.execute(
+            "UPDATE rw_credits SET credits_remaining = credits_remaining - ?, "
+            "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (can_take, row["id"]),
+        )
+        remaining_to_deduct -= can_take
+
+    if remaining_to_deduct <= 0:
+        logger.info("rw_credits_deducted", user_id=user_id, amount=amount)
+        return True
+    return False
+
+
+def add_rw_credits(user_id: int, amount: int, order_id: str, payment_id: str | None = None) -> int:
+    """Insert a new credit pack row for the user. Returns the new row id."""
+    db = get_db()
+    db.execute(
+        "INSERT INTO rw_credits "
+        "(user_id, credits_remaining, credits_purchased, razorpay_order_id, razorpay_payment_id, status) "
+        "VALUES (?, ?, ?, ?, ?, 'paid')",
+        (user_id, amount, amount, order_id, payment_id),
+    )
+    logger.info("rw_credits_added", user_id=user_id, amount=amount, order_id=order_id)
+    row = db.fetch_one("SELECT COALESCE(SUM(credits_remaining), 0) AS total "
+                       "FROM rw_credits WHERE user_id = ? AND status = 'paid'", (user_id,))
+    return row["total"] if row else amount
+
+
+# ---------------------------------------------------------------------------
 # Password reset helpers
 # ---------------------------------------------------------------------------
 
