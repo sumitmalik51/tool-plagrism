@@ -301,14 +301,9 @@ class AzureSQLDatabase(Database):
         conn = self._conn()
         cursor = conn.cursor()
         try:
-            # Combine all IF NOT EXISTS / CREATE statements into a single
-            # batch separated by semicolons — one round trip to Azure SQL
-            # instead of ~35 individual executions.
-            batch = ";\n".join(
-                s for s in _split_sql_statements(_MSSQL_SCHEMA) if s.strip()
-            )
-            if batch:
-                cursor.execute(batch)
+            for statement in _split_sql_statements(_MSSQL_SCHEMA):
+                if statement.strip():
+                    cursor.execute(statement)
             conn.commit()
             logger.info("db_schema_initialized", backend="azure_sql")
         except Exception:
