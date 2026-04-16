@@ -20,8 +20,10 @@ from app.models.schemas import AgentInput, AgentOutput, FlaggedPassage
 from app.tools.content_extractor_tool import chunk_text
 from app.tools.embedding_tool import generate_embeddings
 from app.tools.openalex_tool import search_openalex_multi
+from app.tools.arxiv_tool import search_arxiv_multi
 from app.tools.scholar_tool import search_scholar_multi
 from app.tools.similarity_tool import cosine_similarity_matrix
+from app.tools.relevance_scorer import score_relevance
 
 
 def _extract_queries(chunks: list[str], max_queries: int = 8) -> list[str]:
@@ -117,7 +119,38 @@ class AcademicAgent(BaseAgent):
                 error=str(exc),
             )
 
-        # -- 2b. Fallback to Google Scholar if OpenAlex returned nothing --
+        # -- 2b. Try arXiv if OpenAlex returned few results --
+        if len(papers) < 3:
+            try:
+                arxiv_result = await search_arxiv_multi(
+                    queries, max_per_query=settings.scholar_results_per_query,
+                )
+                arxiv_papers = arxiv_result.get("results", [])
+                if arxiv_papers:
+                    # Deduplicate by title against existing papers
+                    existing_titles = {p.get("title", "").lower().strip() for p in papers}
+                    for ap in arxiv_papers:
+                        if ap["title"].lower().strip() not in existing_titles:
+                            papers.append(ap)
+                            existing_titles.add(ap["title"].lower().strip())
+                    if source_used == "openalex":
+                        source_used = "openalex+arxiv"
+                    else:
+                        source_used = "arxiv"
+                    self.logger.info(
+                        "arxiv_search_done",
+                        document_id=agent_input.document_id,
+                        papers_added=len(arxiv_papers),
+                        total_papers=len(papers),
+                    )
+            except Exception as exc:
+                self.logger.warning(
+                    "arxiv_search_failed",
+                    document_id=agent_input.document_id,
+                    error=str(exc),
+                )
+
+        # -- 2c. Fallback to Google Scholar if OpenAlex+arXiv returned nothing --
         if not papers:
             source_used = "scholar"
             self.logger.info(
@@ -143,7 +176,27 @@ class AcademicAgent(BaseAgent):
                 agent_input.document_id, chunks
             )
 
-        # --- 3. Build paper corpus & embed ------------------------------------
+        # --- 3. Rank papers by semantic relevance to the document --------
+        query_sample = " ".join(chunks[:3])[:1000]
+        try:
+            papers = await score_relevance(
+                query_sample, papers,
+                text_key="abstract", fallback_key="title",
+                min_score=0.10,
+            )
+            self.logger.info(
+                "relevance_scoring_done",
+                document_id=agent_input.document_id,
+                papers_after_scoring=len(papers),
+            )
+        except Exception as exc:
+            self.logger.warning(
+                "relevance_scoring_failed",
+                document_id=agent_input.document_id,
+                error=str(exc),
+            )
+
+        # --- 4. Build paper corpus & embed ------------------------------------
         paper_texts: list[str] = []
         paper_meta: list[dict] = []
         for p in papers:

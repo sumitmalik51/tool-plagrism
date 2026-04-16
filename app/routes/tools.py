@@ -20,6 +20,7 @@ from app.tools.similarity_tool import run_similarity_analysis
 from app.tools.web_search_tool import search_web
 from app.tools.scholar_tool import search_scholar
 from app.tools.openalex_tool import search_openalex
+from app.tools.arxiv_tool import search_arxiv
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -187,6 +188,24 @@ async def openalex_search_endpoint(request: ScholarSearchRequest) -> dict:
         )
 
 
+@router.post("/arxiv-search", summary="Search arXiv for academic papers")
+async def arxiv_search_endpoint(request: ScholarSearchRequest) -> dict:
+    """Search arXiv for academic preprints matching the query.
+
+    Free, no API key needed. Returns titles, authors, year, abstracts,
+    arXiv IDs, PDF URLs, and categories.
+    """
+    logger.info("tool_api_arxiv_search", query=request.query[:80])
+    try:
+        return await search_arxiv(request.query, max_results=request.max_results)
+    except Exception as exc:
+        logger.error("tool_api_arxiv_search_error", error=str(exc))
+        raise ExternalServiceError(
+            service_name="arxiv",
+            detail="arXiv service temporarily unavailable. Please try again.",
+        )
+
+
 @router.post("/content-extract", summary="Extract text from uploaded file")
 async def content_extract_endpoint(file: UploadFile) -> dict:
     """Extract text content from a PDF, DOCX, or TXT file."""
@@ -346,3 +365,140 @@ async def generate_report_endpoint(request: GenerateReportRequest) -> dict:
     )
 
     return report
+
+
+# ---------------------------------------------------------------------------
+# BibTeX export
+# ---------------------------------------------------------------------------
+
+class BibTexPaperInput(BaseModel):
+    """A single paper for BibTeX export."""
+    title: str = Field(..., description="Paper title")
+    authors: list[str] = Field(default_factory=list, description="List of author names")
+    year: str = Field(default="", description="Publication year")
+    abstract: str = Field(default="", description="Paper abstract")
+    url: str = Field(default="", description="URL or DOI")
+    venue: str = Field(default="", description="Journal/conference name")
+    arxiv_id: str = Field(default="", description="arXiv ID (if applicable)")
+    doi: str = Field(default="", description="DOI (if applicable)")
+
+
+class BibTexExportRequest(BaseModel):
+    """Input for the BibTeX export endpoint."""
+    papers: list[BibTexPaperInput] = Field(..., min_length=1, description="List of papers to export")
+
+
+@router.post("/bibtex-export", summary="Export papers as BibTeX")
+async def bibtex_export_endpoint(request: BibTexExportRequest) -> dict:
+    """Convert a list of paper metadata to BibTeX format.
+
+    Accepts papers from OpenAlex, arXiv, or Scholar search results and
+    produces a valid BibTeX string for import into reference managers.
+    """
+    from app.tools.bibtex_tool import papers_to_bibtex
+
+    logger.info("tool_api_bibtex_export", paper_count=len(request.papers))
+    papers = [p.model_dump() for p in request.papers]
+    bibtex_str = papers_to_bibtex(papers)
+    return {
+        "bibtex": bibtex_str,
+        "entry_count": len(request.papers),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Semantic Scholar author lookup
+# ---------------------------------------------------------------------------
+
+class AuthorSearchRequest(BaseModel):
+    """Input for the author search endpoint."""
+    query: str = Field(..., min_length=1, description="Author name to search for")
+    max_results: int = Field(default=5, ge=1, le=20, description="Maximum number of results")
+
+
+class AuthorPapersRequest(BaseModel):
+    """Input for the author papers endpoint."""
+    author_id: str = Field(..., min_length=1, description="Semantic Scholar author ID")
+    max_results: int = Field(default=10, ge=1, le=50, description="Maximum number of papers")
+
+
+@router.post("/author-lookup", summary="Search for authors via Semantic Scholar")
+async def author_lookup_endpoint(request: AuthorSearchRequest) -> dict:
+    """Search Semantic Scholar for academic authors matching the query.
+
+    Returns author profiles with name, affiliations, paper count,
+    citation count, and h-index.
+    """
+    from app.tools.semantic_scholar_tool import search_authors
+
+    logger.info("tool_api_author_lookup", query=request.query[:80])
+    try:
+        return await search_authors(request.query, max_results=request.max_results)
+    except Exception as exc:
+        logger.error("tool_api_author_lookup_error", error=str(exc))
+        raise ExternalServiceError(
+            service_name="semantic_scholar",
+            detail="Semantic Scholar service temporarily unavailable. Please try again.",
+        )
+
+
+@router.post("/author-papers", summary="Get author's publications")
+async def author_papers_endpoint(request: AuthorPapersRequest) -> dict:
+    """Get an author's publications from Semantic Scholar.
+
+    Returns papers with title, year, citation count, venue, and URL.
+    """
+    from app.tools.semantic_scholar_tool import get_author_papers
+
+    logger.info("tool_api_author_papers", author_id=request.author_id)
+    try:
+        return await get_author_papers(request.author_id, max_results=request.max_results)
+    except Exception as exc:
+        logger.error("tool_api_author_papers_error", error=str(exc))
+        raise ExternalServiceError(
+            service_name="semantic_scholar",
+            detail="Semantic Scholar service temporarily unavailable. Please try again.",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Semantic relevance scoring
+# ---------------------------------------------------------------------------
+
+class RelevanceResultInput(BaseModel):
+    """A single result item for relevance scoring."""
+    title: str = Field(default="", description="Title of the result")
+    abstract: str = Field(default="", description="Abstract or snippet text")
+
+
+class RelevanceScoreRequest(BaseModel):
+    """Input for the relevance scoring endpoint."""
+    query: str = Field(..., min_length=1, description="Query text to compare against")
+    results: list[RelevanceResultInput] = Field(..., min_length=1, description="Results to score")
+    min_score: float = Field(default=0.15, ge=0.0, le=1.0, description="Minimum relevance score")
+
+
+@router.post("/relevance-score", summary="Score search results by semantic relevance")
+async def relevance_score_endpoint(request: RelevanceScoreRequest) -> dict:
+    """Score and rank search results by their semantic relevance to a query.
+
+    Adds a ``relevance_score`` to each result and returns them sorted
+    by relevance (highest first). Results below ``min_score`` are filtered out.
+    """
+    from app.tools.relevance_scorer import score_relevance
+
+    logger.info("tool_api_relevance_score", result_count=len(request.results))
+    results = [r.model_dump() for r in request.results]
+    try:
+        scored = await score_relevance(
+            request.query, results,
+            text_key="abstract", fallback_key="title",
+            min_score=request.min_score,
+        )
+        return {"results": scored, "count": len(scored)}
+    except Exception as exc:
+        logger.error("tool_api_relevance_score_error", error=str(exc))
+        raise ExternalServiceError(
+            service_name="relevance_scorer",
+            detail="Relevance scoring temporarily unavailable. Please try again.",
+        )

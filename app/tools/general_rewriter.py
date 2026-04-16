@@ -123,16 +123,12 @@ _TONE_HINTS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 async def _call_openai(system_prompt: str, user_prompt: str) -> str:
-    """Call Azure OpenAI with retry logic."""
+    """Call Azure OpenAI with retry logic and model fallback."""
     endpoint = settings.azure_openai_endpoint.rstrip("/")
     api_key = settings.azure_openai_api_key
     deployment = settings.azure_openai_deployment
+    fallback_deployment = settings.azure_openai_fallback_deployment
     api_version = settings.azure_openai_api_version
-
-    url = (
-        f"{endpoint}/openai/deployments/{deployment}"
-        f"/chat/completions?api-version={api_version}"
-    )
 
     headers = {
         "Content-Type": "application/json",
@@ -146,32 +142,58 @@ async def _call_openai(system_prompt: str, user_prompt: str) -> str:
         ],
         "max_tokens": settings.rewriter_max_tokens,
         "temperature": 0.85,  # slightly higher than plagiarism rewriter for variety
-        "model": deployment,
     }
 
-    for attempt in range(MAX_RETRIES + 1):
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(url, json=body, headers=headers)
+    # Try primary model, then fallback model
+    deployments = [deployment]
+    if fallback_deployment and fallback_deployment != deployment:
+        deployments.append(fallback_deployment)
 
-            if response.status_code != 200:
-                raise RuntimeError(response.text[:300])
+    last_error: Exception | None = None
+    for deploy in deployments:
+        url = (
+            f"{endpoint}/openai/deployments/{deploy}"
+            f"/chat/completions?api-version={api_version}"
+        )
+        body["model"] = deploy
 
-            data = response.json()
-            return data["choices"][0]["message"]["content"].strip()
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    response = await client.post(url, json=body, headers=headers)
 
-        except Exception as exc:
-            logger.warning(
-                "general_rewrite_retry",
-                attempt=attempt,
-                error=str(exc),
-            )
-            if attempt == MAX_RETRIES:
-                raise
-            await asyncio.sleep(1.5 * (attempt + 1))
+                if response.status_code == 429 or response.status_code == 503:
+                    # Rate limited or overloaded — try fallback model
+                    logger.warning(
+                        "openai_rate_limited",
+                        deployment=deploy,
+                        status=response.status_code,
+                        attempt=attempt,
+                    )
+                    last_error = RuntimeError(f"HTTP {response.status_code}: {response.text[:200]}")
+                    break  # Skip retries, go to fallback
 
-    # unreachable, but keeps mypy happy
-    raise RuntimeError("All retries exhausted")  # pragma: no cover
+                if response.status_code != 200:
+                    raise RuntimeError(response.text[:300])
+
+                data = response.json()
+                if deploy != deployment:
+                    logger.info("openai_fallback_used", primary=deployment, fallback=deploy)
+                return data["choices"][0]["message"]["content"].strip()
+
+            except Exception as exc:
+                logger.warning(
+                    "general_rewrite_retry",
+                    attempt=attempt,
+                    deployment=deploy,
+                    error=str(exc),
+                )
+                last_error = exc
+                if attempt == MAX_RETRIES:
+                    break  # Try next deployment
+                await asyncio.sleep(1.5 * (attempt + 1))
+
+    raise last_error or RuntimeError("All retries and fallbacks exhausted")
 
 
 # ---------------------------------------------------------------------------

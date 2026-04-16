@@ -18,6 +18,14 @@ def _make_embeddings(n: int, dim: int = 384) -> np.ndarray:
     return vecs / norms
 
 
+def _make_dynamic_embeddings(dim: int = 384):
+    """Return a side_effect function that generates embeddings matching input size."""
+    def _side_effect(texts):
+        n = len(texts)
+        return _make_embeddings(n, dim)
+    return _side_effect
+
+
 # ---------------------------------------------------------------------------
 # _extract_queries
 # ---------------------------------------------------------------------------
@@ -61,15 +69,17 @@ async def test_academic_agent_short_text() -> None:
 
 @pytest.mark.asyncio
 @patch("app.agents.academic_agent.search_scholar_multi", new_callable=AsyncMock)
+@patch("app.agents.academic_agent.search_arxiv_multi", new_callable=AsyncMock)
 @patch("app.agents.academic_agent.search_openalex_multi", new_callable=AsyncMock)
 @patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
 async def test_academic_agent_no_scholar_results(
-    mock_embed: AsyncMock, mock_openalex: AsyncMock, mock_scholar: AsyncMock
+    mock_embed: AsyncMock, mock_openalex: AsyncMock, mock_arxiv: AsyncMock, mock_scholar: AsyncMock
 ) -> None:
     """When both OpenAlex and Scholar return nothing, fall back to intra-doc."""
     mock_openalex.return_value = {"results": []}
+    mock_arxiv.return_value = {"results": []}
     mock_scholar.return_value = {"results": []}
-    mock_embed.return_value = _make_embeddings(6)
+    mock_embed.side_effect = _make_dynamic_embeddings()
 
     agent = AcademicAgent()
     text = "This is a test sentence for academic analysis. " * 30
@@ -81,10 +91,11 @@ async def test_academic_agent_no_scholar_results(
 
 @pytest.mark.asyncio
 @patch("app.agents.academic_agent.search_scholar_multi", new_callable=AsyncMock)
+@patch("app.agents.academic_agent.search_arxiv_multi", new_callable=AsyncMock)
 @patch("app.agents.academic_agent.search_openalex_multi", new_callable=AsyncMock)
 @patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
 async def test_academic_agent_with_papers(
-    mock_embed: AsyncMock, mock_openalex: AsyncMock, mock_scholar: AsyncMock
+    mock_embed: AsyncMock, mock_openalex: AsyncMock, mock_arxiv: AsyncMock, mock_scholar: AsyncMock
 ) -> None:
     """When OpenAlex returns papers, should cross-compare and produce a score."""
     mock_openalex.return_value = {
@@ -99,10 +110,11 @@ async def test_academic_agent_with_papers(
             }
         ]
     }
+    mock_arxiv.return_value = {"results": []}
     # Scholar should NOT be called since OpenAlex returned results
     mock_scholar.return_value = {"results": []}
-    # 6 chunks + 1 paper abstract = 7 embeddings
-    mock_embed.return_value = _make_embeddings(7)
+    # Use dynamic embeddings to handle both relevance scoring and main embedding calls
+    mock_embed.side_effect = _make_dynamic_embeddings()
 
     agent = AcademicAgent()
     text = "This is a test sentence for academic analysis. " * 30
@@ -117,10 +129,11 @@ async def test_academic_agent_with_papers(
 
 @pytest.mark.asyncio
 @patch("app.agents.academic_agent.search_scholar_multi", new_callable=AsyncMock)
+@patch("app.agents.academic_agent.search_arxiv_multi", new_callable=AsyncMock)
 @patch("app.agents.academic_agent.search_openalex_multi", new_callable=AsyncMock)
 @patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
 async def test_academic_agent_high_similarity(
-    mock_embed: AsyncMock, mock_openalex: AsyncMock, mock_scholar: AsyncMock
+    mock_embed: AsyncMock, mock_openalex: AsyncMock, mock_arxiv: AsyncMock, mock_scholar: AsyncMock
 ) -> None:
     """When a chunk matches a paper abstract closely, it should be flagged."""
     mock_openalex.return_value = {
@@ -135,13 +148,15 @@ async def test_academic_agent_high_similarity(
             }
         ]
     }
+    mock_arxiv.return_value = {"results": []}
     mock_scholar.return_value = {"results": []}
-    # Create embeddings where chunks are very similar to the paper abstract
-    base_vec = np.ones((1, 384), dtype=np.float32)
-    base_vec /= np.linalg.norm(base_vec)
-    # 6 chunks similar to paper + 1 paper = all nearly identical
-    all_embs = np.tile(base_vec, (7, 1))
-    mock_embed.return_value = all_embs
+    # Create embeddings where all vectors are nearly identical (high similarity)
+    def _high_sim_embeddings(texts):
+        n = len(texts)
+        base_vec = np.ones((1, 384), dtype=np.float32)
+        base_vec /= np.linalg.norm(base_vec)
+        return np.tile(base_vec, (n, 1))
+    mock_embed.side_effect = _high_sim_embeddings
 
     agent = AcademicAgent()
     text = "This is matching text. " * 30
@@ -157,13 +172,15 @@ async def test_academic_agent_high_similarity(
 
 @pytest.mark.asyncio
 @patch("app.agents.academic_agent.search_scholar_multi", new_callable=AsyncMock)
+@patch("app.agents.academic_agent.search_arxiv_multi", new_callable=AsyncMock)
 @patch("app.agents.academic_agent.search_openalex_multi", new_callable=AsyncMock)
 @patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
 async def test_academic_agent_scholar_fallback(
-    mock_embed: AsyncMock, mock_openalex: AsyncMock, mock_scholar: AsyncMock
+    mock_embed: AsyncMock, mock_openalex: AsyncMock, mock_arxiv: AsyncMock, mock_scholar: AsyncMock
 ) -> None:
     """When OpenAlex returns nothing, should fall back to Scholar."""
     mock_openalex.return_value = {"results": []}
+    mock_arxiv.return_value = {"results": []}
     mock_scholar.return_value = {
         "results": [
             {
@@ -176,8 +193,8 @@ async def test_academic_agent_scholar_fallback(
             }
         ]
     }
-    # 6 chunks + 1 paper = 7 embeddings
-    mock_embed.return_value = _make_embeddings(7)
+    # Use dynamic embeddings to handle relevance scoring + main embedding calls
+    mock_embed.side_effect = _make_dynamic_embeddings()
 
     agent = AcademicAgent()
     text = "Text for Scholar fallback test. " * 30

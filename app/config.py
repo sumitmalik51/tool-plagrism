@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     azure_openai_endpoint: str = ""
     azure_openai_api_key: str = ""
     azure_openai_deployment: str = "gpt-4o"
+    azure_openai_fallback_deployment: str = "gpt-4o-mini"
     azure_openai_api_version: str = "2025-01-01-preview"
     rewriter_max_tokens: int = 4096
     rewriter_temperature: float = 0.7

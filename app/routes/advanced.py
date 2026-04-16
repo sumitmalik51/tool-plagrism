@@ -18,7 +18,7 @@ from app.dependencies.rate_limit import enforce_scan_limit, enforce_usage_limit,
 from app.services import progress as scan_progress
 from app.services.ingestion import ingest_file
 from app.services.orchestrator import run_pipeline
-from app.services.persistence import save_document, save_scan
+from app.services.persistence import save_document, save_scan, get_scan, get_user_scans
 from app.tools.section_splitter import split_into_sections
 from app.tools.citation_stripper import strip_reference_section
 from app.tools.reference_validator import validate_references, extract_references
@@ -507,6 +507,101 @@ async def repository_check(
         "total_checked": len(matches),
         "has_overlap": any(m["jaccard"] >= 0.05 for m in matches),
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Feature: Scan History API
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ScanHistoryParams(BaseModel):
+    """Query parameters for scan history."""
+    limit: int = Field(default=20, ge=1, le=100, description="Max results per page")
+    offset: int = Field(default=0, ge=0, description="Offset for pagination")
+    risk_level: str | None = Field(default=None, description="Filter by risk level: LOW, MEDIUM, HIGH")
+    sort_by: str = Field(default="created_at", description="Sort field: created_at, plagiarism_score, filename")
+    sort_order: str = Field(default="desc", description="Sort direction: asc or desc")
+    search: str | None = Field(default=None, description="Search in filename or document_id")
+
+
+@router.get(
+    "/scan-history",
+    summary="Get paginated scan history with filtering",
+)
+async def scan_history_endpoint(
+    http_request: Request,
+    limit: int = 20,
+    offset: int = 0,
+    risk_level: str | None = None,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
+    search: str | None = None,
+) -> dict:
+    """Return the user's scan history with pagination, filtering, and sorting.
+
+    Supports filtering by risk level, searching by filename/document_id,
+    and sorting by created_at, plagiarism_score, or filename.
+    """
+    user_id = getattr(http_request.state, "user_id", None)
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+
+    limit = min(max(limit, 1), 100)
+    offset = max(offset, 0)
+
+    scans = get_user_scans(
+        user_id,
+        limit=limit + 1,  # Fetch one extra to detect if there are more pages
+        offset=offset,
+        risk_level=risk_level,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        search=search,
+    )
+
+    has_more = len(scans) > limit
+    if has_more:
+        scans = scans[:limit]
+
+    # Strip large report_json from list view for performance
+    for s in scans:
+        s.pop("report_json", None)
+
+    return {
+        "scans": scans,
+        "count": len(scans),
+        "offset": offset,
+        "limit": limit,
+        "has_more": has_more,
+    }
+
+
+@router.get(
+    "/scan-history/{document_id}",
+    summary="Get detailed scan result for a specific document",
+)
+async def scan_detail_endpoint(
+    document_id: str,
+    http_request: Request,
+) -> dict:
+    """Return the full scan detail including the report JSON for a specific document."""
+    user_id = getattr(http_request.state, "user_id", None)
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+
+    scan = get_scan(document_id, user_id)
+    if not scan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found")
+
+    # Parse report_json back to dict if present
+    report_json = scan.get("report_json")
+    if report_json and isinstance(report_json, str):
+        try:
+            scan["report"] = json.loads(report_json)
+        except (json.JSONDecodeError, TypeError):
+            scan["report"] = None
+        scan.pop("report_json", None)
+
+    return {"scan": scan}
 
 
 # ═══════════════════════════════════════════════════════════════════════════

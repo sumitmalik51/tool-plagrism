@@ -6,6 +6,7 @@ import time
 from abc import ABC, abstractmethod
 
 from app.models.schemas import AgentInput, AgentOutput
+from app.services.agent_metrics import AgentMetrics
 from app.utils.logger import get_logger
 
 
@@ -45,6 +46,9 @@ class BaseAgent(ABC):
                 confidence=result.confidence,
                 elapsed_s=elapsed,
             )
+            AgentMetrics.instance().record(
+                self.name, duration_s=elapsed, success=True, score=result.score,
+            )
             return result
         except Exception as exc:
             elapsed = round(time.perf_counter() - start, 3)
@@ -53,6 +57,9 @@ class BaseAgent(ABC):
                 document_id=agent_input.document_id,
                 error=str(exc),
                 elapsed_s=elapsed,
+            )
+            AgentMetrics.instance().record(
+                self.name, duration_s=elapsed, success=False,
             )
             # Return a safe zero-score result so the pipeline can continue,
             # but include error details and mark confidence as 0 so the

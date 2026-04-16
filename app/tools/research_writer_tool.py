@@ -541,3 +541,108 @@ async def expand_section(
         "word_count": int(parsed.get("word_count", word_count)),
         "elapsed_s": elapsed,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Source finding — arXiv + OpenAlex for real citation suggestions
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+async def find_related_sources(
+    topic: str,
+    *,
+    max_results: int = 8,
+    citation_style: str = "apa",
+) -> dict[str, Any]:
+    """Search arXiv and OpenAlex for real papers related to *topic*.
+
+    Returns a combined, deduplicated list of papers with formatted citations.
+    Used by the /generate endpoint to replace placeholder citations with real ones.
+    """
+    start = time.perf_counter()
+
+    from app.tools.arxiv_tool import search_arxiv
+    from app.tools.openalex_tool import search_openalex
+
+    # Search both sources concurrently
+    arxiv_task = search_arxiv(topic, max_results=max_results)
+    openalex_task = search_openalex(topic, max_results=max_results)
+
+    arxiv_resp, openalex_resp = await asyncio.gather(
+        arxiv_task, openalex_task, return_exceptions=True,
+    )
+
+    papers: list[dict[str, Any]] = []
+    seen_titles: set[str] = set()
+
+    # Collect OpenAlex results first (generally higher quality metadata)
+    if isinstance(openalex_resp, dict):
+        for p in openalex_resp.get("results", []):
+            norm = p.get("title", "").lower().strip()
+            if norm and norm not in seen_titles:
+                seen_titles.add(norm)
+                p["source"] = "openalex"
+                papers.append(p)
+
+    # Then arXiv results
+    if isinstance(arxiv_resp, dict):
+        for p in arxiv_resp.get("results", []):
+            norm = p.get("title", "").lower().strip()
+            if norm and norm not in seen_titles:
+                seen_titles.add(norm)
+                p["source"] = "arxiv"
+                papers.append(p)
+
+    # Format citations
+    for p in papers:
+        p["formatted_citation"] = _format_citation(p, style=citation_style)
+
+    papers = papers[:max_results]
+    elapsed = round(time.perf_counter() - start, 3)
+
+    logger.info(
+        "rw_find_sources_complete",
+        topic=topic[:80],
+        total=len(papers),
+        elapsed_s=elapsed,
+    )
+
+    return {
+        "topic": topic,
+        "sources": papers,
+        "source_count": len(papers),
+        "elapsed_s": elapsed,
+    }
+
+
+def _format_citation(paper: dict[str, Any], style: str = "apa") -> str:
+    """Format a paper dict into a citation string."""
+    authors = paper.get("authors", [])
+    year = paper.get("year", "n.d.")
+    title = paper.get("title", "Untitled")
+
+    if not authors:
+        author_str = "Unknown"
+    elif len(authors) == 1:
+        author_str = authors[0]
+    elif len(authors) == 2:
+        author_str = f"{authors[0]} & {authors[1]}"
+    else:
+        author_str = f"{authors[0]} et al."
+
+    venue = paper.get("venue", "")
+
+    if style == "apa":
+        cite = f"{author_str} ({year}). {title}."
+        if venue:
+            cite += f" {venue}."
+    elif style == "mla":
+        cite = f'{author_str}. "{title}."'
+        if venue:
+            cite += f" {venue},"
+        cite += f" {year}."
+    else:
+        # Chicago-like default
+        cite = f"{author_str}. {title}. {venue}, {year}." if venue else f"{author_str}. {title}. {year}."
+
+    return cite

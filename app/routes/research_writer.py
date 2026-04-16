@@ -47,6 +47,7 @@ from app.services.persistence import (
 )
 from app.tools.research_writer_tool import (
     expand_section,
+    find_related_sources,
     generate_figure_caption,
     generate_paragraph,
     hash_request,
@@ -207,8 +208,14 @@ async def generate_endpoint(
     tone: str = Form("academic"),
     level: str = Form("undergraduate"),
     session_id: str | None = Form(None),
+    research_topic: str | None = Form(None),
 ):
-    """Generate an academic paragraph from a graph image + explanation."""
+    """Generate an academic paragraph from a graph image + explanation.
+
+    If *research_topic* is provided, arXiv + OpenAlex are searched for real
+    papers and the response includes a ``suggested_sources`` list with
+    formatted citations.
+    """
     user_id = _get_user_id(authorization)
 
     # Abuse protection: explanation quality
@@ -247,6 +254,20 @@ async def generate_endpoint(
     # Record usage
     word_count = len(result.get("paragraph", "").split())
     record_usage(request, tool_type="rw_generate", word_count=word_count)
+
+    # Source enrichment — search arXiv + OpenAlex for real papers
+    topic = research_topic or explanation
+    if topic:
+        try:
+            source_resp = await find_related_sources(
+                topic, max_results=5, citation_style=citation_style,
+            )
+            result["suggested_sources"] = source_resp.get("sources", [])
+        except Exception as e:
+            logger.warning("rw_source_enrichment_failed", error=str(e))
+            result["suggested_sources"] = []
+    else:
+        result["suggested_sources"] = []
 
     # Version management
     if not session_id:
@@ -489,3 +510,33 @@ async def caption_endpoint(
     caption = await generate_figure_caption(b64, mime, explanation)
     record_usage(request, tool_type="rw_generate", word_count=len(caption.split()))
     return {"caption": caption}
+
+
+class FindSourcesRequest(BaseModel):
+    topic: str = Field(..., min_length=5, description="Research topic to search for")
+    max_results: int = Field(8, ge=1, le=20)
+    citation_style: str = Field("apa", description="Citation format: apa, mla, or chicago")
+
+
+@router.post(
+    "/find-sources",
+    dependencies=[Depends(enforce_rw_limit("rw_check"))],
+)
+async def find_sources_endpoint(
+    request: Request,
+    authorization: str = Header(...),
+    body: FindSourcesRequest = ...,
+):
+    """Search arXiv + OpenAlex for real academic papers on a topic.
+
+    Returns formatted citations the student can use in their research paper.
+    """
+    _get_user_id(authorization)
+
+    result = await find_related_sources(
+        body.topic,
+        max_results=body.max_results,
+        citation_style=body.citation_style,
+    )
+    record_usage(request, tool_type="rw_check", word_count=0)
+    return result

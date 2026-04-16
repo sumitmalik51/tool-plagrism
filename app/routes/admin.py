@@ -274,3 +274,19 @@ async def admin_update_plan(
         "new_plan": body.plan_type,
         "message": f"Plan updated from {old_plan} to {body.plan_type} for user {target['email']}.",
     }
+
+
+# ---------------------------------------------------------------------------
+# Agent Metrics
+# ---------------------------------------------------------------------------
+
+@router.get("/agent-metrics", summary="Get agent execution metrics")
+async def agent_metrics_endpoint(authorization: str = Header(default="")):
+    """Return per-agent performance metrics (success rate, latency, scores).
+
+    Requires admin authentication.
+    """
+    _require_admin(authorization)
+
+    from app.services.agent_metrics import AgentMetrics
+    return AgentMetrics.instance().summary()

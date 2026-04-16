@@ -98,9 +98,8 @@ async def _call_azure_openai(system_prompt, user_prompt):
     endpoint = settings.azure_openai_endpoint.rstrip("/")
     api_key = settings.azure_openai_api_key
     deployment = settings.azure_openai_deployment
+    fallback_deployment = settings.azure_openai_fallback_deployment
     api_version = settings.azure_openai_api_version
-
-    url = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_version}"
 
     headers = {
         "Content-Type": "application/json",
@@ -114,25 +113,43 @@ async def _call_azure_openai(system_prompt, user_prompt):
         ],
         "max_tokens": settings.rewriter_max_tokens,
         "temperature": settings.rewriter_temperature,
-        "model": deployment,
     }
 
-    for attempt in range(MAX_RETRIES + 1):
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(url, json=body, headers=headers)
+    deployments = [deployment]
+    if fallback_deployment and fallback_deployment != deployment:
+        deployments.append(fallback_deployment)
 
-            if response.status_code != 200:
-                raise RuntimeError(response.text[:300])
+    last_error: Exception | None = None
+    for deploy in deployments:
+        url = f"{endpoint}/openai/deployments/{deploy}/chat/completions?api-version={api_version}"
+        body["model"] = deploy
 
-            data = response.json()
-            return data["choices"][0]["message"]["content"].strip()
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    response = await client.post(url, json=body, headers=headers)
 
-        except Exception as e:
-            logger.warning("openai_retry", attempt=attempt, error=str(e))
-            if attempt == MAX_RETRIES:
-                raise
-            await asyncio.sleep(1.5 * (attempt + 1))
+                if response.status_code == 429 or response.status_code == 503:
+                    logger.warning("openai_rate_limited", deployment=deploy, status=response.status_code)
+                    last_error = RuntimeError(f"HTTP {response.status_code}")
+                    break
+
+                if response.status_code != 200:
+                    raise RuntimeError(response.text[:300])
+
+                data = response.json()
+                if deploy != deployment:
+                    logger.info("openai_fallback_used", primary=deployment, fallback=deploy)
+                return data["choices"][0]["message"]["content"].strip()
+
+            except Exception as e:
+                logger.warning("openai_retry", attempt=attempt, deployment=deploy, error=str(e))
+                last_error = e
+                if attempt == MAX_RETRIES:
+                    break
+                await asyncio.sleep(1.5 * (attempt + 1))
+
+    raise last_error or RuntimeError("All retries and fallbacks exhausted")
 
 # ---------------------------------------------------------------------------
 # Helpers
