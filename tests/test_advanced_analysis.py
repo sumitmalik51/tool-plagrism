@@ -251,17 +251,17 @@ class TestAdaptiveQueryCount:
     def test_medium_document(self):
         from app.services.orchestrator import _adaptive_query_count
         web_q, scholar_q = _adaptive_query_count(15000)
-        assert web_q == 12
-        assert scholar_q == 12
+        assert web_q == 10
+        assert scholar_q == 10
 
     def test_large_document(self):
         from app.services.orchestrator import _adaptive_query_count
         web_q, scholar_q = _adaptive_query_count(35000)
-        assert web_q == 16
-        assert scholar_q == 16
+        assert web_q == 12
+        assert scholar_q == 12
 
     def test_very_large_document(self):
         from app.services.orchestrator import _adaptive_query_count
         web_q, scholar_q = _adaptive_query_count(80000)
-        assert web_q == 20
-        assert scholar_q == 20
+        assert web_q == 15
+        assert scholar_q == 15
