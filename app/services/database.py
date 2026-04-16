@@ -166,7 +166,7 @@ class AzureSQLDatabase(Database):
         if not hasattr(self._local, "conn") or self._local.conn is None:
             import time as _time
             last_err = None
-            for attempt in range(4):  # up to 4 attempts (~15s total)
+            for attempt in range(6):  # up to 6 attempts (~75s total for auto-pause wake)
                 try:
                     self._local.conn = self._pyodbc.connect(
                         self._connection_string,
@@ -180,10 +180,11 @@ class AzureSQLDatabase(Database):
                     # 40613 = DB not available (auto-pause waking)
                     # 08S01 = Communication link failure
                     # 08001 = Unable to connect
-                    transient = any(c in str(err_code) for c in ("40613", "08S01", "08001"))
-                    if not transient or attempt == 3:
+                    # HY000 = General ODBC error (often wraps 40613)
+                    transient = any(c in str(err_code) + str(exc) for c in ("40613", "08S01", "08001", "HY000"))
+                    if not transient or attempt == 5:
                         raise
-                    wait = (attempt + 1) * 2  # 2s, 4s, 6s
+                    wait = min((attempt + 1) * 3, 15)  # 3s, 6s, 9s, 12s, 15s
                     logger.warning(
                         "db_connect_retry",
                         attempt=attempt + 1,
