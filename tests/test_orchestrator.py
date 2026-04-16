@@ -11,11 +11,16 @@ from app.services.orchestrator import run_pipeline
 
 
 @pytest.mark.asyncio
+@patch("app.agents.web_search_agent.fetch_page_text", new_callable=AsyncMock, return_value={})
+@patch("app.agents.web_search_agent.search_multiple", new_callable=AsyncMock, return_value=[])
+@patch("app.agents.academic_agent.search_scholar_multi", new_callable=AsyncMock, return_value={"results": []})
+@patch("app.agents.academic_agent.search_arxiv_multi", new_callable=AsyncMock, return_value={"results": []})
+@patch("app.agents.academic_agent.search_openalex_multi", new_callable=AsyncMock, return_value={"results": []})
 @patch("app.tools.embedding_tool.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.web_search_agent.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.semantic_agent.generate_embeddings", new_callable=AsyncMock)
-async def test_pipeline_returns_report(mock_sem: AsyncMock, mock_web: AsyncMock, mock_acad: AsyncMock, mock_tool: AsyncMock) -> None:
+async def test_pipeline_returns_report(mock_sem, mock_web, mock_acad, mock_tool, *_mocks) -> None:
     """The full pipeline should return a PlagiarismReport even with stub agents."""
     import numpy as np
 
@@ -37,11 +42,16 @@ async def test_pipeline_returns_report(mock_sem: AsyncMock, mock_web: AsyncMock,
 
 
 @pytest.mark.asyncio
+@patch("app.agents.web_search_agent.fetch_page_text", new_callable=AsyncMock, return_value={})
+@patch("app.agents.web_search_agent.search_multiple", new_callable=AsyncMock, return_value=[])
+@patch("app.agents.academic_agent.search_scholar_multi", new_callable=AsyncMock, return_value={"results": []})
+@patch("app.agents.academic_agent.search_arxiv_multi", new_callable=AsyncMock, return_value={"results": []})
+@patch("app.agents.academic_agent.search_openalex_multi", new_callable=AsyncMock, return_value={"results": []})
 @patch("app.tools.embedding_tool.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.web_search_agent.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.semantic_agent.generate_embeddings", new_callable=AsyncMock)
-async def test_pipeline_short_text(mock_sem: AsyncMock, mock_web: AsyncMock, mock_acad: AsyncMock, mock_tool: AsyncMock) -> None:
+async def test_pipeline_short_text(mock_sem, mock_web, mock_acad, mock_tool, *_mocks) -> None:
     """Very short text should still produce a valid report (not crash)."""
     import numpy as np
 
