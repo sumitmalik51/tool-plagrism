@@ -58,6 +58,8 @@ jobs:
               - 'requirements.txt'
               - 'requirements-prod.txt'
               - 'startup.sh'
+              - 'pyproject.toml'
+              - '.github/workflows/**'
               - 'static/**'
               - 'openai-foundry.json'
 
