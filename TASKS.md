@@ -1,0 +1,143 @@
+# 🧠 PlagiarismGuard V2 — TASKS.md (Copilot Autopilot)
+
+> Feed this file to Copilot Agent: "Follow TASKS.md step by step and implement"
+
+---
+
+## ✅ PHASE 1 — Setup Frontend (Next.js)
+
+- [ ] Initialize Next.js (App Router + TypeScript)
+- [ ] Install Tailwind CSS
+- [ ] Create folder structure:
+
+```
+/app
+  /dashboard
+  /components
+  /lib
+```
+
+- [ ] Create base layout (`layout.tsx`)
+- [ ] Add Navbar component
+
+---
+
+## ✅ PHASE 2 — Core UI (Analyzer)
+
+- [ ] Create `Analyzer.tsx`
+- [ ] Add:
+  - Textarea input
+  - Upload button
+  - Analyze button
+
+- [ ] Add state:
+  - input text
+  - loading
+
+- [ ] Add loading spinner
+
+---
+
+## ✅ PHASE 3 — Results UI
+
+- [ ] Create `Results.tsx`
+- [ ] Add sections:
+  - Plagiarism Score
+  - AI Detection Score
+  - Highlighted Text
+  - Sources List
+
+- [ ] Add buttons:
+  - Download Report
+  - Copy Results
+
+---
+
+## ✅ PHASE 4 — Dashboard Layout
+
+- [ ] Create Sidebar component
+- [ ] Add menu:
+  - Analyze
+  - History
+  - Tools
+  - Pricing
+
+- [ ] Create Dashboard page
+- [ ] Render Analyzer + Results
+
+---
+
+## ✅ PHASE 5 — Tools (Tabs)
+
+- [ ] Create Tools section inside dashboard
+- [ ] Add tabs:
+  - Compare
+  - Highlight
+  - Rewrite
+  - Batch
+
+- [ ] Implement tab switching using state
+
+---
+
+## ✅ PHASE 6 — API Integration
+
+- [ ] Create `/lib/api.ts`
+
+- [ ] Add function:
+
+```
+analyzeText(text: string)
+```
+
+- [ ] Connect to FastAPI:
+  - POST /analyze
+
+- [ ] Call API from Analyzer
+- [ ] Pass response to Results
+
+- [ ] Handle:
+  - loading
+  - errors
+
+---
+
+## ✅ PHASE 7 — Cleanup Old UI
+
+- [ ] Remove static HTML pages:
+  - compare.html
+  - highlight.html
+  - batch.html
+
+- [ ] Replace with dashboard UI
+
+---
+
+## ✅ PHASE 8 — Polish UI
+
+- [ ] Improve spacing
+- [ ] Improve typography
+- [ ] Add hover effects
+- [ ] Add smooth transitions
+
+---
+
+## ⚠️ RULES
+
+- Do NOT create new HTML pages
+- Use reusable React components
+- Keep UI minimal and clean
+- Follow Tailwind utility classes only
+
+---
+
+## 🚀 FINAL GOAL
+
+- Single-page SaaS UI
+- Dashboard-driven experience
+- Clean, modern design
+- Fully connected to FastAPI backend
+
+---
+
+**End of TASKS.md (V2 branch)**
