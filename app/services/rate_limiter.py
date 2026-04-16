@@ -331,6 +331,11 @@ class UsageRateLimiter:
                 "pro": settings.rw_improve_limit_pro,
                 "premium": settings.rw_improve_limit_premium,
             },
+            "rw_caption": {
+                "free": settings.rw_caption_limit_free,
+                "pro": settings.rw_caption_limit_pro,
+                "premium": settings.rw_caption_limit_premium,
+            },
         }
         if tool_type and tool_type in _rw_limits:
             tier_key = tier.value  # "free", "pro", "premium", "anonymous"

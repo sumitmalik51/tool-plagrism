@@ -816,6 +816,7 @@ async def route_create_order(
         "amount": amount,
         "currency": "INR",
         "plan": body.plan,
+        "razorpay_key": settings.razorpay_key_id,
         "user_name": user.get("name", ""),
         "user_email": user.get("email", ""),
     }

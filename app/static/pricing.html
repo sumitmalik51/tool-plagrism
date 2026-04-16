@@ -80,7 +80,7 @@
         <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> AI content detection</li>
         <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Readability & grammar</li>
         <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> 50 MB uploads</li>
-        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Research Writer (3/day)</li>
+        <li class="flex items-center gap-3"><span class="w-5 h-5 rounded-full bg-ok/15 grid place-items-center text-ok text-xs">✓</span> Research Writer (1 free trial/day)</li>
         <li class="flex items-center gap-3 text-muted"><span class="w-5 h-5 rounded-full bg-border/50 grid place-items-center text-muted text-xs">✗</span> API access</li>
         <li class="flex items-center gap-3 text-muted"><span class="w-5 h-5 rounded-full bg-border/50 grid place-items-center text-muted text-xs">✗</span> Batch uploads</li>
       </ul>
@@ -298,16 +298,18 @@ function updateDisplay() {
 
 async function checkout(tier) {
   if (!TOKEN) { window.location.href = '/login'; return; }
-  const plan_id = tier + '_' + (isYearly ? 'yearly' : 'monthly');
+  var plan_id = tier === 'pro'
+    ? (isYearly ? 'pro_annual' : 'pro')
+    : (isYearly ? 'premium_annual' : 'premium');
   var btnId = tier === 'pro' ? 'btnPro' : 'btnPremium';
   var btn = document.getElementById(btnId);
   var origText = btn.textContent;
-  btn.disabled = true; btn.textContent = 'Redirecting...';
+  btn.disabled = true; btn.textContent = 'Processing...';
   try {
-    var r = await fetch('/api/v1/stripe/create-checkout', {
+    var r = await fetch('/api/v1/auth/create-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
-      body: JSON.stringify({ plan_id: plan_id })
+      body: JSON.stringify({ plan: plan_id })
     });
     if (!r.ok) {
       var e = await r.json().catch(function() { return {}; });
@@ -315,11 +317,52 @@ async function checkout(tier) {
       return;
     }
     var data = await r.json();
-    if (!data.checkout_url) {
-      alert('Unable to create checkout session. Please try again.');
+    if (!data.order_id) {
+      alert('Unable to create order. Please try again.');
       return;
     }
-    window.location.href = data.checkout_url;
+    var options = {
+      key: data.razorpay_key,
+      amount: data.amount,
+      currency: data.currency,
+      name: 'PlagiarismGuard',
+      description: (tier === 'pro' ? 'Research' : 'Advanced') + ' Plan — ' + (isYearly ? 'Annual' : 'Monthly'),
+      order_id: data.order_id,
+      prefill: { name: data.user_name, email: data.user_email },
+      handler: async function(response) {
+        try {
+          var vr = await fetch('/api/v1/auth/verify-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              plan: plan_id,
+            })
+          });
+          var vd = await vr.json();
+          if (vr.ok && vd.success) {
+            var banner = document.createElement('div');
+            banner.className = 'fixed top-20 left-1/2 -translate-x-1/2 bg-ok text-white px-8 py-4 rounded-xl shadow-2xl z-50 font-semibold text-sm';
+            banner.textContent = '\uD83C\uDF89 ' + (vd.message || 'Subscription activated! Welcome to your new plan.');
+            document.body.appendChild(banner);
+            setTimeout(function() { banner.style.transition = 'opacity 0.5s'; banner.style.opacity = '0'; setTimeout(function() { banner.remove(); }, 500); }, 4000);
+          } else {
+            alert(vd.detail || 'Payment verification failed.');
+          }
+        } catch(err) {
+          alert('Verification failed. If you were charged, your plan will be upgraded automatically.');
+        }
+      },
+      theme: { color: '#6c5ce7' }
+    };
+    if (typeof Razorpay !== 'undefined') {
+      var rzp = new Razorpay(options);
+      rzp.open();
+    } else {
+      alert('Payment SDK not loaded. Please refresh the page and try again.');
+    }
   } catch(err) {
     alert('Unable to connect to payment service. Please check your connection and try again.');
   } finally {
@@ -330,21 +373,8 @@ async function checkout(tier) {
 
 async function openPortal() {
   if (!TOKEN) { window.location.href = '/login'; return; }
-  try {
-    var r = await fetch('/api/v1/stripe/portal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN }
-    });
-    if (r.ok) {
-      var d = await r.json();
-      window.location.href = d.portal_url;
-    } else {
-      var e = await r.json().catch(function() { return {}; });
-      alert(e.detail || 'Unable to open subscription portal. Please try again.');
-    }
-  } catch(err) {
-    alert('Connection error. Please try again.');
-  }
+  // Razorpay doesn't have a self-service portal — direct to dashboard
+  window.location.href = '/app#settings';
 }
 
 // Show manage section if user is logged in
@@ -452,6 +482,6 @@ if (params.get('status') === 'success') {
 updateDisplay();
 </script>
 <script src="/static/js/chat-widget.js?v=3" defer></script>
-<footer class="py-4 text-center text-[11px] text-muted/60">Developed by Sumit Malik</footer>
+<footer class="py-4 text-center text-[11px] text-muted/60">Built by <a href="https://www.linkedin.com/in/sumitmalik51/" target="_blank" class="hover:text-accent transition-colors">Sumit Malik</a></footer>
 </body>
 </html>

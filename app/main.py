@@ -307,6 +307,12 @@ async def serve_privacy() -> FileResponse:
     return FileResponse(STATIC_DIR / "privacy.html")
 
 
+@app.get("/about", include_in_schema=False)
+async def serve_about() -> FileResponse:
+    """Serve the About / bio page."""
+    return FileResponse(STATIC_DIR / "about.html")
+
+
 @app.get("/forgot-password", include_in_schema=False)
 async def serve_forgot_password() -> FileResponse:
     """Serve the forgot-password page."""

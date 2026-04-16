@@ -1,12 +1,14 @@
 """Research Writer routes — graph-to-paragraph generation with plagiarism checking.
 
 Endpoints:
+  GET  /api/v1/research-writer/status     — user tier, limits, and remaining quota
   POST /api/v1/research-writer/generate   — generate paragraph from graph image
   POST /api/v1/research-writer/check      — deep plagiarism check on text
   POST /api/v1/research-writer/expand     — expand paragraph to full section
   POST /api/v1/research-writer/improve    — improve student's explanation
   GET  /api/v1/research-writer/versions/{session_id} — version history
   POST /api/v1/research-writer/caption    — standalone figure caption
+  POST /api/v1/research-writer/find-sources — search arXiv/OpenAlex for citations
 """
 
 from __future__ import annotations
@@ -189,6 +191,38 @@ async def _resolve_image(
 # ═══════════════════════════════════════════════════════════════════════════
 # Endpoints
 # ═══════════════════════════════════════════════════════════════════════════
+
+
+@router.get("/status")
+async def rw_status(authorization: str = Header(default="")):
+    """Return remaining daily uses and credit balance for the current user."""
+    from app.config import settings
+    from app.services.auth_service import get_rw_credits, get_user_by_id
+    from app.services.rate_limiter import PLAN_TO_TIER, UserTier, limiter
+
+    user_id = _get_user_id(authorization)
+    user = get_user_by_id(user_id)
+    plan = user.get("plan_type", "free") if user else "free"
+    tier = PLAN_TO_TIER.get(plan, UserTier.FREE)
+    identifier = f"user:{user_id}"
+
+    tool_types = ["rw_generate", "rw_check", "rw_expand", "rw_improve", "rw_caption"]
+    remaining = {}
+    limits = {}
+    for tt in tool_types:
+        r = limiter.get_remaining(identifier, tier, tool_type=tt)
+        remaining[tt] = r
+        limits[tt] = limiter._limit_for_tier(tier, tool_type=tt)
+
+    credits = get_rw_credits(user_id)
+
+    return {
+        "plan": plan,
+        "remaining": remaining,
+        "limits": limits,
+        "credits": credits,
+        "is_free": plan == "free",
+    }
 
 
 @router.post(
@@ -489,7 +523,7 @@ async def versions_endpoint(
 
 @router.post(
     "/caption",
-    dependencies=[Depends(enforce_rw_limit("rw_generate"))],
+    dependencies=[Depends(enforce_rw_limit("rw_caption"))],
 )
 async def caption_endpoint(
     request: Request,
@@ -508,7 +542,7 @@ async def caption_endpoint(
         raise HTTPException(status_code=422, detail=str(e))
 
     caption = await generate_figure_caption(b64, mime, explanation)
-    record_usage(request, tool_type="rw_generate", word_count=len(caption.split()))
+    record_usage(request, tool_type="rw_caption", word_count=len(caption.split()))
     return {"caption": caption}
 
 

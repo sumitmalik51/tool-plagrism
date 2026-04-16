@@ -98,18 +98,21 @@ class Settings(BaseSettings):
     web_search_max_queries_premium: int = 15  # Premium gets more web search queries
 
     # Research Writer rate limits (per day)
-    rw_generate_limit_free: int = 3        # Free: GPT-4o vision = expensive
+    rw_generate_limit_free: int = 1        # Free: 1 trial only
     rw_generate_limit_pro: int = 25        # Pro: solid daily session
     rw_generate_limit_premium: int = 75    # Premium: heavy usage
-    rw_check_limit_free: int = 5           # Free: plagiarism check
+    rw_check_limit_free: int = 1           # Free: 1 trial only
     rw_check_limit_pro: int = 40           # Pro
     rw_check_limit_premium: int = 0        # Premium: unlimited (0 = unlimited)
-    rw_expand_limit_free: int = 5          # Free: section expansion
+    rw_expand_limit_free: int = 1          # Free: 1 trial only
     rw_expand_limit_pro: int = 30          # Pro
     rw_expand_limit_premium: int = 0       # Premium: unlimited
-    rw_improve_limit_free: int = 8         # Free: explanation improvement
+    rw_improve_limit_free: int = 1         # Free: 1 trial only
     rw_improve_limit_pro: int = 50         # Pro
     rw_improve_limit_premium: int = 0      # Premium: unlimited
+    rw_caption_limit_free: int = 1         # Free: 1 trial only
+    rw_caption_limit_pro: int = 25         # Pro
+    rw_caption_limit_premium: int = 0      # Premium: unlimited
 
     # Research Writer credit pack (one-time add-on)
     rw_credit_pack_size: int = 100         # Credits per pack

@@ -54,6 +54,82 @@
         <p class="text-sm text-muted">Upload a graph or chart, describe what it shows, and get an original academic paragraph with a plagiarism check.</p>
         <span id="creditBadge" class="hidden flex-shrink-0 px-3 py-1 rounded-full bg-warn/10 text-warn text-xs font-semibold border border-warn/20"></span>
       </div>
+
+      <!-- Access Info Banner (shown for free users) -->
+      <div id="accessBanner" class="mt-4 hidden">
+        <div class="bg-gradient-to-r from-accent/10 via-surface to-[#e84393]/10 border border-accent/20 rounded-xl p-5">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div class="flex-shrink-0 w-10 h-10 rounded-xl bg-accent/15 grid place-items-center">
+              <svg class="w-5 h-5 text-accent-l" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            </div>
+            <div class="flex-1">
+              <p id="accessText" class="text-sm font-semibold text-txt"></p>
+              <p id="accessSubtext" class="text-xs text-muted mt-0.5"></p>
+            </div>
+            <a id="accessCta" href="/pricing" class="hidden flex-shrink-0 px-5 py-2 rounded-lg bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-xs font-bold hover:shadow-lg hover:shadow-accent/20 transition-all">
+              Upgrade Now
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Usage Status Bar -->
+      <div id="usageBar" class="mt-4 bg-surface border border-border/30 rounded-xl p-4 hidden">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold text-muted uppercase tracking-wider">Daily Usage</span>
+          <span id="planBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"></span>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div class="text-center">
+            <div class="text-lg font-bold" id="usageGenerate">-</div>
+            <div class="text-[10px] text-muted">Generate</div>
+          </div>
+          <div class="text-center">
+            <div class="text-lg font-bold" id="usageCheck">-</div>
+            <div class="text-[10px] text-muted">Check</div>
+          </div>
+          <div class="text-center">
+            <div class="text-lg font-bold" id="usageExpand">-</div>
+            <div class="text-[10px] text-muted">Expand</div>
+          </div>
+          <div class="text-center">
+            <div class="text-lg font-bold" id="usageImprove">-</div>
+            <div class="text-[10px] text-muted">Improve</div>
+          </div>
+          <div class="text-center">
+            <div class="text-lg font-bold" id="usageCaption">-</div>
+            <div class="text-[10px] text-muted">Caption</div>
+          </div>
+        </div>
+        <div id="creditLine" class="hidden mt-3 pt-3 border-t border-border/20 flex items-center justify-between">
+          <span class="text-xs text-muted">Credit Pack Balance</span>
+          <span id="creditCount" class="text-sm font-bold text-warn"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upgrade Modal Overlay -->
+    <div id="upgradeModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div class="bg-surface border border-border rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+        <div class="text-center">
+          <div class="w-16 h-16 rounded-2xl bg-accent/15 grid place-items-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-accent-l" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+          </div>
+          <h2 class="text-xl font-bold text-white mb-2">Free Trial Used</h2>
+          <p class="text-sm text-muted mb-6">You've used your free Research Writer trial. Upgrade to a paid plan for daily access, or buy a credit pack for on-demand usage.</p>
+          <div class="space-y-3">
+            <a href="/pricing" class="block w-full py-3 rounded-xl bg-gradient-to-r from-accent to-[#5a4bd1] text-white text-sm font-bold text-center hover:shadow-xl hover:shadow-accent/30 transition-all">
+              Upgrade Plan — From ₹299/mo
+            </a>
+            <a href="/pricing#addon" class="block w-full py-3 rounded-xl bg-warn/15 text-warn text-sm font-semibold text-center border border-warn/20 hover:bg-warn/25 transition-all">
+              Buy 100 Credits — ₹149
+            </a>
+            <button onclick="document.getElementById('upgradeModal').classList.add('hidden')" class="block w-full py-2 text-xs text-muted hover:text-txt transition-colors">
+              Maybe Later
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="grid lg:grid-cols-3 gap-6">
@@ -259,7 +335,7 @@
     </div>
   </main>
 
-  <footer class="py-4 text-center text-[11px] text-muted/60">Developed by Sumit Malik</footer>
+  <footer class="py-4 text-center text-[11px] text-muted/60">Built by <a href="https://www.linkedin.com/in/sumitmalik51/" target="_blank" class="hover:text-accent transition-colors">Sumit Malik</a></footer>
 
   <script>
   (function() {
@@ -421,6 +497,14 @@
 
     function showError(msg) { alert(msg); }
 
+    function extractError(err, fallback) {
+      if (!err) return fallback;
+      if (typeof err.detail === 'string') return err.detail;
+      if (err.detail && err.detail.message) return err.detail.message;
+      if (err.detail && err.detail.error === 'limit_reached') return 'Daily limit reached. Upgrade your plan for more access.';
+      return fallback;
+    }
+
     function setGenerating(on) {
       $btnGenerate.disabled = on;
       $genLabel.classList.toggle('hidden', on);
@@ -457,10 +541,11 @@
         const resp = await fetch(API + '/generate', { method: 'POST', headers: headers(), body: form });
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
-          throw new Error(err.detail || `Error ${resp.status}`);
+          throw new Error(extractError(err, `Error ${resp.status}`));
         }
         const data = await resp.json();
         renderResult(data);
+        loadStatus();
       } catch (e) {
         showError(e.message);
       } finally {
@@ -564,10 +649,11 @@
         const resp = await fetch(API + '/check', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ text }) });
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
-          throw new Error(err.detail || `Error ${resp.status}`);
+          throw new Error(extractError(err, `Error ${resp.status}`));
         }
         const data = await resp.json();
         renderPlag(data);
+        loadStatus();
       } catch (e) {
         $plagVerdict.textContent = '❌ ' + e.message;
         $plagVerdict.className = 'badge badge-red';
@@ -623,10 +709,11 @@
         });
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
-          throw new Error(err.detail || `Error ${resp.status}`);
+          throw new Error(extractError(err, `Error ${resp.status}`));
         }
         const data = await resp.json();
         $expandText.value = data.expanded_text || '';
+        loadStatus();
         $expandMeta.textContent = `${data.word_count || 0} words • ${data.paragraph_count || 0} paragraphs`;
       } catch (e) {
         $expandText.value = 'Error: ' + e.message;
@@ -650,10 +737,11 @@
         const resp = await fetch(API + '/caption', { method: 'POST', headers: headers(), body: form });
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
-          throw new Error(err.detail || `Error ${resp.status}`);
+          throw new Error(extractError(err, `Error ${resp.status}`));
         }
         const data = await resp.json();
         $captionText.textContent = data.caption || '';
+        loadStatus();
       } catch (e) {
         $captionText.textContent = 'Error: ' + e.message;
       }
@@ -677,10 +765,11 @@
         const resp = await fetch(API + '/improve', { method: 'POST', headers: headers(), body: form });
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
-          throw new Error(err.detail || `Error ${resp.status}`);
+          throw new Error(extractError(err, `Error ${resp.status}`));
         }
         const data = await resp.json();
         $explanation.value = data.improved_explanation || $explanation.value;
+        loadStatus();
       } catch (e) {
         showError(e.message);
       } finally {
@@ -723,20 +812,108 @@
       return d.innerHTML;
     }
 
-    // Load credit balance
-    (async () => {
+    // ── Usage Status ──
+    function fmtRemaining(r, limit) {
+      if (r === -1) return '∞';
+      return r + '/' + limit;
+    }
+    function remainingColor(r, limit) {
+      if (r === -1) return 'text-ok';
+      if (r === 0) return 'text-danger';
+      if (r <= Math.ceil(limit * 0.25)) return 'text-warn';
+      return 'text-ok';
+    }
+
+    async function loadStatus() {
       try {
-        const r = await fetch('/api/v1/auth/rw-credits', { headers: headers() });
-        if (r.ok) {
-          const d = await r.json();
-          const badge = document.getElementById('creditBadge');
-          if (d.credits > 0) {
-            badge.textContent = d.credits + ' credits';
-            badge.classList.remove('hidden');
+        const r = await fetch(API + '/status', { headers: headers() });
+        if (!r.ok) return;
+        const d = await r.json();
+
+        // ── Access Banner ──
+        const banner = document.getElementById('accessBanner');
+        const accessText = document.getElementById('accessText');
+        const accessSubtext = document.getElementById('accessSubtext');
+        const accessCta = document.getElementById('accessCta');
+        banner.classList.remove('hidden');
+
+        if (d.is_free) {
+          const genLeft = d.remaining.rw_generate;
+          if (genLeft > 0) {
+            accessText.textContent = '🎁 You have ' + genLeft + ' free trial remaining today';
+            accessSubtext.textContent = 'Try Research Writer once — then upgrade for unlimited daily access.';
+          } else if (d.credits > 0) {
+            accessText.textContent = '⚡ Free trial used — using credit pack (' + d.credits + ' credits left)';
+            accessSubtext.textContent = 'Each generate costs 2 credits. Other actions cost 1 credit.';
+          } else {
+            accessText.textContent = '🔒 Free trial used — upgrade to continue';
+            accessSubtext.textContent = 'Subscribe from ₹299/mo for 25 daily generates, or buy a 100-credit pack for ₹149.';
+            accessCta.classList.remove('hidden');
           }
+        } else {
+          const planName = (d.plan === 'pro' || d.plan === 'pro_annual') ? 'Research' : 'Advanced';
+          const genLeft = d.remaining.rw_generate;
+          if (genLeft === -1) {
+            accessText.textContent = '✨ ' + planName + ' Plan — Unlimited access';
+            accessSubtext.textContent = 'You have unlimited Research Writer usage.' + (d.credits > 0 ? ' Plus ' + d.credits + ' bonus credits.' : '');
+          } else {
+            accessText.textContent = '✨ ' + planName + ' Plan — ' + genLeft + ' generates left today';
+            accessSubtext.textContent = 'Resets daily at midnight UTC.' + (d.credits > 0 ? ' Plus ' + d.credits + ' bonus credits.' : '');
+          }
+          banner.className = banner.className.replace('from-accent/10 via-surface to-[#e84393]/10 border-accent/20', 'from-ok/10 via-surface to-accent/10 border-ok/20');
+        }
+
+        // ── Plan badge ──
+        const planBadge = document.getElementById('planBadge');
+        if (d.is_free) {
+          planBadge.textContent = 'Free Plan';
+          planBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-border/50 text-muted';
+        } else {
+          planBadge.textContent = d.plan.replace('_', ' ');
+          planBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-accent/15 text-accent-l';
+        }
+
+        // ── Remaining counts ──
+        const tools = ['rw_generate', 'rw_check', 'rw_expand', 'rw_improve', 'rw_caption'];
+        const ids = ['usageGenerate', 'usageCheck', 'usageExpand', 'usageImprove', 'usageCaption'];
+        tools.forEach((t, i) => {
+          const el = document.getElementById(ids[i]);
+          const rem = d.remaining[t];
+          const lim = d.limits[t];
+          el.textContent = fmtRemaining(rem, lim);
+          el.className = 'text-lg font-bold ' + remainingColor(rem, lim);
+        });
+
+        // ── Credits ──
+        if (d.credits > 0) {
+          document.getElementById('creditLine').classList.remove('hidden');
+          document.getElementById('creditCount').textContent = d.credits + ' credits';
+          const badge = document.getElementById('creditBadge');
+          badge.textContent = d.credits + ' credits';
+          badge.classList.remove('hidden');
+        }
+
+        // Show usage bar
+        document.getElementById('usageBar').classList.remove('hidden');
+
+        // If free plan and all generate uses exhausted and no credits, show upgrade prompt
+        if (d.is_free && d.remaining.rw_generate === 0 && d.credits === 0) {
+          document.getElementById('upgradeModal').classList.remove('hidden');
         }
       } catch(e) {}
-    })();
+    }
+    loadStatus();
+
+    // ── Override error handling to show upgrade modal on 429 ──
+    const _origShowError = showError;
+    showError = function(msg) {
+      if (msg && (msg.includes('limit') || msg.includes('429') || msg.includes('credit'))) {
+        document.getElementById('upgradeModal').classList.remove('hidden');
+        loadStatus(); // refresh counts
+      } else {
+        _origShowError(msg);
+      }
+    };
 
   })();
   </script>
