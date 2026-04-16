@@ -13,11 +13,16 @@ from app.main import app
 client = TestClient(app)
 
 
+@patch("app.agents.web_search_agent.fetch_page_text", new_callable=AsyncMock, return_value={})
+@patch("app.agents.web_search_agent.search_multiple", new_callable=AsyncMock, return_value=[])
+@patch("app.agents.academic_agent.search_scholar_multi", new_callable=AsyncMock, return_value={"results": []})
+@patch("app.agents.academic_agent.search_arxiv_multi", new_callable=AsyncMock, return_value={"results": []})
+@patch("app.agents.academic_agent.search_openalex_multi", new_callable=AsyncMock, return_value={"results": []})
 @patch("app.tools.embedding_tool.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.web_search_agent.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.semantic_agent.generate_embeddings", new_callable=AsyncMock)
-def test_analyze_txt_file(mock_sem: AsyncMock, mock_web: AsyncMock, mock_acad: AsyncMock, mock_tool: AsyncMock) -> None:
+def test_analyze_txt_file(mock_sem, mock_web, mock_acad, mock_tool, *_mocks) -> None:
     """POST /api/v1/analyze should return a structured report."""
     _emb = np.random.default_rng(0).random((6, 384)).astype(np.float32)
     for m in (mock_sem, mock_web, mock_acad, mock_tool):
@@ -41,11 +46,16 @@ def test_analyze_txt_file(mock_sem: AsyncMock, mock_web: AsyncMock, mock_acad: A
     assert "Report generated at" in data["explanation"]
 
 
+@patch("app.agents.web_search_agent.fetch_page_text", new_callable=AsyncMock, return_value={})
+@patch("app.agents.web_search_agent.search_multiple", new_callable=AsyncMock, return_value=[])
+@patch("app.agents.academic_agent.search_scholar_multi", new_callable=AsyncMock, return_value={"results": []})
+@patch("app.agents.academic_agent.search_arxiv_multi", new_callable=AsyncMock, return_value={"results": []})
+@patch("app.agents.academic_agent.search_openalex_multi", new_callable=AsyncMock, return_value={"results": []})
 @patch("app.tools.embedding_tool.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.web_search_agent.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.semantic_agent.generate_embeddings", new_callable=AsyncMock)
-def test_analyze_unsupported_type(mock_sem: AsyncMock, mock_web: AsyncMock, mock_acad: AsyncMock, mock_tool: AsyncMock) -> None:
+def test_analyze_unsupported_type(mock_sem, mock_web, mock_acad, mock_tool, *_mocks) -> None:
     """Unsupported file type should return 422."""
     response = client.post(
         "/api/v1/analyze",
@@ -59,11 +69,16 @@ def test_analyze_unsupported_type(mock_sem: AsyncMock, mock_web: AsyncMock, mock
 # ---------------------------------------------------------------------------
 
 
+@patch("app.agents.web_search_agent.fetch_page_text", new_callable=AsyncMock, return_value={})
+@patch("app.agents.web_search_agent.search_multiple", new_callable=AsyncMock, return_value=[])
+@patch("app.agents.academic_agent.search_scholar_multi", new_callable=AsyncMock, return_value={"results": []})
+@patch("app.agents.academic_agent.search_arxiv_multi", new_callable=AsyncMock, return_value={"results": []})
+@patch("app.agents.academic_agent.search_openalex_multi", new_callable=AsyncMock, return_value={"results": []})
 @patch("app.tools.embedding_tool.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.web_search_agent.generate_embeddings", new_callable=AsyncMock)
 @patch("app.agents.semantic_agent.generate_embeddings", new_callable=AsyncMock)
-def test_analyze_agent_text(mock_sem: AsyncMock, mock_web: AsyncMock, mock_acad: AsyncMock, mock_tool: AsyncMock) -> None:
+def test_analyze_agent_text(mock_sem, mock_web, mock_acad, mock_tool, *_mocks) -> None:
     """POST /api/v1/analyze-agent with text should return a structured report."""
     _emb = np.random.default_rng(0).random((6, 384)).astype(np.float32)
     for m in (mock_sem, mock_web, mock_acad, mock_tool):
