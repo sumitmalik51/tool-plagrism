@@ -79,12 +79,14 @@ mkdir -p "$HF_HOME"
 echo "[startup] HF_HOME=$HF_HOME"
 
 # Pre-download the embedding model if not already cached (avoids 5 min cold start)
-if [ ! -d "$HF_HOME/sentence_transformers" ] || [ -z "$(ls -A "$HF_HOME/sentence_transformers" 2>/dev/null)" ]; then
-    echo "[startup] Pre-downloading embedding model (first boot only)..."
-    python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')" 2>&1 | tail -1
+MODEL_NAME=$(python -c "from app.config import settings; print(settings.embedding_model)")
+MODEL_DIR="$HF_HOME/sentence_transformers/sentence-transformers_${MODEL_NAME//\//_}"
+if [ ! -d "$MODEL_DIR" ] || [ -z "$(ls -A "$MODEL_DIR" 2>/dev/null)" ]; then
+    echo "[startup] Pre-downloading embedding model ($MODEL_NAME, first boot only)..."
+    python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('$MODEL_NAME')" 2>&1 | tail -1
     echo "[startup] Embedding model cached."
 else
-    echo "[startup] Embedding model already cached — skipping download."
+    echo "[startup] Embedding model ($MODEL_NAME) already cached — skipping download."
 fi
 
 # ---- Start gunicorn with uvicorn workers --------------------------------
