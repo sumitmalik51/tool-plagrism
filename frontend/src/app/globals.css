@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-bg: #0f1117;
+  --color-surface: #1a1d27;
+  --color-surface2: #242836;
+  --color-border: #2e3348;
+  --color-txt: #e1e4ed;
+  --color-muted: #8b8fa3;
+  --color-accent: #6c5ce7;
+  --color-accent-l: #a29bfe;
+  --color-ok: #00b894;
+  --color-warn: #fdcb6e;
+  --color-danger: #e17055;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-txt);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-surface); }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
+
+/* Toast animations */
+@keyframes toast-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes toast-out { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+.toast-enter { animation: toast-in 0.3s ease-out; }
+.toast-exit { animation: toast-out 0.3s ease-in forwards; }
