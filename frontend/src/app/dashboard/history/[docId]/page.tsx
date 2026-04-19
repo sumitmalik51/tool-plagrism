@@ -10,7 +10,6 @@ import {
   Info,
   Pencil,
   Bot,
-  ArrowLeftRight,
   AlertTriangle,
   Globe,
   BookOpen,
@@ -19,9 +18,19 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { useToastStore } from "@/lib/stores/toast-store";
-import { formatDate, scoreColor, cn } from "@/lib/utils";
+import { formatDate, scoreColor, cn, RISK_TOOLTIP } from "@/lib/utils";
 import { Button, Badge, Spinner, Tabs } from "@/components/ui";
 import type { AnalysisResult, DetectedSource, FlaggedPassage } from "@/lib/types";
+import {
+  PassageCard as SharedPassageCard,
+  PassagesEmptyState,
+  AdjustedScorePill,
+  useSourcesByUrl,
+} from "@/components/passage-shared";
+import {
+  useDismissalsStore,
+  adjustedScore,
+} from "@/lib/stores/dismissals-store";
 
 /* ─── Types ──────────────────────────────────────────────── */
 
@@ -95,12 +104,6 @@ function resolveSourceName(src: DetectedSource): string {
   } catch {
     return src.url.slice(0, 60);
   }
-}
-
-function passageRiskClass(score: number) {
-  if (score >= 0.75) return "border-danger/40 bg-danger/5";
-  if (score >= 0.5) return "border-warn/40 bg-warn/5";
-  return "border-ok/40 bg-ok/5";
 }
 
 /* ─── Category config for breakdown bars ─────────────────── */
@@ -242,156 +245,70 @@ function SourceCard({ src }: { src: DetectedSource }) {
   );
 }
 
-/* ─── Passage Card — side-by-side comparison ─────────────── */
+/* ─── Rewrite action slot ─────────────────────────────────── */
 
-function PassageCard({
-  passage,
-  matchedSource,
-  loading: busy,
+function RewriteActions({
+  busy,
   variations,
   onRewrite,
 }: {
-  passage: FlaggedPassage;
-  matchedSource?: DetectedSource;
-  loading: boolean;
+  busy: boolean;
   variations?: string[];
   onRewrite: (mode: string) => void;
 }) {
-  const similarity = (passage.similarity_score ?? 0) * 100;
-  const isUrl =
-    passage.source &&
-    (passage.source.startsWith("http://") ||
-      passage.source.startsWith("https://"));
-
-  const sourceTitle = matchedSource
-    ? resolveSourceName(matchedSource)
-    : passage.source || "Unknown";
-
-  const sourceType = matchedSource?.source_type || "Internet";
-
   return (
-    <div className={cn("border-l-4 rounded-r-xl overflow-hidden", passageRiskClass(passage.similarity_score ?? 0))}>
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 pt-4 pb-2 flex-wrap">
-        <span className={`text-sm font-bold ${scoreColor(similarity)}`}>
-          {similarity.toFixed(1)}% similar
-        </span>
-        <Badge variant={sourceTypeVariant(sourceType)} className="text-[10px]">
-          {sourceType}
-        </Badge>
-        {matchedSource && (
-          <span className="text-xs text-muted">
-            {matchedSource.matched_words ?? 0} words matched
-          </span>
-        )}
-      </div>
-
-      {/* Side-by-side comparison */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
-        {/* Left: Your document text */}
-        <div className="px-4 py-3 md:border-r md:border-border/50">
-          <div className="flex items-center gap-1.5 mb-2">
-            <div className="w-2 h-2 rounded-full bg-danger/60" />
-            <span className="text-xs font-semibold text-danger uppercase tracking-wide">Your Document</span>
-          </div>
-          <p className="text-sm text-txt/80 leading-relaxed">
-            {passage.text}
-          </p>
-        </div>
-
-        {/* Right: Source info */}
-        <div className="px-4 py-3 bg-surface2/30">
-          <div className="flex items-center gap-1.5 mb-2">
-            <div className="w-2 h-2 rounded-full bg-accent/60" />
-            <span className="text-xs font-semibold text-accent uppercase tracking-wide">Matched Source</span>
-          </div>
-          <p className="text-sm font-medium text-txt mb-1">{sourceTitle}</p>
-          {isUrl && (
-            <a
-              href={passage.source}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-accent-l hover:text-accent break-all leading-relaxed"
-            >
-              {passage.source.length > 80 ? passage.source.slice(0, 80) + "…" : passage.source}
-            </a>
-          )}
-          <div className="mt-3 pt-3 border-t border-border/30">
-            <p className="text-xs text-muted mb-2 italic">
-              This passage was found to closely match content from the above source.
-            </p>
-            {isUrl && (
-              <a
-                href={passage.source}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-accent-l hover:text-accent bg-accent/10 hover:bg-accent/15 rounded-lg transition-colors"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                View full source
-              </a>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Action buttons */}
-      <div className="flex gap-2 flex-wrap px-4 pb-4 pt-2 border-t border-border/20">
+    <span className="inline-flex flex-col items-stretch gap-2 w-full">
+      <span className="inline-flex items-center gap-2 flex-wrap">
         <button
           disabled={busy}
           onClick={() => onRewrite("paraphrase")}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted hover:text-txt bg-surface2 hover:bg-border rounded-lg border border-border transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium text-muted hover:text-txt bg-surface2 hover:bg-border rounded-lg border border-border transition-colors disabled:opacity-50"
         >
-          <Pencil className="w-3.5 h-3.5" />
-          Rewrite section
+          <Pencil className="w-3 h-3" />
+          Rewrite
         </button>
         <button
           disabled={busy}
           onClick={() => onRewrite("humanize")}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted hover:text-txt bg-surface2 hover:bg-border rounded-lg border border-border transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium text-muted hover:text-txt bg-surface2 hover:bg-border rounded-lg border border-border transition-colors disabled:opacity-50"
         >
-          <Bot className="w-3.5 h-3.5" />
-          Humanize text
+          <Bot className="w-3 h-3" />
+          Humanize
         </button>
-      </div>
-
-      {/* Busy spinner */}
-      {busy && (
-        <div className="px-4 pb-3 flex items-center gap-2 text-xs text-muted">
-          <div className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-          Processing…
-        </div>
-      )}
-
-      {/* Rewritten variations */}
+        {busy && (
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-muted">
+            <span className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+            Processing…
+          </span>
+        )}
+      </span>
       {variations && variations.length > 0 && (
-        <div className="px-4 pb-4 space-y-2">
-          <p className="text-xs font-medium text-ok">
-            ✓ {variations.length} variation{variations.length !== 1 ? "s" : ""} generated
-          </p>
+        <span className="block space-y-2 w-full">
+          <span className="block text-[11px] font-medium text-ok">
+            ✓ {variations.length} variation
+            {variations.length !== 1 ? "s" : ""} generated
+          </span>
           {variations.map((v, vi) => (
-            <div
+            <span
               key={vi}
-              className="p-3 bg-ok/5 border border-ok/20 rounded-xl group"
+              className="block p-3 bg-ok/5 border border-ok/20 rounded-xl group"
             >
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-sm text-txt/80 leading-relaxed flex-1">
+              <span className="flex items-start justify-between gap-2">
+                <span className="text-sm text-txt/80 leading-relaxed flex-1 whitespace-pre-wrap">
                   {v}
-                </p>
+                </span>
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(v);
-                  }}
+                  onClick={() => navigator.clipboard.writeText(v)}
                   className="shrink-0 px-2 py-1 text-xs text-muted hover:text-ok bg-surface2 hover:bg-ok/10 rounded-md border border-border transition-colors opacity-0 group-hover:opacity-100"
                 >
                   Copy
                 </button>
-              </div>
-            </div>
+              </span>
+            </span>
           ))}
-        </div>
+        </span>
       )}
-    </div>
+    </span>
   );
 }
 
@@ -460,9 +377,34 @@ export default function ScanDetailPage() {
     report.risk_level ??
     "LOW"
   ).toUpperCase();
-  const sources: DetectedSource[] = report.detected_sources ?? [];
-  const passages: FlaggedPassage[] = report.flagged_passages ?? [];
-  const matchGroups: MatchGroup[] = report.match_groups ?? [];
+  const sources: DetectedSource[] = useMemo(
+    () => report.detected_sources ?? [],
+    [report.detected_sources],
+  );
+  const passages: FlaggedPassage[] = useMemo(
+    () => report.flagged_passages ?? [],
+    [report.flagged_passages],
+  );
+  const matchGroups: MatchGroup[] = useMemo(
+    () => report.match_groups ?? [],
+    [report.match_groups],
+  );
+
+  // O(1) source lookup by URL — used inside the passages map.
+  const sourcesByUrl = useSourcesByUrl(sources);
+
+  // Per-document dismissals + adjusted score.
+  const dismissedForDoc = useDismissalsStore(
+    (s) => s.dismissed[docId],
+  );
+  const clearAllDismissals = useDismissalsStore((s) => s.clearAll);
+  const dismissedCount = dismissedForDoc
+    ? Object.keys(dismissedForDoc).length
+    : 0;
+  const adjusted = useMemo(
+    () => adjustedScore(plagiarismScore, passages, dismissedForDoc),
+    [plagiarismScore, passages, dismissedForDoc],
+  );
 
   const webPct = useMemo(() => {
     const g = matchGroups.find((m) => m.category === "Internet Matches");
@@ -611,12 +553,22 @@ export default function ScanDetailPage() {
           >
             {Math.round(plagiarismScore)}%
           </span>
-          <Badge variant={riskVariant(riskLevel)}>{riskLevel} Risk</Badge>
+          <span title={RISK_TOOLTIP}>
+            <Badge variant={riskVariant(riskLevel)}>{riskLevel} Risk</Badge>
+          </span>
         </div>
-        <Button variant="secondary" size="sm" onClick={downloadPdf}>
-          <Download className="w-4 h-4" />
-          Download PDF
-        </Button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <AdjustedScorePill
+            original={plagiarismScore}
+            adjusted={adjusted}
+            dismissedCount={dismissedCount}
+            onReset={() => clearAllDismissals(docId)}
+          />
+          <Button variant="secondary" size="sm" onClick={downloadPdf}>
+            <Download className="w-4 h-4" />
+            Download PDF
+          </Button>
+        </div>
       </div>
 
       {/* ── Hero Section: Score + Breakdown ── */}
@@ -633,7 +585,7 @@ export default function ScanDetailPage() {
             >
               {Math.round(plagiarismScore)}%
             </p>
-            <div className="mt-3">
+            <div className="mt-3" title={RISK_TOOLTIP}>
               <Badge
                 variant={riskVariant(riskLevel)}
                 className="text-sm px-3 py-1"
@@ -641,6 +593,14 @@ export default function ScanDetailPage() {
                 <AlertTriangle className="w-3 h-3 mr-1" />
                 {riskLevel} Risk
               </Badge>
+              <details className="mt-1 text-[10px] text-muted/80">
+                <summary className="cursor-pointer hover:text-txt">
+                  Risk thresholds
+                </summary>
+                <p className="mt-1 leading-snug max-w-[28ch] mx-auto">
+                  {RISK_TOOLTIP}
+                </p>
+              </details>
             </div>
             {/* Confidence with tooltip */}
             <div className="mt-3 relative group inline-flex items-center gap-1 text-sm text-muted">
@@ -823,23 +783,30 @@ export default function ScanDetailPage() {
       {activeTab === "passages" && (
         <div className="space-y-3">
           {passages.length === 0 ? (
-            <p className="text-center py-8 text-muted text-sm">
-              No flagged passages.
-            </p>
+            <PassagesEmptyState
+              allPassagesEmpty={true}
+              selectedSource={null}
+              onClearFilter={() => {}}
+              emptyReason={report.empty_reason ?? null}
+            />
           ) : (
             passages.map((p, i) => {
-              /* Find the DetectedSource that matches this passage's source URL */
-              const matchedSource = sources.find(
-                (s) => s.url && p.source && s.url === p.source,
-              );
+              const matchedSource =
+                (p.source && sourcesByUrl.get(p.source)) || undefined;
               return (
-                <PassageCard
+                <SharedPassageCard
                   key={i}
+                  documentId={docId}
                   passage={p}
+                  passageIndex={i}
                   matchedSource={matchedSource}
-                  loading={rewritingIdx === i}
-                  variations={rewrittenTexts[i]}
-                  onRewrite={(mode) => handleRewrite(p.text, mode, i)}
+                  actions={
+                    <RewriteActions
+                      busy={rewritingIdx === i}
+                      variations={rewrittenTexts[i]}
+                      onRewrite={(mode) => handleRewrite(p.text, mode, i)}
+                    />
+                  }
                 />
               );
             })

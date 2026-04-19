@@ -30,6 +30,22 @@ export function riskBadgeColor(risk: string): string {
   }
 }
 
+/**
+ * Document-level risk thresholds. Mirror `risk_threshold_*` in
+ * `app/config.py` and `classify_risk` in `app/services/confidence.py`.
+ * Surfaced in tooltips so the Risk badge isn't a black box.
+ */
+export const RISK_THRESHOLDS = {
+  medium: 30, // ≥ 30% → MEDIUM
+  high: 60, // ≥ 60% AND confidence ≥ 40% → HIGH
+} as const;
+
+export const RISK_TOOLTIP =
+  `LOW < ${RISK_THRESHOLDS.medium}% · MEDIUM ${RISK_THRESHOLDS.medium}-${RISK_THRESHOLDS.high - 1}% · ` +
+  `HIGH ≥ ${RISK_THRESHOLDS.high}% (with confidence ≥ 40%). ` +
+  `Based on document-level overlap and agent agreement. ` +
+  `This is a flag for human review, not a verdict.`;
+
 export function formatDate(date: string | Date): string {
   return new Date(date).toLocaleDateString("en-US", {
     year: "numeric",
@@ -67,6 +83,12 @@ export interface PassageBand {
   /** Tailwind class for the left-border + faint background tint. */
   borderClass: string;
   bgClass: string;
+  /**
+   * Tailwind class for a small severity dot indicator.
+   * Always a literal class name — never derived via .replace() at runtime,
+   * so Tailwind's JIT can statically detect it.
+   */
+  dotClass: string;
   /** Severity dots (●●●○ etc.) — accessibility for colorblind users. */
   dots: string;
 }
@@ -80,6 +102,7 @@ export function passageBand(score: number): PassageBand {
       textClass: "text-danger",
       borderClass: "border-danger",
       bgClass: "bg-danger/10",
+      dotClass: "bg-danger",
       dots: "●●●",
     };
   }
@@ -90,6 +113,7 @@ export function passageBand(score: number): PassageBand {
       textClass: "text-danger/90",
       borderClass: "border-danger/70",
       bgClass: "bg-danger/5",
+      dotClass: "bg-danger/80",
       dots: "●●●",
     };
   }
@@ -100,6 +124,7 @@ export function passageBand(score: number): PassageBand {
       textClass: "text-warn",
       borderClass: "border-warn/60",
       bgClass: "bg-warn/5",
+      dotClass: "bg-warn",
       dots: "●●○",
     };
   }
@@ -109,6 +134,7 @@ export function passageBand(score: number): PassageBand {
     textClass: "text-muted",
     borderClass: "border-border",
     bgClass: "bg-surface2/40",
+    dotClass: "bg-muted",
     dots: "●○○",
   };
 }
