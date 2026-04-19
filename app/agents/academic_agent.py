@@ -12,6 +12,8 @@ Delegates all computation to the tools layer.
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 
 from app.agents.base_agent import BaseAgent
@@ -67,6 +69,43 @@ def _extract_queries(chunks: list[str], max_queries: int = 8) -> list[str]:
             break
 
     return queries
+
+
+# ---------------------------------------------------------------------------
+# Module-level dedup helpers (pure, testable, recompiled-once)
+# ---------------------------------------------------------------------------
+
+_DOI_PREFIX_RE = re.compile(r"^https?://(?:dx\.)?doi\.org/", re.I)
+_OPENALEX_PREFIX_RE = re.compile(r"^https?://openalex\.org/", re.I)
+
+
+def _canonical(p: dict) -> str:
+    """Canonical key for paper dedup across providers.
+
+    Order of preference:
+      1. bare DOI (10.xxxx/...) — most stable cross-provider key
+      2. bare OpenAlex Work ID (Wxxxx)
+      3. arXiv ID if present
+      4. canonicalized URL (lowercase, no query/fragment)
+    """
+    doi = (p.get("doi") or "").strip()
+    if doi:
+        bare = _DOI_PREFIX_RE.sub("", doi).lower().rstrip("/")
+        if bare:
+            return f"doi:{bare}"
+
+    oa = (p.get("openalex_id") or "").strip()
+    if oa:
+        bare_oa = _OPENALEX_PREFIX_RE.sub("", oa).lower().rstrip("/")
+        if bare_oa:
+            return f"openalex:{bare_oa}"
+
+    arxiv = (p.get("arxiv_id") or "").strip().lower()
+    if arxiv:
+        return f"arxiv:{arxiv}"
+
+    url = (p.get("url") or p.get("scholar_url") or "").lower()
+    return url.split("?", 1)[0].split("#", 1)[0].rstrip("/")
 
 
 class AcademicAgent(BaseAgent):
@@ -234,14 +273,6 @@ class AcademicAgent(BaseAgent):
         # Build per-request IDF over the candidate abstracts/titles
         idf_table = build_idf_table(paper_texts) if paper_texts else {}
 
-        # Track per-source dedup (canonicalized DOI / URL)
-        def _canonical(p: dict) -> str:
-            doi = (p.get("doi") or "").lower().strip()
-            if doi:
-                return f"doi:{doi}"
-            url = (p.get("url") or p.get("openalex_id") or p.get("scholar_url") or "").lower()
-            return url.split("?", 1)[0].split("#", 1)[0].rstrip("/")
-
         seen_sources: set[str] = set()
 
         # Track best evidence for confidence calculation
@@ -256,19 +287,19 @@ class AcademicAgent(BaseAgent):
 
                 paper = paper_meta[j]
                 abstract = paper.get("abstract") or paper.get("title", "")
-                chunk_text = chunks[i][:settings.passage_display_length]
+                chunk_snippet = chunks[i][:settings.passage_display_length]
 
                 # IDF-weighted phrase overlap (per-request IDF over abstracts)
-                hits = idf_weighted_phrase_hits(chunk_text, abstract, idf_table)
+                hits = idf_weighted_phrase_hits(chunk_snippet, abstract, idf_table)
 
                 # Longest common token substring for verbatim detection
-                lcs = longest_common_token_substring(chunk_text, abstract)
+                lcs = longest_common_token_substring(chunk_snippet, abstract)
 
-                # HARD GATE (AND-logic, stricter for abstract-only):
-                # Abstracts are short and densely topical — require BOTH a
-                # high IDF-rare phrase count AND a long verbatim run.
-                # Emergency bypass for near-identical embeddings + long LCS.
-                primary  = hits >= 3 and lcs >= 10
+                # HARD GATE (AND-logic, recalibrated for IDF-weighted hits):
+                # IDF-weighted hits are stricter than the old static-list
+                # count, so the academic threshold drops accordingly.
+                # Strong-embed lane requires very high cosine + long verbatim.
+                primary  = hits >= 2 and lcs >= 10
                 strong   = sim_val >= 0.95 and lcs >= 15
 
                 if not (primary or strong):
@@ -297,16 +328,16 @@ class AcademicAgent(BaseAgent):
                 year = paper.get("year", "")
                 title = paper.get("title", "Unknown")
 
-                if hits >= 6 and lcs >= 15:
+                if hits >= 4 and lcs >= 12:
                     match_quality = "Strong"
-                elif hits >= 4 and lcs >= 12:
+                elif hits >= 2 and lcs >= 10:
                     match_quality = "Moderate"
                 else:
                     match_quality = "Weak"
 
                 flagged.append(
                     FlaggedPassage(
-                        text=chunk_text,
+                        text=chunk_snippet,
                         similarity_score=sim_val,
                         source=paper.get("url") or paper.get("openalex_id") or paper.get("scholar_url", ""),
                         reason=(

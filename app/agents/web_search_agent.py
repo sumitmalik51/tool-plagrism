@@ -42,6 +42,13 @@ _GLYPH_RE = re.compile(r"/gid\d{3,5}")
 _MULTI_WS = re.compile(r"[ \t]+")
 _MULTI_NL = re.compile(r"\n{3,}")
 
+
+def _canonical_url(u: str) -> str:
+    """Lowercase, strip query/fragment & trailing slash for dedup."""
+    if not u:
+        return ""
+    return u.split("#", 1)[0].split("?", 1)[0].rstrip("/").lower()
+
 # Common PDF ligature replacements
 _LIGATURES: dict[str, str] = {
     "\ufb00": "ff",
@@ -301,20 +308,17 @@ class WebSearchAgent(BaseAgent):
         fp_score = fp_result.get("score", 0.0)
 
         # --- Stage 4: Hard validation gate (AND-logic) -----------------------
-        # A candidate is promoted ONLY if it has *strong* lexical evidence:
-        #   PRIMARY:    (phrase_hits >= 2 AND lcs >= 8)        — two signals
+        # A candidate is promoted ONLY if it has lexical evidence:
+        #   PRIMARY:     phrase_hits >= 1 AND lcs >= 8     (IDF-weighted)
         #   FINGERPRINT: source has document-level Jaccard overlap
-        #   STRONG-EMBED: embedding_sim >= 0.95 AND lcs >= 12  — emergency bypass
+        #   STRONG-EMBED: sim >= 0.95 AND lcs >= 15        (verbatim-grade
+        #                 alignment that fingerprinting may have missed
+        #                 because the fetched page differs slightly from
+        #                 the indexed copy)
         # Pure embedding matches with weak lexical evidence are rejected.
         flagged: list[FlaggedPassage] = []
-        seen_sources: set[str] = set()  # canonical URL → de-dup
-
-        def _canonical_url(u: str) -> str:
-            """Lowercase, strip query/fragment & trailing slash for dedup."""
-            if not u:
-                return ""
-            u = u.split("#", 1)[0].split("?", 1)[0].rstrip("/").lower()
-            return u
+        flagged_canon_urls: set[str] = set()  # canonical URL → de-dup
+        promoted_cands: list[dict] = []        # for confidence calc
 
         for cand in candidates:
             hits = cand["phrase_hits"]
@@ -322,21 +326,21 @@ class WebSearchAgent(BaseAgent):
             sim  = cand["embedding_sim"]
             has_fp = cand["source_url"] in fp_urls_with_overlap
 
-            primary_lex   = hits >= 2 and lcs >= 8
-            strong_embed  = sim >= 0.95 and lcs >= 12
+            primary_lex   = hits >= 1 and lcs >= 8
+            strong_embed  = sim >= 0.95 and lcs >= 15
 
             if not (primary_lex or has_fp or strong_embed):
                 continue  # HARD GATE — no attribution without evidence
 
             # Per-source dedup
             canon = _canonical_url(cand["source_url"])
-            if canon in seen_sources:
+            if canon in flagged_canon_urls:
                 continue
 
-            # Confidence tiers based on evidence strength (multi-signal)
-            if hits >= 5 and lcs >= 12 and has_fp:
+            # Confidence tiers (recalibrated for IDF-weighted hits)
+            if hits >= 4 and lcs >= 12 and has_fp:
                 match_quality = "strong"
-            elif hits >= 3 and lcs >= 10:
+            elif hits >= 2 and lcs >= 10:
                 match_quality = "moderate"
             elif primary_lex or has_fp:
                 match_quality = "weak"
@@ -355,51 +359,63 @@ class WebSearchAgent(BaseAgent):
                     f"{cand['source_title']}"
                 ),
             ))
-            seen_sources.add(canon)
+            flagged_canon_urls.add(canon)
+            promoted_cands.append(cand)
 
         # --- Also flag fingerprint-only matches (exact copies) ----------------
+        # Track each fp-only match's Jaccard so confidence reflects them
+        # even when no Stage-4 candidate was promoted (e.g. fetched page
+        # excerpt didn't include the high-Jaccard window).
+        fp_only_jaccards: list[float] = []
         for fm in fp_result.get("matches", [])[:5]:
             ref_idx = fm["ref_index"]
             if ref_idx < len(_ref_to_web_idx):
                 orig_idx = _ref_to_web_idx[ref_idx]
                 src_url = web_results[orig_idx].get("url", "")
                 canon = _canonical_url(src_url)
-                if canon and canon not in seen_sources:
+                if canon and canon not in flagged_canon_urls:
+                    jac = float(fm["jaccard"])
+                    fp_only_jaccards.append(jac)
                     flagged.append(FlaggedPassage(
-                        text=f"[Exact-match fingerprint] Jaccard: {fm['jaccard']:.2%}",
-                        similarity_score=min(fm["jaccard"] * 5, 1.0),
+                        text=f"[Exact-match fingerprint] Jaccard: {jac:.2%}",
+                        similarity_score=min(jac * 5, 1.0),
                         source=src_url,
                         reason=(
                             f"Exact text overlap via fingerprinting "
-                            f"(Jaccard: {fm['jaccard']:.2%}): "
+                            f"(Jaccard: {jac:.2%}): "
                             f"{web_results[orig_idx].get('title', 'Unknown')}"
                         ),
                     ))
-                    seen_sources.add(canon)
+                    flagged_canon_urls.add(canon)
 
         # --- Evidence-based confidence (NOT result-count) --------------------
-        # Confidence reflects the strongest evidence collected, not how many
-        # search results came back.  No floor — zero evidence => zero confidence.
+        # Confidence reflects the strongest evidence collected from
+        # *promoted* candidates only — rejected candidates can no longer
+        # inflate the confidence score.  Fingerprint-only matches contribute
+        # via their Jaccard so a verbatim copy that bypassed Stage-4 still
+        # registers high confidence.  No floor: zero evidence => 0.
         if flagged:
-            best_hits = max((c["phrase_hits"] for c in candidates), default=0)
-            best_lcs  = max((c["lcs_len"]    for c in candidates), default=0)
-            # Each signal contributes up to ~1; cap at 1.0
-            evidence = (
+            best_hits = max((c["phrase_hits"] for c in promoted_cands), default=0)
+            best_lcs  = max((c["lcs_len"]    for c in promoted_cands), default=0)
+            cand_evidence = (
                 min(best_hits / 5.0, 1.0) * 0.45
                 + min(best_lcs / 15.0, 1.0) * 0.45
                 + (0.10 if fp_score >= 30.0 else 0.0)
             )
-            confidence = round(min(evidence, 1.0), 2)
+            # Fingerprint-only evidence: Jaccard 0.20 → 0.6, 0.33+ → 1.0
+            fp_evidence = min(max(fp_only_jaccards, default=0.0) * 3.0, 1.0)
+            confidence = round(min(max(cand_evidence, fp_evidence), 1.0), 2)
         else:
             confidence = 0.0
 
         # Score: AND logic — only count validated matches.
-        # The overall score is the % of doc chunks that survived validation.
+        # Use canonicalized URL comparison to stay consistent with dedup.
+        fp_canon_urls = {_canonical_url(u) for u in fp_urls_with_overlap}
         validated_chunk_idxs = {
             c["chunk_idx"] for c in candidates
-            if (c["phrase_hits"] >= 2 and c["lcs_len"] >= 8)
-            or c["source_url"] in fp_urls_with_overlap
-            or (c["embedding_sim"] >= 0.95 and c["lcs_len"] >= 12)
+            if (c["phrase_hits"] >= 1 and c["lcs_len"] >= 8)
+            or _canonical_url(c["source_url"]) in fp_canon_urls
+            or (c["embedding_sim"] >= 0.95 and c["lcs_len"] >= 15)
         }
         if doc_chunks:
             validated_score = round(

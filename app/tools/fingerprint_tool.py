@@ -14,6 +14,7 @@ The algorithm:
 
 from __future__ import annotations
 
+import math
 import re
 import time
 from typing import Any
@@ -386,8 +387,6 @@ def idf_filtered_phrase_overlap(
 # Per-request IDF — real document-frequency over candidate corpus
 # ---------------------------------------------------------------------------
 
-import math
-
 
 def build_idf_table(
     corpus_texts: list[str],
@@ -454,11 +453,20 @@ def idf_weighted_phrase_hits(
         )
 
     # Compute corpus-frequency cutoff implied by max_doc_freq_ratio.
-    # df_threshold corresponds to N * max_doc_freq_ratio; convert to IDF.
-    # If we know N (from any value: log(N/df)=idf), the cap becomes:
-    #   idf >= log(1/max_doc_freq_ratio)
+    # idf >= log(1/max_doc_freq_ratio) drops n-grams in >=30% of corpus.
     cap_idf = math.log(1.0 / max_doc_freq_ratio)
-    effective_min_idf = max(min_idf, cap_idf)
+
+    # SMALL-N SAFETY: the maximum achievable IDF is log(N) (rarest n-gram
+    # has df=1).  When the candidate corpus is tiny (N <= 3), log(N) < cap_idf
+    # and EVERY hit gets rejected — a false-negative bug that hits low-recall
+    # queries hardest.  Never let the threshold exceed the rarest n-gram's
+    # IDF; subtract a tiny epsilon to preserve strict-inequality semantics
+    # at boundaries.
+    max_achievable = max(idf_table.values()) if idf_table else 0.0
+    ceiling = max_achievable - 1e-9
+    effective_min_idf = (
+        min(max(min_idf, cap_idf), ceiling) if ceiling > 0 else 0.0
+    )
 
     p_norm = _PUNCT_RE.sub("", passage.lower())
     s_norm = _PUNCT_RE.sub("", source_text.lower())
