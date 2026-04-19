@@ -142,7 +142,13 @@ async def test_academic_agent_high_similarity(
                 "title": "Plagiarized Paper",
                 "authors": ["Author"],
                 "year": "2024",
-                "abstract": "Exact matching abstract text.",
+                "abstract": (
+                    "This study investigates novel transformer architectures for "
+                    "low-resource neural machine translation. We propose a hybrid "
+                    "attention mechanism that combines sparse routing with dense "
+                    "cross-lingual alignment to improve sample efficiency on "
+                    "morphologically rich languages."
+                ),
                 "url": "https://doi.org/10.1234/plagiarized",
                 "openalex_id": "https://openalex.org/W99999",
             }
@@ -159,8 +165,17 @@ async def test_academic_agent_high_similarity(
     mock_embed.side_effect = _high_sim_embeddings
 
     agent = AcademicAgent()
-    text = "This is matching text. " * 30
-    chunks = [f"This matching chunk number {i} has enough content to be meaningful for searching." for i in range(6)]
+    # Chunks contain near-verbatim copy of abstract to satisfy lexical gate
+    # (IDF-weighted phrase hits + longest-common-substring requirements)
+    verbatim = (
+        "This study investigates novel transformer architectures for "
+        "low-resource neural machine translation. We propose a hybrid "
+        "attention mechanism that combines sparse routing with dense "
+        "cross-lingual alignment to improve sample efficiency on "
+        "morphologically rich languages."
+    )
+    chunks = [verbatim for _ in range(6)]
+    text = " ".join(chunks)
     result = await agent.run(AgentInput(document_id="doc-4", text=text, chunks=chunks))
 
     assert result.score > 0.0
