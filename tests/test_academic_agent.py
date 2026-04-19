@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 import numpy as np
 import pytest
 
-from app.agents.academic_agent import AcademicAgent, _extract_queries
+from app.agents.academic_agent import AcademicAgent, _canonical, _extract_queries
 from app.models.schemas import AgentInput
 
 
@@ -219,3 +219,105 @@ async def test_academic_agent_scholar_fallback(
     assert result.details.get("status") == "completed"
     assert result.details["source_used"] == "scholar"
     assert result.details["papers_found"] == 1
+
+
+# ---------------------------------------------------------------------------
+# R7: _canonical(p) paper dedup helper
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("paper", "expected"),
+    [
+        ({"doi": "https://doi.org/10.1234/X"}, "doi:10.1234/x"),
+        ({"doi": "http://dx.doi.org/10.1234/X"}, "doi:10.1234/x"),
+        ({"doi": "10.1234/X"}, "doi:10.1234/x"),
+        ({"openalex_id": "https://openalex.org/W42"}, "openalex:w42"),
+        ({"openalex_id": "W42"}, "openalex:w42"),
+        ({"arxiv_id": "2401.12345"}, "arxiv:2401.12345"),
+        ({"url": "https://Foo.com/bar?q=1#x"}, "https://foo.com/bar"),
+        # DOI takes priority over openalex
+        (
+            {"doi": "10.5/Y", "openalex_id": "https://openalex.org/W1"},
+            "doi:10.5/y",
+        ),
+        # Two providers returning different OpenAlex URL forms collide
+        # to the same canonical key (the whole point of dedup).
+        ({"openalex_id": "https://openalex.org/W7"}, "openalex:w7"),
+        ({}, ""),
+    ],
+)
+def test_canonical_paper_dedup(paper: dict, expected: str) -> None:
+    """_canonical normalizes provider-variant identifiers to a stable key."""
+    assert _canonical(paper) == expected
+
+
+# ---------------------------------------------------------------------------
+# R8: Negative gate test — same topic, different words must NOT be flagged
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@patch("app.agents.academic_agent.search_scholar_multi", new_callable=AsyncMock)
+@patch("app.agents.academic_agent.search_arxiv_multi", new_callable=AsyncMock)
+@patch("app.agents.academic_agent.search_openalex_multi", new_callable=AsyncMock)
+@patch("app.agents.academic_agent.generate_embeddings", new_callable=AsyncMock)
+async def test_academic_agent_rejects_same_topic_different_words(
+    mock_embed: AsyncMock, mock_openalex: AsyncMock, mock_arxiv: AsyncMock, mock_scholar: AsyncMock
+) -> None:
+    """The whole point of the AND-gate: high embedding similarity alone is
+    NOT enough — without IDF-rare phrase hits AND a long verbatim run, a
+    same-topic-but-different-text passage must remain unflagged.
+
+    This is the regression test that locks in the false-positive fix.
+    """
+    mock_openalex.return_value = {
+        "results": [
+            {
+                "title": "Transformer Architectures for NMT",
+                "authors": ["Author"],
+                "year": "2024",
+                "abstract": (
+                    "We propose novel transformer attention mechanisms that "
+                    "outperform existing baselines on multilingual translation."
+                ),
+                "url": "https://example.com/paper",
+                "openalex_id": "W12345",
+            }
+        ]
+    }
+    mock_arxiv.return_value = {"results": []}
+    mock_scholar.return_value = {"results": []}
+
+    # Force HIGH embedding similarity (identical vectors) — the gate must
+    # still reject because lexical overlap is absent.
+    def _high_sim_embeddings(texts):
+        n = len(texts)
+        base = np.ones((1, 384), dtype=np.float32)
+        base /= np.linalg.norm(base)
+        return np.tile(base, (n, 1))
+    mock_embed.side_effect = _high_sim_embeddings
+
+    # Same topic (NMT / translation) but completely different wording.
+    # No 5-grams in common; no 10-token verbatim run.
+    chunks = [
+        "Cross-lingual sequence models leverage shared embedding spaces "
+        "to enable knowledge transfer between source and target languages.",
+        "Recent advances in machine translation rely on large-scale "
+        "pretraining over diverse parallel corpora and back-translation.",
+        "Sparse routing approaches partition computation across language "
+        "families, reducing parameter count without sacrificing quality.",
+        "Evaluation on low-resource pairs requires careful metric choice "
+        "since BLEU underestimates fluency for morphologically rich tongues.",
+        "Inference latency improvements come from quantization and from "
+        "early-exit decoding rather than from architectural changes alone.",
+        "Open challenges include catastrophic forgetting during fine-tuning "
+        "and distributional shift between training and deployment domains.",
+    ]
+    text = " ".join(chunks)
+    agent = AcademicAgent()
+    result = await agent.run(AgentInput(document_id="doc-neg", text=text, chunks=chunks))
+
+    assert result.flagged_passages == []
+    assert result.score == 0.0
+

@@ -71,6 +71,43 @@ def _extract_queries(chunks: list[str], max_queries: int = 8) -> list[str]:
     return queries
 
 
+# ---------------------------------------------------------------------------
+# Module-level dedup helpers (pure, testable, recompiled-once)
+# ---------------------------------------------------------------------------
+
+_DOI_PREFIX_RE = re.compile(r"^https?://(?:dx\.)?doi\.org/", re.I)
+_OPENALEX_PREFIX_RE = re.compile(r"^https?://openalex\.org/", re.I)
+
+
+def _canonical(p: dict) -> str:
+    """Canonical key for paper dedup across providers.
+
+    Order of preference:
+      1. bare DOI (10.xxxx/...) — most stable cross-provider key
+      2. bare OpenAlex Work ID (Wxxxx)
+      3. arXiv ID if present
+      4. canonicalized URL (lowercase, no query/fragment)
+    """
+    doi = (p.get("doi") or "").strip()
+    if doi:
+        bare = _DOI_PREFIX_RE.sub("", doi).lower().rstrip("/")
+        if bare:
+            return f"doi:{bare}"
+
+    oa = (p.get("openalex_id") or "").strip()
+    if oa:
+        bare_oa = _OPENALEX_PREFIX_RE.sub("", oa).lower().rstrip("/")
+        if bare_oa:
+            return f"openalex:{bare_oa}"
+
+    arxiv = (p.get("arxiv_id") or "").strip().lower()
+    if arxiv:
+        return f"arxiv:{arxiv}"
+
+    url = (p.get("url") or p.get("scholar_url") or "").lower()
+    return url.split("?", 1)[0].split("#", 1)[0].rstrip("/")
+
+
 class AcademicAgent(BaseAgent):
     """Compares uploaded text against academic papers via Google Scholar."""
 
@@ -235,38 +272,6 @@ class AcademicAgent(BaseAgent):
 
         # Build per-request IDF over the candidate abstracts/titles
         idf_table = build_idf_table(paper_texts) if paper_texts else {}
-
-        # Track per-source dedup (canonicalized DOI / URL)
-        _DOI_PREFIX_RE = re.compile(r"^https?://(?:dx\.)?doi\.org/", re.I)
-        _OPENALEX_PREFIX_RE = re.compile(r"^https?://openalex\.org/", re.I)
-
-        def _canonical(p: dict) -> str:
-            """Canonical key for paper dedup.
-
-            Order of preference:
-              1. bare DOI (10.xxxx/...) — most stable cross-provider key
-              2. bare OpenAlex Work ID (Wxxxx)
-              3. arXiv ID if present
-              4. canonicalized URL (lowercase, no query/fragment)
-            """
-            doi = (p.get("doi") or "").strip()
-            if doi:
-                bare = _DOI_PREFIX_RE.sub("", doi).lower().rstrip("/")
-                if bare:
-                    return f"doi:{bare}"
-
-            oa = (p.get("openalex_id") or "").strip()
-            if oa:
-                bare_oa = _OPENALEX_PREFIX_RE.sub("", oa).lower().rstrip("/")
-                if bare_oa:
-                    return f"openalex:{bare_oa}"
-
-            arxiv = (p.get("arxiv_id") or "").strip().lower()
-            if arxiv:
-                return f"arxiv:{arxiv}"
-
-            url = (p.get("url") or p.get("scholar_url") or "").lower()
-            return url.split("?", 1)[0].split("#", 1)[0].rstrip("/")
 
         seen_sources: set[str] = set()
 
