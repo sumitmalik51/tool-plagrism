@@ -26,6 +26,8 @@ from app.tools.similarity_tool import cosine_similarity_matrix
 from app.tools.relevance_scorer import score_relevance
 from app.tools.fingerprint_tool import (
     idf_filtered_phrase_overlap,
+    idf_weighted_phrase_hits,
+    build_idf_table,
     longest_common_token_substring,
 )
 
@@ -225,13 +227,26 @@ class AcademicAgent(BaseAgent):
         sim_matrix = cosine_similarity_matrix(doc_embeddings, paper_embeddings)
 
         # Use the full semantic threshold — do NOT lower it for abstracts.
-        # The prior floor (max(base - 0.15, 0.60)) was the root cause of
-        # false academic attributions. Abstracts are summaries: if a chunk
-        # truly comes from a paper, the embedding similarity will be high
-        # even against the abstract.
         cross_threshold = settings.semantic_similarity_threshold
         flagged: list[FlaggedPassage] = []
         flagged_chunk_indices: set[int] = set()
+
+        # Build per-request IDF over the candidate abstracts/titles
+        idf_table = build_idf_table(paper_texts) if paper_texts else {}
+
+        # Track per-source dedup (canonicalized DOI / URL)
+        def _canonical(p: dict) -> str:
+            doi = (p.get("doi") or "").lower().strip()
+            if doi:
+                return f"doi:{doi}"
+            url = (p.get("url") or p.get("openalex_id") or p.get("scholar_url") or "").lower()
+            return url.split("?", 1)[0].split("#", 1)[0].rstrip("/")
+
+        seen_sources: set[str] = set()
+
+        # Track best evidence for confidence calculation
+        best_hits = 0
+        best_lcs = 0
 
         for i in range(sim_matrix.shape[0]):
             for j in range(sim_matrix.shape[1]):
@@ -243,24 +258,36 @@ class AcademicAgent(BaseAgent):
                 abstract = paper.get("abstract") or paper.get("title", "")
                 chunk_text = chunks[i][:settings.passage_display_length]
 
-                # IDF-filtered phrase overlap: count exact 5-8 word
-                # sequences shared, excluding common academic phrases.
-                hits = idf_filtered_phrase_overlap(chunk_text, abstract)
+                # IDF-weighted phrase overlap (per-request IDF over abstracts)
+                hits = idf_weighted_phrase_hits(chunk_text, abstract, idf_table)
 
                 # Longest common token substring for verbatim detection
                 lcs = longest_common_token_substring(chunk_text, abstract)
 
-                # HARD GATE: abstract-only comparison requires lexical evidence.
-                # Comparing against an abstract (not full text) means
-                # topic similarity will inflate cosine. We require at least
-                # one form of lexical evidence to attribute.
-                has_lexical = hits >= 2 or lcs >= 8
+                # HARD GATE (AND-logic, stricter for abstract-only):
+                # Abstracts are short and densely topical — require BOTH a
+                # high IDF-rare phrase count AND a long verbatim run.
+                # Emergency bypass for near-identical embeddings + long LCS.
+                primary  = hits >= 3 and lcs >= 10
+                strong   = sim_val >= 0.95 and lcs >= 15
 
-                if not has_lexical:
-                    # No textual overlap with abstract → skip
+                if not (primary or strong):
+                    continue
+
+                # Per-source dedup
+                canon = _canonical(paper)
+                if canon and canon in seen_sources:
                     continue
 
                 flagged_chunk_indices.add(i)
+                if canon:
+                    seen_sources.add(canon)
+
+                if hits > best_hits:
+                    best_hits = hits
+                if lcs > best_lcs:
+                    best_lcs = lcs
+
                 authors = paper.get("authors", [])
                 author_str = (
                     ", ".join(authors[:3])
@@ -270,14 +297,12 @@ class AcademicAgent(BaseAgent):
                 year = paper.get("year", "")
                 title = paper.get("title", "Unknown")
 
-                if hits >= 5 and lcs >= 10:
+                if hits >= 6 and lcs >= 15:
                     match_quality = "Strong"
-                elif hits >= 3 or lcs >= 10:
+                elif hits >= 4 and lcs >= 12:
                     match_quality = "Moderate"
-                elif hits >= 2 or lcs >= 8:
-                    match_quality = "Weak"
                 else:
-                    match_quality = "Marginal"
+                    match_quality = "Weak"
 
                 flagged.append(
                     FlaggedPassage(
@@ -286,7 +311,7 @@ class AcademicAgent(BaseAgent):
                         source=paper.get("url") or paper.get("openalex_id") or paper.get("scholar_url", ""),
                         reason=(
                             f"{match_quality} match ({sim_val:.0%} semantic, "
-                            f"{hits} phrase{'s' if hits != 1 else ''}, "
+                            f"{hits} IDF-rare phrase{'s' if hits != 1 else ''}, "
                             f"LCS {lcs} words, abstract-only) "
                             f"with: \"{title}\" by {author_str} ({year})"
                         ),
@@ -298,10 +323,13 @@ class AcademicAgent(BaseAgent):
             (len(flagged_chunk_indices) / len(chunks)) * 100, 2
         ) if chunks else 0.0
 
-        # Confidence: proportional to evidence found, NO floor.
-        # If zero flagged passages survived the gate, confidence is 0.
+        # Evidence-based confidence (NOT paper-count). NO floor.
         if flagged:
-            confidence = min(len(papers) / 10, 1.0) * 0.6
+            evidence = (
+                min(best_hits / 5.0, 1.0) * 0.5
+                + min(best_lcs / 15.0, 1.0) * 0.5
+            )
+            confidence = round(min(evidence, 1.0), 2)
         else:
             confidence = 0.0
 

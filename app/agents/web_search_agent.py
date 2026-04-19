@@ -28,6 +28,8 @@ from app.tools.fingerprint_tool import (
     fingerprint_match_score,
     fingerprint_chunks,
     idf_filtered_phrase_overlap,
+    idf_weighted_phrase_hits,
+    build_idf_table,
     longest_common_token_substring,
 )
 
@@ -243,16 +245,25 @@ class WebSearchAgent(BaseAgent):
                     "source_title": web_results[orig_idx].get("title", "Unknown"),
                 })
 
-        # --- Stage 2: Lexical validation (HARD GATE) -------------------------
-        # IDF-filtered phrase overlap + longest common token substring.
+        # --- Stage 2: Lexical validation (HARD GATE, AND-logic) -------------
+        # Real per-request IDF over the candidate corpus + LCS.
         # Rejects candidates that have high embedding similarity but no
         # actual textual overlap (same topic, different text).
+        #
+        # Build IDF over the small candidate corpus (10-30 docs) — cheap.
+        idf_corpus = [
+            (r.get("raw_full_text") or r.get("full_text") or "")
+            for r in web_results
+            if (r.get("raw_full_text") or r.get("full_text"))
+        ]
+        idf_table = build_idf_table(idf_corpus) if idf_corpus else {}
+
         for cand in candidates:
             source_full = web_results[cand["ref_idx"]].get("raw_full_text", "") \
                           or web_results[cand["ref_idx"]].get("full_text", "")
             if source_full:
-                cand["phrase_hits"] = idf_filtered_phrase_overlap(
-                    cand["chunk_text"], source_full,
+                cand["phrase_hits"] = idf_weighted_phrase_hits(
+                    cand["chunk_text"], source_full, idf_table,
                 )
                 cand["lcs_len"] = longest_common_token_substring(
                     cand["chunk_text"], source_full[:5000],
@@ -286,14 +297,24 @@ class WebSearchAgent(BaseAgent):
                     web_results[_ref_to_web_idx[ref_idx]].get("url", "")
                 )
 
-        # --- Stage 4: Hard validation gate & AND-logic scoring ---------------
-        # A candidate is promoted ONLY if it has lexical evidence:
-        #   a) phrase_hits >= 2      → non-trivial word sequences matched
-        #   b) lcs_len >= 8          → 8+ contiguous words in common
-        #   c) source has fingerprint overlap (document-level Jaccard)
-        # Pure embedding matches with NO lexical evidence are rejected.
+        # Capture fp_score for downstream logging / response.
+        fp_score = fp_result.get("score", 0.0)
+
+        # --- Stage 4: Hard validation gate (AND-logic) -----------------------
+        # A candidate is promoted ONLY if it has *strong* lexical evidence:
+        #   PRIMARY:    (phrase_hits >= 2 AND lcs >= 8)        — two signals
+        #   FINGERPRINT: source has document-level Jaccard overlap
+        #   STRONG-EMBED: embedding_sim >= 0.95 AND lcs >= 12  — emergency bypass
+        # Pure embedding matches with weak lexical evidence are rejected.
         flagged: list[FlaggedPassage] = []
-        seen_sources: set[str] = set()
+        seen_sources: set[str] = set()  # canonical URL → de-dup
+
+        def _canonical_url(u: str) -> str:
+            """Lowercase, strip query/fragment & trailing slash for dedup."""
+            if not u:
+                return ""
+            u = u.split("#", 1)[0].split("?", 1)[0].rstrip("/").lower()
+            return u
 
         for cand in candidates:
             hits = cand["phrase_hits"]
@@ -301,18 +322,23 @@ class WebSearchAgent(BaseAgent):
             sim  = cand["embedding_sim"]
             has_fp = cand["source_url"] in fp_urls_with_overlap
 
-            has_lexical = hits >= 2 or lcs >= 8 or has_fp
+            primary_lex   = hits >= 2 and lcs >= 8
+            strong_embed  = sim >= 0.95 and lcs >= 12
 
-            # HARD GATE: no lexical evidence → reject
-            if not has_lexical:
+            if not (primary_lex or has_fp or strong_embed):
+                continue  # HARD GATE — no attribution without evidence
+
+            # Per-source dedup
+            canon = _canonical_url(cand["source_url"])
+            if canon in seen_sources:
                 continue
 
-            # Confidence tiers based on evidence strength
-            if hits >= 5 and (has_fp or lcs >= 10):
+            # Confidence tiers based on evidence strength (multi-signal)
+            if hits >= 5 and lcs >= 12 and has_fp:
                 match_quality = "strong"
-            elif hits >= 3 or (hits >= 2 and has_fp) or lcs >= 12:
+            elif hits >= 3 and lcs >= 10:
                 match_quality = "moderate"
-            elif hits >= 2 or has_fp or lcs >= 8:
+            elif primary_lex or has_fp:
                 match_quality = "weak"
             else:
                 match_quality = "marginal"
@@ -323,12 +349,13 @@ class WebSearchAgent(BaseAgent):
                 source=cand["source_url"],
                 reason=(
                     f"{match_quality.title()} match ({sim:.0%} semantic, "
-                    f"{hits} phrase{'s' if hits != 1 else ''}, "
-                    f"LCS {lcs} words): "
+                    f"{hits} IDF-rare phrase{'s' if hits != 1 else ''}, "
+                    f"LCS {lcs} words"
+                    f"{', fingerprint' if has_fp else ''}): "
                     f"{cand['source_title']}"
                 ),
             ))
-            seen_sources.add(cand["source_url"])
+            seen_sources.add(canon)
 
         # --- Also flag fingerprint-only matches (exact copies) ----------------
         for fm in fp_result.get("matches", [])[:5]:
@@ -336,7 +363,8 @@ class WebSearchAgent(BaseAgent):
             if ref_idx < len(_ref_to_web_idx):
                 orig_idx = _ref_to_web_idx[ref_idx]
                 src_url = web_results[orig_idx].get("url", "")
-                if src_url not in seen_sources:
+                canon = _canonical_url(src_url)
+                if canon and canon not in seen_sources:
                     flagged.append(FlaggedPassage(
                         text=f"[Exact-match fingerprint] Jaccard: {fm['jaccard']:.2%}",
                         similarity_score=min(fm["jaccard"] * 5, 1.0),
@@ -347,21 +375,32 @@ class WebSearchAgent(BaseAgent):
                             f"{web_results[orig_idx].get('title', 'Unknown')}"
                         ),
                     ))
-                    seen_sources.add(src_url)
+                    seen_sources.add(canon)
 
-        # Confidence: proportional to evidence found, NO floor
-        # If zero flagged passages survived the gate, confidence is 0
+        # --- Evidence-based confidence (NOT result-count) --------------------
+        # Confidence reflects the strongest evidence collected, not how many
+        # search results came back.  No floor — zero evidence => zero confidence.
         if flagged:
-            confidence = min(len(web_results) / 10, 1.0) * 0.6
+            best_hits = max((c["phrase_hits"] for c in candidates), default=0)
+            best_lcs  = max((c["lcs_len"]    for c in candidates), default=0)
+            # Each signal contributes up to ~1; cap at 1.0
+            evidence = (
+                min(best_hits / 5.0, 1.0) * 0.45
+                + min(best_lcs / 15.0, 1.0) * 0.45
+                + (0.10 if fp_score >= 30.0 else 0.0)
+            )
+            confidence = round(min(evidence, 1.0), 2)
         else:
             confidence = 0.0
 
         # Score: AND logic — only count validated matches.
-        # fp_score is used only if fingerprint matches also passed the gate.
         # The overall score is the % of doc chunks that survived validation.
-        validated_chunk_idxs = {c["chunk_idx"] for c in candidates
-                                if c["phrase_hits"] >= 2 or c["lcs_len"] >= 8
-                                or c["source_url"] in fp_urls_with_overlap}
+        validated_chunk_idxs = {
+            c["chunk_idx"] for c in candidates
+            if (c["phrase_hits"] >= 2 and c["lcs_len"] >= 8)
+            or c["source_url"] in fp_urls_with_overlap
+            or (c["embedding_sim"] >= 0.95 and c["lcs_len"] >= 12)
+        }
         if doc_chunks:
             validated_score = round(
                 (len(validated_chunk_idxs) / len(doc_chunks)) * 100, 2
