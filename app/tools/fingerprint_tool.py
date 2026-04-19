@@ -213,11 +213,11 @@ def fingerprint_match_score(
     *,
     k: int = 25,
     window_size: int = 4,
-    threshold: float = 0.05,
+    threshold: float = 0.10,
 ) -> dict[str, Any]:
     """Compare a document against multiple reference texts using fingerprinting.
 
-    A Jaccard of 0.05+ between a document and a single web page is significant
+    A Jaccard of 0.10+ between a document and a single web page is significant
     — it means ~5% of the unique text patterns are shared verbatim.
 
     Args:
@@ -255,9 +255,13 @@ def fingerprint_match_score(
             })
             max_jaccard = max(max_jaccard, comparison["jaccard"])
 
-    # Score: scale Jaccard to 0-100.
-    # Jaccard 0.05 = borderline, 0.15 = moderate, 0.30+ = heavy copying
-    score = min(max_jaccard * 300, 100.0)
+    # Score: linear up to Jaccard 0.30, then saturated at 100.
+    # A Jaccard of 0.30 represents heavy verbatim copying; below 0.10
+    # we suppress the score entirely (likely shared boilerplate noise).
+    if max_jaccard < 0.10:
+        score = 0.0
+    else:
+        score = min(max_jaccard * (100.0 / 0.30), 100.0)
     score = round(score, 2)
 
     elapsed = round(time.perf_counter() - start, 3)
@@ -376,6 +380,115 @@ def idf_filtered_phrase_overlap(
                 total_matches += 1
 
     return total_matches
+
+
+# ---------------------------------------------------------------------------
+# Per-request IDF — real document-frequency over candidate corpus
+# ---------------------------------------------------------------------------
+
+import math
+
+
+def build_idf_table(
+    corpus_texts: list[str],
+    *,
+    min_words: int = 5,
+    max_words: int = 8,
+) -> dict[tuple[str, ...], float]:
+    """Build a per-request IDF table over a candidate corpus.
+
+    For each n-gram of size *min_words*..*max_words*, computes
+    ``log(N / df)`` where N is the number of documents and *df* is the
+    document-frequency of that n-gram. Higher IDF = rarer = more
+    discriminative for source attribution.
+
+    The caller passes the small corpus of retrieved candidate documents
+    (web pages, abstracts) — typically 10-30 docs — so this is cheap.
+    """
+    if not corpus_texts:
+        return {}
+    N = len(corpus_texts)
+    df: dict[tuple[str, ...], int] = {}
+    for text in corpus_texts:
+        norm = _PUNCT_RE.sub("", text.lower())
+        words = _WORD_SPLIT.split(norm.strip())
+        seen: set[tuple[str, ...]] = set()
+        for n in range(min_words, max_words + 1):
+            if len(words) < n:
+                continue
+            for i in range(len(words) - n + 1):
+                seen.add(tuple(words[i : i + n]))
+        for ng in seen:
+            df[ng] = df.get(ng, 0) + 1
+
+    # log(N/df), but never below 0 (rare-positive only)
+    return {ng: math.log(N / d) for ng, d in df.items()}
+
+
+def idf_weighted_phrase_hits(
+    passage: str,
+    source_text: str,
+    idf_table: dict[tuple[str, ...], float],
+    *,
+    min_words: int = 5,
+    max_words: int = 8,
+    min_idf: float = 0.7,  # ~drop n-grams in >=50% of candidate docs
+    max_doc_freq_ratio: float = 0.30,  # also drop n-grams in >=30% of docs
+) -> int:
+    """Count n-gram matches between passage and source, weighted by real IDF.
+
+    An n-gram counts as a hit only if:
+      1. It appears verbatim in both passage and source.
+      2. Its IDF is above *min_idf* (i.e. it is not boilerplate in the
+         current request's candidate corpus).
+      3. It is not in the static common-academic-phrases blocklist.
+
+    *idf_table* is built once per request via :func:`build_idf_table`.
+    If empty, falls back to the static-blocklist behaviour of
+    :func:`idf_filtered_phrase_overlap`.
+    """
+    if not idf_table:
+        return idf_filtered_phrase_overlap(
+            passage, source_text,
+            min_words=min_words, max_words=max_words,
+        )
+
+    # Compute corpus-frequency cutoff implied by max_doc_freq_ratio.
+    # df_threshold corresponds to N * max_doc_freq_ratio; convert to IDF.
+    # If we know N (from any value: log(N/df)=idf), the cap becomes:
+    #   idf >= log(1/max_doc_freq_ratio)
+    cap_idf = math.log(1.0 / max_doc_freq_ratio)
+    effective_min_idf = max(min_idf, cap_idf)
+
+    p_norm = _PUNCT_RE.sub("", passage.lower())
+    s_norm = _PUNCT_RE.sub("", source_text.lower())
+    p_words = _WORD_SPLIT.split(p_norm.strip())
+    s_words = _WORD_SPLIT.split(s_norm.strip())
+
+    if len(p_words) < min_words or len(s_words) < min_words:
+        return 0
+
+    total_hits = 0
+    for n in range(min_words, max_words + 1):
+        if len(s_words) < n or len(p_words) < n:
+            continue
+        # Build source ngram set
+        src_ngrams: set[tuple[str, ...]] = set()
+        for i in range(len(s_words) - n + 1):
+            src_ngrams.add(tuple(s_words[i : i + n]))
+        # Walk passage
+        for i in range(len(p_words) - n + 1):
+            ng = tuple(p_words[i : i + n])
+            if ng not in src_ngrams:
+                continue
+            if _is_common_phrase(ng):
+                continue
+            idf = idf_table.get(ng, 0.0)
+            if idf < effective_min_idf:
+                # Too common in candidate corpus → topic noise
+                continue
+            total_hits += 1
+    return total_hits
 
 
 def longest_common_token_substring(text_a: str, text_b: str) -> int:
