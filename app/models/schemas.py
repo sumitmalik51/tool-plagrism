@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -66,6 +66,14 @@ class FlaggedPassage(BaseModel):
     similarity_score: float = Field(..., ge=0.0, le=1.0, description="Similarity score")
     source: str | None = Field(default=None, description="Matched source URL or reference")
     reason: str = Field(default="", description="Why this passage was flagged")
+    match_type: Literal["exact", "paraphrase", "semantic"] | None = Field(
+        default=None,
+        description=(
+            "Kind of match: 'exact' = verbatim/fingerprint overlap, "
+            "'paraphrase' = reworded text with shared rare phrases, "
+            "'semantic' = embedding-only similarity (no shared phrases)"
+        ),
+    )
 
 
 class AgentOutput(BaseModel):
@@ -128,3 +136,11 @@ class PlagiarismReport(BaseModel):
     flagged_passages: list[FlaggedPassage] = Field(default_factory=list)
     agent_results: list[AgentOutput] = Field(default_factory=list)
     explanation: str = Field(default="", description="Human-readable summary")
+    empty_reason: Literal["no_matches", "weak_only", "no_corpus"] | None = Field(
+        default=None,
+        description=(
+            "Why no passages were flagged (when applicable). 'no_matches' = "
+            "scanned and found nothing; 'weak_only' = found candidates but "
+            "all failed the gate; 'no_corpus' = retrieval returned nothing."
+        ),
+    )

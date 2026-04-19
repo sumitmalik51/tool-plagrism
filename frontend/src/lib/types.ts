@@ -48,6 +48,7 @@ export interface AnalysisResult {
   ai_score?: number;
   grammar_score?: number;
   readability_score?: number;
+  empty_reason?: "no_matches" | "weak_only" | "no_corpus" | null;
 }
 
 export interface SourceTextBlock {
@@ -71,6 +72,7 @@ export interface FlaggedPassage {
   similarity_score: number;
   source: string;
   reason?: string;
+  match_type?: "exact" | "paraphrase" | "semantic" | null;
 }
 
 export interface ScanItem {

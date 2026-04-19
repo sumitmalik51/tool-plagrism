@@ -47,3 +47,95 @@ export function truncate(str: string, len: number): string {
 export function wordCount(text: string): number {
   return text.trim() ? text.trim().split(/\s+/).length : 0;
 }
+
+// ---------------------------------------------------------------------------
+// Passage-level severity bands (DECOUPLED from document-level scoreColor).
+// scoreColor() colors a 60% document plagiarism rate the same red as a 95%
+// verbatim copy of a sentence — fine at the document level, alarming at the
+// per-passage level. passageBand() gives passages their own scale where
+// "moderate semantic similarity" is amber-neutral, not red-danger.
+// ---------------------------------------------------------------------------
+
+export type PassageSeverity = "weak" | "moderate" | "strong" | "verbatim";
+
+export interface PassageBand {
+  severity: PassageSeverity;
+  /** Short label rendered as a chip ("Weak similarity", "Strong match"). */
+  label: string;
+  /** Tailwind color class for inline text (the chip and percentage). */
+  textClass: string;
+  /** Tailwind class for the left-border + faint background tint. */
+  borderClass: string;
+  bgClass: string;
+  /** Severity dots (●●●○ etc.) — accessibility for colorblind users. */
+  dots: string;
+}
+
+export function passageBand(score: number): PassageBand {
+  // score is on a 0-100 scale (e.g. similarity_score * 100)
+  if (score >= 90) {
+    return {
+      severity: "verbatim",
+      label: "Near-verbatim",
+      textClass: "text-danger",
+      borderClass: "border-danger",
+      bgClass: "bg-danger/10",
+      dots: "●●●",
+    };
+  }
+  if (score >= 70) {
+    return {
+      severity: "strong",
+      label: "Strong match",
+      textClass: "text-danger/90",
+      borderClass: "border-danger/70",
+      bgClass: "bg-danger/5",
+      dots: "●●●",
+    };
+  }
+  if (score >= 40) {
+    return {
+      severity: "moderate",
+      label: "Moderate similarity",
+      textClass: "text-warn",
+      borderClass: "border-warn/60",
+      bgClass: "bg-warn/5",
+      dots: "●●○",
+    };
+  }
+  return {
+    severity: "weak",
+    label: "Weak similarity",
+    textClass: "text-muted",
+    borderClass: "border-border",
+    bgClass: "bg-surface2/40",
+    dots: "●○○",
+  };
+}
+
+/**
+ * Generate a plain-language explanation for why a passage was flagged.
+ * Use the backend-provided `reason` if present; otherwise derive copy from
+ * the severity band so users never see the legacy "closely matches" string.
+ */
+export function passageExplanation(
+  reason: string | undefined,
+  score: number,
+): string {
+  if (reason && reason.trim()) return reason.trim();
+  const band = passageBand(score);
+  switch (band.severity) {
+    case "verbatim":
+      return "Near-verbatim overlap with the source — substantial copied text.";
+    case "strong":
+      return "Strong textual overlap with the source — substantial shared phrasing.";
+    case "moderate":
+      return "Reworded version of a passage from the source — same structure, different words.";
+    case "weak":
+    default:
+      return (
+        "Discusses the same idea as the source. No shared phrases — likely " +
+        "independent writing on a common topic."
+      );
+  }
+}

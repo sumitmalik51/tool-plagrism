@@ -335,6 +335,16 @@ class AcademicAgent(BaseAgent):
                 else:
                     match_quality = "Weak"
 
+                # match_type: kind of overlap. Academic agent has no full-text
+                # fingerprint, so "exact" requires a long verbatim run; otherwise
+                # IDF-rare phrase hits indicate paraphrase, else semantic-only.
+                if lcs >= 15:
+                    match_type = "exact"
+                elif hits >= 2 and lcs >= 8:
+                    match_type = "paraphrase"
+                else:
+                    match_type = "semantic"
+
                 flagged.append(
                     FlaggedPassage(
                         text=chunk_snippet,
@@ -346,6 +356,7 @@ class AcademicAgent(BaseAgent):
                             f"LCS {lcs} words, abstract-only) "
                             f"with: \"{title}\" by {author_str} ({year})"
                         ),
+                        match_type=match_type,
                     )
                 )
 
@@ -373,6 +384,14 @@ class AcademicAgent(BaseAgent):
             flagged_count=len(flagged),
         )
 
+        # Empty-state classification for transparent UX
+        if flagged:
+            empty_reason: str | None = None
+        elif not papers:
+            empty_reason = "no_corpus"
+        else:
+            empty_reason = "no_matches"
+
         return AgentOutput(
             agent_name=self.name,
             score=score,
@@ -385,6 +404,7 @@ class AcademicAgent(BaseAgent):
                 "papers_found": len(papers),
                 "flagged_chunks": len(flagged_chunk_indices),
                 "queries_used": queries,
+                "empty_reason": empty_reason,
             },
         )
 

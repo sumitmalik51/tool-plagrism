@@ -347,6 +347,15 @@ class WebSearchAgent(BaseAgent):
             else:
                 match_quality = "marginal"
 
+            # match_type: kind of overlap (exact / paraphrase / semantic).
+            # Drives the chip + icon in the UI separately from severity.
+            if has_fp or lcs >= 15:
+                match_type = "exact"
+            elif hits >= 2 and lcs >= 8:
+                match_type = "paraphrase"
+            else:
+                match_type = "semantic"
+
             flagged.append(FlaggedPassage(
                 text=cand["chunk_text"],
                 similarity_score=sim,
@@ -358,6 +367,7 @@ class WebSearchAgent(BaseAgent):
                     f"{', fingerprint' if has_fp else ''}): "
                     f"{cand['source_title']}"
                 ),
+                match_type=match_type,
             ))
             flagged_canon_urls.add(canon)
             promoted_cands.append(cand)
@@ -385,6 +395,7 @@ class WebSearchAgent(BaseAgent):
                             f"(Jaccard: {jac:.2%}): "
                             f"{web_results[orig_idx].get('title', 'Unknown')}"
                         ),
+                        match_type="exact",
                     ))
                     flagged_canon_urls.add(canon)
 
@@ -442,6 +453,17 @@ class WebSearchAgent(BaseAgent):
             web_results=len(web_results),
         )
 
+        # Empty-state classification — distinguishes the three trust-critical
+        # cases for the UI: nothing found vs. weak-only vs. corpus-uncovered.
+        if flagged:
+            empty_reason: str | None = None
+        elif not candidates:
+            empty_reason = "no_corpus"  # retrieval returned no comparable text
+        elif any(c["embedding_sim"] >= 0.40 for c in candidates):
+            empty_reason = "weak_only"  # candidates existed but failed the gate
+        else:
+            empty_reason = "no_matches"
+
         return AgentOutput(
             agent_name=self.name,
             score=final_score,
@@ -449,6 +471,7 @@ class WebSearchAgent(BaseAgent):
             flagged_passages=flagged,
             details={
                 "status": "completed",
+                "empty_reason": empty_reason,
                 "queries_searched": len(queries),
                 "web_results_found": len(web_results),
                 "pages_fetched": sum(1 for r in web_results if r.get("full_text")),
