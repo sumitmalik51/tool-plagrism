@@ -92,9 +92,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- GZip compression for API responses ---
+# --- GZip compression for API responses (skip SSE streams) ---
 from starlette.middleware.gzip import GZipMiddleware
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+
+class _SSEAwareGZip(GZipMiddleware):
+    """GZip that skips text/event-stream responses (SSE must not be compressed)."""
+
+    async def __call__(self, scope, receive, send):  # type: ignore[override]
+        if scope["type"] == "http" and scope.get("path", "").startswith("/api/v1/scan-progress"):
+            # Bypass gzip entirely so SSE events are flushed immediately
+            await self.app(scope, receive, send)
+        else:
+            await super().__call__(scope, receive, send)
+
+
+app.add_middleware(_SSEAwareGZip, minimum_size=1000)
 
 # --- Security middleware (outermost = runs last, innermost = runs first) ------
 app.add_middleware(SecurityHeadersMiddleware)

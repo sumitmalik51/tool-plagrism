@@ -93,10 +93,72 @@ _CITATION_RE = re.compile(
 # Only matches when followed by an uppercase letter (the real sentence start).
 _LEADING_FRAGMENT_RE = re.compile(r'^[a-z]{1,10}\s+(?=[A-Z])')
 
+# Matches URLs (http/https/ftp or naked domain patterns like "pubs.acs.org/...")
+_URL_RE = re.compile(
+    r'https?://[^\s]+|ftp://[^\s]+|(?:[a-z0-9-]+\.)+(?:com|org|net|edu|gov|io|co)\b[/\S]*',
+    re.IGNORECASE,
+)
+
+# DOI patterns
+_DOI_RE = re.compile(r'10\.\d{4,}/[^\s]+', re.IGNORECASE)
+
+# Reference list markers: "[1] ...", "1. Author (2020)", etc.
+_REF_MARKER_RE = re.compile(r'^\s*\[?\d{1,3}\]?[\s.)\-]')
+
 
 def _is_citation_metadata(text: str) -> bool:
     """Return True if text is primarily citation/bibliographic metadata."""
     return len(_CITATION_RE.findall(text)) >= 2
+
+
+def _is_reference_line(text: str) -> bool:
+    """Return True if text looks like a bibliography/reference entry or URL-only snippet.
+
+    Catches:
+    - Text that's mostly URLs, DOIs, or domain names
+    - Short text with a reference-list prefix ("[1]", "2.")
+    - Short passages that are source titles/headers with no real sentence structure
+    """
+    stripped = text.strip()
+    words = stripped.split()
+    word_count = len(words)
+
+    # Strip all URLs and DOIs from the text
+    no_urls = _URL_RE.sub(" ", stripped)
+    no_urls = _DOI_RE.sub(" ", no_urls)
+    no_urls = re.sub(r'\s+', ' ', no_urls).strip()
+
+    remaining_words = len(no_urls.split()) if no_urls else 0
+
+    # If removing URLs/DOIs leaves very little, it's a reference line
+    if word_count > 0 and remaining_words <= 3:
+        return True
+
+    # Short passages (≤ 15 words total): check for sentence structure
+    # Real prose contains function words (articles, verbs, conjunctions)
+    # Source titles / headers are mostly proper nouns and labels
+    if word_count <= 15 and remaining_words <= 10:
+        has_sentence_structure = bool(
+            re.search(
+                r'\b(?:is|are|was|were|has|have|had|been|be|being|'
+                r'the|this|these|those|which|that|who|whom|whose|'
+                r'can|could|may|might|shall|should|will|would|must|'
+                r'because|although|however|therefore|moreover|furthermore|'
+                r'with|from|into|between|through|during|before|after|'
+                r'if|when|where|while|since|until|unless)\b',
+                no_urls,
+                re.IGNORECASE,
+            )
+        )
+        if not has_sentence_structure:
+            return True
+
+    # Reference marker prefix: "[1] ...", "2. Author..."
+    if word_count <= 15 and _REF_MARKER_RE.match(stripped):
+        if len(no_urls) < 60:
+            return True
+
+    return False
 
 
 def _trim_leading_fragment(text: str) -> str:
@@ -154,6 +216,10 @@ def merge_flagged_passages(
 
             # Skip citation / bibliographic metadata blocks
             if _is_citation_metadata(cleaned):
+                continue
+
+            # Skip reference lines (URLs, DOIs, journal headers)
+            if _is_reference_line(cleaned):
                 continue
 
             # Build a possibly-cleaned FlaggedPassage

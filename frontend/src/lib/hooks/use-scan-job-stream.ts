@@ -94,5 +94,7 @@ export default function useScanJobStream() {
       }
       es?.close();
     };
-  }, [active?.document_id, active?.status, updateActive, refreshActive, active]);
+    // Only reconnect when doc or status changes — NOT on every progress tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.document_id, active?.status]);
 }

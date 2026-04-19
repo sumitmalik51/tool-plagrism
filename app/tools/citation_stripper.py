@@ -14,14 +14,20 @@ logger = get_logger(__name__)
 
 # --- Patterns for reference / bibliography sections ---------------------------
 
-# Section headers that start a references block
+# Section headers that start a references block.
+# The prefix pattern handles common PDF markers like ■, ●, •, roman numerals,
+# section numbers (e.g. "10. References"), brackets, etc.
+# NOTE: We do NOT anchor to end-of-line ($) because two-column PDFs often
+# merge the header with text from the adjacent column on the same line,
+# e.g. "REFERENCES Ulanski, J.; Li, Y...."
 _REF_HEADERS = re.compile(
-    r"(?im)^\s*(?:references|bibliography|works?\s+cited|literature\s+cited"
-    r"|further\s+reading|cited\s+works?)\s*$"
+    r"(?im)^\s*(?:[IVXLC]+[.\s]+|[\W\d_.]*)\s*"
+    r"(?:references|bibliography|works?\s+cited|literature\s+cited"
+    r"|further\s+reading|cited\s+works?|cited\s+references)\b"
 )
 
-# Numbered reference entries like [1] Author, Title...
-_NUMBERED_REF = re.compile(r"^\s*\[\d+\]\s+.+", re.MULTILINE)
+# Numbered reference entries like (1) Author, (2) ..., [1] Author, etc.
+_NUMBERED_REF = re.compile(r"(?m)^\s*(?:\[\d+\]|\(\d+\))\s+[A-Z]")
 
 # APA-style entries: Author, A. A. (2020). Title...
 _APA_REF = re.compile(
@@ -41,18 +47,32 @@ def strip_reference_section(text: str) -> tuple[str, str]:
         return text, ""
 
     ref_start = match.start()
+    ref_pct = ref_start / len(text) * 100
 
-    # Only strip if the reference section is in the last 40% of the document
-    # (avoid false positives from a section titled "References" in the middle)
-    if ref_start < len(text) * 0.6:
+    # Primary gate: must be in the last 55% of the document.
+    # Review papers can have very large reference sections (40%+ of text).
+    if ref_start < len(text) * 0.45:
         return text, ""
+
+    # For matches between 45-60%, require secondary confirmation via numbered
+    # reference entries to avoid false positives on mid-document section titles.
+    if ref_start < len(text) * 0.60:
+        candidate = text[ref_start:ref_start + 3000]
+        numbered_refs = len(_NUMBERED_REF.findall(candidate))
+        if numbered_refs < 3:
+            logger.debug(
+                "ref_header_rejected_insufficient_entries",
+                position_pct=round(ref_pct, 1),
+                numbered_refs=numbered_refs,
+            )
+            return text, ""
 
     removed = text[ref_start:]
     cleaned = text[:ref_start].rstrip()
 
     logger.info(
         "reference_section_stripped",
-        ref_start_pct=round(ref_start / len(text) * 100, 1),
+        ref_start_pct=round(ref_pct, 1),
         removed_chars=len(removed),
     )
 

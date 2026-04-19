@@ -249,8 +249,13 @@ class WebSearchAgent(BaseAgent):
                 ref_full_texts.append(ft)
                 _ref_to_web_idx.append(i)
 
-        fp_result = fingerprint_match_score(
-            cleaned_text, ref_full_texts, threshold=0.04,
+        # Offload CPU-heavy fingerprinting to a thread so the event loop
+        # stays responsive for SSE keepalives and health checks.
+        import asyncio as _aio
+        _loop = _aio.get_running_loop()
+        fp_result = await _loop.run_in_executor(
+            None, fingerprint_match_score,
+            cleaned_text, ref_full_texts,
         )
         fp_score = fp_result["score"]
 

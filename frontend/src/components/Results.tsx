@@ -40,7 +40,7 @@ export default function Results({ result }: ResultsProps) {
     }
   };
 
-  const originalScore = Math.max(0, 100 - result.plagiarism_score);
+  const originalScore = Math.max(0, 100 - (result.plagiarism_score ?? 0));
 
   return (
     <div className="space-y-6">
@@ -92,7 +92,7 @@ export default function Results({ result }: ResultsProps) {
       </div>
 
       {/* Detected sources */}
-      {result.detected_sources.length > 0 && (
+      {result.detected_sources && result.detected_sources.length > 0 && (
         <Card>
           <h3 className="text-lg font-semibold mb-4">
             Detected Sources ({result.detected_sources.length})
@@ -137,7 +137,7 @@ export default function Results({ result }: ResultsProps) {
       )}
 
       {/* Flagged passages */}
-      {result.flagged_passages.length > 0 && (
+      {result.flagged_passages && result.flagged_passages.length > 0 && (
         <Card>
           <h3 className="text-lg font-semibold mb-4">
             Flagged Passages ({result.flagged_passages.length})
@@ -194,7 +194,7 @@ function ScoreCard({
           label === "Original" ? 100 - score : score
         )}`}
       >
-        {score.toFixed(1)}%
+        {(score ?? 0).toFixed(1)}%
       </span>
     </div>
   );

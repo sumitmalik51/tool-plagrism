@@ -108,14 +108,36 @@ def save_scan(
 
 
 def get_scan(document_id: str) -> dict[str, Any] | None:
-    """Retrieve the latest scan for a document."""
+    """Retrieve the latest scan for a document.
+
+    ``report_json`` is stored as a JSON string in the DB but returned
+    as a parsed dict so the API consumer gets a real object.
+    The document filename is joined from the ``documents`` table.
+    """
     db = get_db()
-    return db.fetch_one(
-        "SELECT id, document_id, user_id, plagiarism_score, confidence_score, "
-        "risk_level, sources_count, flagged_count, report_json, created_at "
-        "FROM scans WHERE document_id = ? ORDER BY created_at DESC",
+    row = db.fetch_one(
+        "SELECT s.id, s.document_id, s.user_id, s.plagiarism_score, "
+        "s.confidence_score, s.risk_level, s.sources_count, s.flagged_count, "
+        "s.report_json, s.created_at, d.filename "
+        "FROM scans s "
+        "LEFT JOIN documents d ON s.document_id = d.document_id "
+        "WHERE s.document_id = ? ORDER BY s.created_at DESC",
         (document_id,),
     )
+    if not row:
+        return None
+
+    # Parse the JSON blob so the API returns a real object, not a string.
+    raw = row.get("report_json")
+    if isinstance(raw, str) and raw.strip():
+        try:
+            row["report_json"] = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            row["report_json"] = {}
+    elif not raw:
+        row["report_json"] = {}
+
+    return row
 
 
 def get_document_revisions(document_id: str, user_id: int) -> list[dict[str, Any]]:

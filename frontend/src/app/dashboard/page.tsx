@@ -491,7 +491,7 @@ export default function AnalyzerPage() {
                       Score
                     </p>
                     <p className="text-sm font-semibold">
-                      {s.plagiarism_score.toFixed(0)}%
+                      {(s.plagiarism_score ?? 0).toFixed(0)}%
                     </p>
                   </div>
                   <div>

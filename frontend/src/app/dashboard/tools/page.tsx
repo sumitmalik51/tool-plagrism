@@ -267,8 +267,8 @@ function ScanPicker({
       </option>
       {scans.map((s) => (
         <option key={s.id} value={s.id}>
-          {s.filename.length > 40 ? s.filename.slice(0, 40) + "…" : s.filename}{" "}
-          ({s.plagiarism_score.toFixed(0)}%)
+          {(s.filename || "Untitled").length > 40 ? (s.filename || "Untitled").slice(0, 40) + "…" : (s.filename || "Untitled")}{" "}
+          ({(s.plagiarism_score ?? 0).toFixed(0)}%)
         </option>
       ))}
     </select>
@@ -376,26 +376,26 @@ function CompareTab() {
               change={result.score_diff.flagged_count.change}
             />
           </div>
-          {result.new_sources.length > 0 && (
+          {(result.new_sources ?? []).length > 0 && (
             <div className="mb-4">
               <h4 className="text-sm font-semibold text-danger mb-2">
                 New Sources (+{result.new_sources.length})
               </h4>
               {result.new_sources.map((s, i) => (
                 <p key={i} className="text-xs text-muted">
-                  {s.title || s.url} — {(s.similarity * 100).toFixed(1)}%
+                  {s.title || s.url} — {((s.similarity ?? 0) * 100).toFixed(1)}%
                 </p>
               ))}
             </div>
           )}
-          {result.removed_sources.length > 0 && (
+          {(result.removed_sources ?? []).length > 0 && (
             <div>
               <h4 className="text-sm font-semibold text-ok mb-2">
                 Resolved Sources (-{result.removed_sources.length})
               </h4>
               {result.removed_sources.map((s, i) => (
                 <p key={i} className="text-xs text-muted">
-                  {s.title || s.url} — {(s.similarity * 100).toFixed(1)}%
+                  {s.title || s.url} — {((s.similarity ?? 0) * 100).toFixed(1)}%
                 </p>
               ))}
             </div>
@@ -512,7 +512,7 @@ function HighlightTab() {
                     report.plagiarism_score
                   )}`}
                 >
-                  {report.plagiarism_score.toFixed(1)}%
+                  {(report.plagiarism_score ?? 0).toFixed(1)}%
                 </span>
                 <Badge
                   variant={
@@ -530,18 +530,18 @@ function HighlightTab() {
                 Flagged Passages
               </h3>
               <div className="space-y-2">
-                {report.report.flagged_passages.map((p, i) => (
+                {(report.report?.flagged_passages ?? []).map((p, i) => (
                   <div
                     key={i}
                     className="p-3 bg-danger/5 border-l-4 border-danger/30 rounded-r-lg"
                   >
                     <p className="text-sm text-txt/80">{p.text}</p>
                     <p className="text-xs text-muted mt-1">
-                      {(p.similarity_score * 100).toFixed(1)}% — {p.source}
+                      {((p.similarity_score ?? 0) * 100).toFixed(1)}% — {p.source}
                     </p>
                   </div>
                 ))}
-                {report.report.flagged_passages.length === 0 && (
+                {(!report.report?.flagged_passages || report.report.flagged_passages.length === 0) && (
                   <p className="text-sm text-muted">No flagged passages.</p>
                 )}
               </div>
@@ -550,16 +550,16 @@ function HighlightTab() {
           <div>
             <Card>
               <h3 className="text-sm font-semibold text-muted mb-3">
-                Sources ({report.report.detected_sources.length})
+                Sources ({(report.report?.detected_sources ?? []).length})
               </h3>
               <div className="space-y-2">
-                {report.report.detected_sources.map((s, i) => (
+                {(report.report?.detected_sources ?? []).map((s, i) => (
                   <div key={i} className="p-2 bg-bg rounded-lg">
                     <p className="text-xs font-medium truncate">
                       {s.title || s.url}
                     </p>
                     <p className="text-xs text-muted">
-                      {(s.similarity * 100).toFixed(1)}% — {s.matched_words}{" "}
+                      {((s.similarity ?? 0) * 100).toFixed(1)}% — {s.matched_words ?? 0}{" "}
                       words
                     </p>
                   </div>
@@ -697,7 +697,7 @@ function BatchTab() {
                       r.plagiarism_score
                     )}`}
                   >
-                    {r.plagiarism_score.toFixed(1)}%
+                    {(r.plagiarism_score ?? 0).toFixed(1)}%
                   </td>
                   <td className="py-2 px-2">
                     <Badge

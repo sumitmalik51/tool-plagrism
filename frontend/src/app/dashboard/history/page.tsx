@@ -290,7 +290,7 @@ export default function HistoryPage() {
                           s.plagiarism_score
                         )}`}
                       >
-                        {s.plagiarism_score.toFixed(1)}%
+                        {(s.plagiarism_score ?? 0).toFixed(1)}%
                       </td>
                       <td className="py-3 px-3">
                         <Badge variant={riskVariant(s.risk_level)}>

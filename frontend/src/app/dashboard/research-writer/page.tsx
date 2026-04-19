@@ -391,7 +391,7 @@ function CheckTab() {
                 verdictColor[result.verdict] || "text-txt"
               }`}
             >
-              {(result.similarity_score * 100).toFixed(1)}% similar
+              {((result.similarity_score ?? 0) * 100).toFixed(1)}% similar
             </span>
             <Badge
               variant={
@@ -405,14 +405,14 @@ function CheckTab() {
               {result.verdict.replace("_", " ").toUpperCase()}
             </Badge>
           </div>
-          {result.web_matches.length > 0 && (
+          {(result.web_matches ?? []).length > 0 && (
             <div>
               <h4 className="text-sm font-semibold text-muted mb-2">
                 Web Matches
               </h4>
-              {result.web_matches.map((m, i) => (
+              {(result.web_matches ?? []).map((m, i) => (
                 <div key={i} className="text-xs text-muted mb-1">
-                  {m.title || m.url} — {(m.similarity * 100).toFixed(1)}%
+                  {m.title || m.url} — {((m.similarity ?? 0) * 100).toFixed(1)}%
                 </div>
               ))}
             </div>
@@ -825,8 +825,8 @@ function SourcesTab() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium mb-1">{s.title}</p>
                     <p className="text-xs text-muted">
-                      {s.authors.slice(0, 3).join(", ")}
-                      {s.authors.length > 3 ? " et al." : ""} ({s.year})
+                      {(s.authors ?? []).slice(0, 3).join(", ")}
+                      {(s.authors ?? []).length > 3 ? " et al." : ""} ({s.year})
                     </p>
                     <p className="text-xs text-muted">{s.venue}</p>
                     <p className="text-xs text-txt/60 mt-1 italic">

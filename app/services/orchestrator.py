@@ -274,7 +274,10 @@ async def run_pipeline(
 
     # --- 6. Store fingerprints for institutional repository -------------------
     try:
-        store_document_fingerprints(document_id, text)
+        # Offload to thread — generate_fingerprints is CPU-heavy
+        await asyncio.get_running_loop().run_in_executor(
+            None, store_document_fingerprints, document_id, text,
+        )
     except Exception as exc:
         logger.warning("fingerprint_storage_skipped", document_id=document_id, error=str(exc))
 

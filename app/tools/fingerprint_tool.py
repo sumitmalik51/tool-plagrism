@@ -14,7 +14,6 @@ The algorithm:
 
 from __future__ import annotations
 
-import hashlib
 import re
 import time
 from typing import Any
@@ -44,14 +43,32 @@ def _normalize(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _rolling_hashes(text: str, k: int) -> list[int]:
-    """Generate k-gram hashes using a simple polynomial rolling hash."""
-    if len(text) < k:
+    """Generate k-gram hashes using a fast polynomial rolling hash.
+
+    Uses Rabin-style rolling hash instead of per-gram MD5 — orders of
+    magnitude faster for long texts.
+    """
+    n = len(text)
+    if n < k:
         return []
-    hashes = []
-    for i in range(len(text) - k + 1):
-        gram = text[i : i + k]
-        h = int(hashlib.md5(gram.encode("utf-8")).hexdigest()[:8], 16)
+
+    _BASE = 31
+    _MOD = (1 << 61) - 1  # Mersenne prime for fast modular arithmetic
+
+    # Precompute base^k mod _MOD for sliding the window
+    base_k = pow(_BASE, k, _MOD)
+
+    # Compute initial hash for text[0:k]
+    h = 0
+    for ch in text[:k]:
+        h = (h * _BASE + ord(ch)) % _MOD
+
+    hashes = [h]
+    for i in range(1, n - k + 1):
+        # Slide: remove text[i-1], add text[i+k-1]
+        h = (h * _BASE - ord(text[i - 1]) * base_k + ord(text[i + k - 1])) % _MOD
         hashes.append(h)
+
     return hashes
 
 
