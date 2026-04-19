@@ -50,6 +50,12 @@ export interface AnalysisResult {
   readability_score?: number;
 }
 
+export interface SourceTextBlock {
+  text: string;
+  word_count: number;
+  similarity_score: number;
+}
+
 export interface DetectedSource {
   url: string;
   title: string;
@@ -57,12 +63,14 @@ export interface DetectedSource {
   text_blocks: number;
   matched_words: number;
   source_type: string;
+  matched_passages?: SourceTextBlock[];
 }
 
 export interface FlaggedPassage {
   text: string;
   similarity_score: number;
   source: string;
+  reason?: string;
 }
 
 export interface ScanItem {

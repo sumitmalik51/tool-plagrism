@@ -24,6 +24,10 @@ from app.tools.arxiv_tool import search_arxiv_multi
 from app.tools.scholar_tool import search_scholar_multi
 from app.tools.similarity_tool import cosine_similarity_matrix
 from app.tools.relevance_scorer import score_relevance
+from app.tools.fingerprint_tool import (
+    idf_filtered_phrase_overlap,
+    longest_common_token_substring,
+)
 
 
 def _extract_queries(chunks: list[str], max_queries: int = 8) -> list[str]:
@@ -220,45 +224,86 @@ class AcademicAgent(BaseAgent):
         # --- 4. Cross-similarity (doc chunks vs paper abstracts) --------------
         sim_matrix = cosine_similarity_matrix(doc_embeddings, paper_embeddings)
 
-        # Use a lower threshold for cross-source matching because abstracts
-        # are summaries — matching verbatim text produces ~0.6-0.8 similarity,
-        # not the 0.8+ seen in self-similarity.
-        base_threshold = settings.semantic_similarity_threshold
-        cross_threshold = max(base_threshold - 0.15, 0.50)
+        # Use the full semantic threshold — do NOT lower it for abstracts.
+        # The prior floor (max(base - 0.15, 0.60)) was the root cause of
+        # false academic attributions. Abstracts are summaries: if a chunk
+        # truly comes from a paper, the embedding similarity will be high
+        # even against the abstract.
+        cross_threshold = settings.semantic_similarity_threshold
         flagged: list[FlaggedPassage] = []
         flagged_chunk_indices: set[int] = set()
 
         for i in range(sim_matrix.shape[0]):
             for j in range(sim_matrix.shape[1]):
                 sim_val = float(min(sim_matrix[i, j], 1.0))  # clamp FP rounding
-                if sim_val >= cross_threshold:
-                    flagged_chunk_indices.add(i)
-                    paper = paper_meta[j]
-                    authors = paper.get("authors", [])
-                    author_str = (
-                        ", ".join(authors[:3])
-                        if isinstance(authors, list)
-                        else str(authors)
+                if sim_val < cross_threshold:
+                    continue
+
+                paper = paper_meta[j]
+                abstract = paper.get("abstract") or paper.get("title", "")
+                chunk_text = chunks[i][:settings.passage_display_length]
+
+                # IDF-filtered phrase overlap: count exact 5-8 word
+                # sequences shared, excluding common academic phrases.
+                hits = idf_filtered_phrase_overlap(chunk_text, abstract)
+
+                # Longest common token substring for verbatim detection
+                lcs = longest_common_token_substring(chunk_text, abstract)
+
+                # HARD GATE: abstract-only comparison requires lexical evidence.
+                # Comparing against an abstract (not full text) means
+                # topic similarity will inflate cosine. We require at least
+                # one form of lexical evidence to attribute.
+                has_lexical = hits >= 2 or lcs >= 8
+
+                if not has_lexical:
+                    # No textual overlap with abstract → skip
+                    continue
+
+                flagged_chunk_indices.add(i)
+                authors = paper.get("authors", [])
+                author_str = (
+                    ", ".join(authors[:3])
+                    if isinstance(authors, list)
+                    else str(authors)
+                )
+                year = paper.get("year", "")
+                title = paper.get("title", "Unknown")
+
+                if hits >= 5 and lcs >= 10:
+                    match_quality = "Strong"
+                elif hits >= 3 or lcs >= 10:
+                    match_quality = "Moderate"
+                elif hits >= 2 or lcs >= 8:
+                    match_quality = "Weak"
+                else:
+                    match_quality = "Marginal"
+
+                flagged.append(
+                    FlaggedPassage(
+                        text=chunk_text,
+                        similarity_score=sim_val,
+                        source=paper.get("url") or paper.get("openalex_id") or paper.get("scholar_url", ""),
+                        reason=(
+                            f"{match_quality} match ({sim_val:.0%} semantic, "
+                            f"{hits} phrase{'s' if hits != 1 else ''}, "
+                            f"LCS {lcs} words, abstract-only) "
+                            f"with: \"{title}\" by {author_str} ({year})"
+                        ),
                     )
-                    year = paper.get("year", "")
-                    title = paper.get("title", "Unknown")
-                    flagged.append(
-                        FlaggedPassage(
-                            text=chunks[i][:settings.passage_display_length],
-                            similarity_score=sim_val,
-                            source=paper.get("url") or paper.get("openalex_id") or paper.get("scholar_url", ""),
-                            reason=(
-                                f"{sim_val:.0%} similarity with: \"{title}\" "
-                                f"by {author_str} ({year})"
-                            ),
-                        )
-                    )
+                )
 
         # Score = % of chunks that matched a paper
         score = round(
             (len(flagged_chunk_indices) / len(chunks)) * 100, 2
         ) if chunks else 0.0
-        confidence = min(len(papers) / 10, 1.0) * 0.6 + 0.2
+
+        # Confidence: proportional to evidence found, NO floor.
+        # If zero flagged passages survived the gate, confidence is 0.
+        if flagged:
+            confidence = min(len(papers) / 10, 1.0) * 0.6
+        else:
+            confidence = 0.0
 
         self.logger.info(
             "academic_analysis_complete",

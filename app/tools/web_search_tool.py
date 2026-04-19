@@ -87,12 +87,12 @@ async def _search_bing(query: str, count: int, language: str = "en") -> dict | N
 # ---------------------------------------------------------------------------
 
 # Dedicated pool for DDG (sync lib) — limits concurrent requests to avoid rate-limits
-_ddg_pool = asyncio.Semaphore(3)
+_ddg_pool = asyncio.Semaphore(2)
 
-# Dedicated thread executor for DDG — keeps the default executor free for
-# embeddings and other I/O so a hanging DDG call can't starve the event loop.
+# Dedicated thread executor for DDG — keep max_workers LOW (2) to avoid
+# GIL contention starving the event loop during scans.
 from concurrent.futures import ThreadPoolExecutor as _TPE
-_ddg_executor = _TPE(max_workers=4, thread_name_prefix="ddg")
+_ddg_executor = _TPE(max_workers=2, thread_name_prefix="ddg")
 
 def _search_ddg_sync(query: str, count: int, language: str = "en") -> list[dict]:
     """Run DuckDuckGo search synchronously (the library is sync-only)."""

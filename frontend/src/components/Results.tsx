@@ -136,37 +136,96 @@ export default function Results({ result }: ResultsProps) {
         </Card>
       )}
 
-      {/* Flagged passages */}
+      {/* Flagged passages — side-by-side comparison */}
       {result.flagged_passages && result.flagged_passages.length > 0 && (
         <Card>
           <h3 className="text-lg font-semibold mb-4">
             Flagged Passages ({result.flagged_passages.length})
           </h3>
           <div className="space-y-3">
-            {result.flagged_passages.map((passage, i) => (
-              <div
-                key={i}
-                className="p-4 bg-danger/5 border-l-4 border-danger/30 rounded-r-xl"
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <span
-                    className={`text-xs font-semibold ${scoreColor(
-                      passage.similarity_score * 100
-                    )}`}
-                  >
-                    {(passage.similarity_score * 100).toFixed(1)}% similar
-                  </span>
-                  {passage.source && (
-                    <span className="text-xs text-muted">
-                      — {passage.source}
+            {result.flagged_passages.map((passage, i) => {
+              const isUrl =
+                passage.source &&
+                (passage.source.startsWith("http://") ||
+                  passage.source.startsWith("https://"));
+              const matchedSrc = result.detected_sources?.find(
+                (s) => s.url && passage.source && s.url === passage.source,
+              );
+              const sourceTitle = matchedSrc?.title || passage.source || "Unknown";
+              const sourceType = matchedSrc?.source_type || "Internet";
+              return (
+                <div
+                  key={i}
+                  className="border-l-4 border-danger/30 rounded-r-xl overflow-hidden bg-danger/5"
+                >
+                  {/* Header */}
+                  <div className="flex items-center gap-2 px-4 pt-3 pb-1 flex-wrap">
+                    <span
+                      className={`text-xs font-semibold ${scoreColor(
+                        passage.similarity_score * 100
+                      )}`}
+                    >
+                      {(passage.similarity_score * 100).toFixed(1)}% similar
                     </span>
-                  )}
+                    <span className="px-1.5 py-0.5 text-[10px] font-medium bg-surface2 border border-border rounded text-muted">
+                      {sourceType}
+                    </span>
+                    {matchedSrc && (
+                      <span className="text-xs text-muted">
+                        {matchedSrc.matched_words ?? 0} words matched
+                      </span>
+                    )}
+                  </div>
+                  {/* Side-by-side */}
+                  <div className="grid grid-cols-1 md:grid-cols-2">
+                    {/* Left: Your document text */}
+                    <div className="px-4 py-3 md:border-r md:border-border/30">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <div className="w-2 h-2 rounded-full bg-danger/60" />
+                        <span className="text-[10px] font-semibold text-danger uppercase tracking-wide">Your Document</span>
+                      </div>
+                      <p className="text-sm text-txt/80 leading-relaxed">
+                        {passage.text}
+                      </p>
+                    </div>
+                    {/* Right: Source info */}
+                    <div className="px-4 py-3 bg-surface2/30">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <div className="w-2 h-2 rounded-full bg-accent/60" />
+                        <span className="text-[10px] font-semibold text-accent uppercase tracking-wide">Matched Source</span>
+                      </div>
+                      <p className="text-sm font-medium text-txt mb-1">{sourceTitle}</p>
+                      {isUrl && (
+                        <a
+                          href={passage.source}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-accent-l hover:text-accent break-all leading-relaxed"
+                        >
+                          {passage.source!.length > 80 ? passage.source!.slice(0, 80) + "\u2026" : passage.source}
+                        </a>
+                      )}
+                      <div className="mt-2 pt-2 border-t border-border/30">
+                        <p className="text-xs text-muted italic mb-2">
+                          This passage closely matches content from the above source.
+                        </p>
+                        {isUrl && (
+                          <a
+                            href={passage.source}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-accent-l hover:text-accent bg-accent/10 hover:bg-accent/15 rounded-lg transition-colors"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            View full source
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-sm text-txt/80 leading-relaxed">
-                  {passage.text}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Card>
       )}

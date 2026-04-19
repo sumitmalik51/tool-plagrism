@@ -145,8 +145,9 @@ def record_usage(request: Request, tool_type: str = "scan", word_count: int = 0)
 
 # Legacy alias
 def record_scan(request: Request) -> int:
-    """Legacy shim — records a scan usage."""
-    return record_usage(request, tool_type="scan")
+    """Legacy shim — records a scan usage with word count."""
+    wc = getattr(request.state, "scan_word_count", 0)
+    return record_usage(request, tool_type="scan", word_count=wc)
 
 
 def enforce_rw_limit(tool_type: str):

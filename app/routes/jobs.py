@@ -102,6 +102,7 @@ async def submit_text_job(body: AnalyzeTextRequest, request: Request) -> dict[st
     plan_type = _resolve_plan(user_id)
 
     word_count = len(body.text.split())
+    request.state.scan_word_count = word_count
     _check_word_quota(user_id, plan_type, word_count, "text")
 
     # Prime the progress tracker so the SSE endpoint has something immediately.
@@ -186,6 +187,7 @@ async def submit_file_job(
         raise HTTPException(status_code=422, detail=str(exc))
 
     word_count = len(ingestion_result["text"].split())
+    request.state.scan_word_count = word_count
     _check_word_quota(user_id, plan_type, word_count, "document")
 
     try:

@@ -25,7 +25,7 @@ import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import ScanProgressBar from "@/components/ScanProgressBar";
 import Results from "@/components/Results";
-import type { AnalysisResult } from "@/lib/types";
+import type { AnalysisResult, UsageResponse } from "@/lib/types";
 import { wordCount, formatDate } from "@/lib/utils";
 
 type InputMode = "text" | "file" | "url";
@@ -71,6 +71,7 @@ export default function AnalyzerPage() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState("");
   const [recent, setRecent] = useState<RecentScan[]>([]);
+  const [usage, setUsage] = useState<UsageResponse | null>(null);
 
   const toast = useToastStore();
   const activeJob = useScanJobsStore((s) => s.active);
@@ -83,6 +84,8 @@ export default function AnalyzerPage() {
     if (activeJob.status === "completed" && activeJob.result) {
       setResult(activeJob.result);
       toast.add("success", "Analysis complete!");
+      // Refresh usage counters after scan completes
+      api.get("/api/v1/auth/usage").then((r) => setUsage(r.data)).catch(() => {});
     } else if (activeJob.status === "failed") {
       setError(activeJob.error || "Analysis failed. Please try again.");
       toast.add("error", activeJob.error || "Analysis failed.");
@@ -102,6 +105,10 @@ export default function AnalyzerPage() {
       .catch(() => {
         /* ignore — first-time user, or endpoint not available */
       });
+    api
+      .get("/api/v1/auth/usage")
+      .then((r) => setUsage(r.data))
+      .catch(() => {});
   }, []);
 
   const canSubmit =
@@ -266,6 +273,73 @@ export default function AnalyzerPage() {
           every finding is sourced
         </p>
       </div>
+
+      {/* Usage overview */}
+      {usage && (
+        <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 bg-surface border border-border rounded-xl text-sm">
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={
+                usage.plan_type === "premium"
+                  ? "warning"
+                  : usage.plan_type === "pro"
+                    ? "accent"
+                    : "default"
+              }
+            >
+              {usage.plan_type.charAt(0).toUpperCase() + usage.plan_type.slice(1)}
+            </Badge>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-muted">
+            <BarChart3 className="w-3.5 h-3.5" />
+            <span>
+              <span className="font-semibold text-txt">
+                {usage.word_quota.used.toLocaleString()}
+              </span>
+              {" / "}
+              {typeof usage.word_quota.limit === "number" && usage.word_quota.limit > 0
+                ? `${usage.word_quota.limit.toLocaleString()} words`
+                : "unlimited"}
+            </span>
+            {typeof usage.word_quota.limit === "number" &&
+              usage.word_quota.limit > 0 && (
+                <div className="ml-2 w-24 h-1.5 bg-border rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(
+                        (usage.word_quota.used / usage.word_quota.limit) * 100,
+                        100
+                      )}%`,
+                      backgroundColor:
+                        usage.word_quota.used / usage.word_quota.limit > 0.9
+                          ? "var(--danger)"
+                          : usage.word_quota.used / usage.word_quota.limit > 0.7
+                            ? "var(--warn)"
+                            : "var(--accent)",
+                    }}
+                  />
+                </div>
+              )}
+          </div>
+
+          <div className="flex items-center gap-1.5 text-muted">
+            <Clock className="w-3.5 h-3.5" />
+            <span>
+              <span className="font-semibold text-txt">{usage.used_today}</span>
+              {" scans today"}
+            </span>
+          </div>
+
+          <Link
+            href="/dashboard/settings"
+            className="ml-auto text-xs text-accent-l hover:text-accent transition-colors"
+          >
+            Settings →
+          </Link>
+        </div>
+      )}
 
       {/* Unified input card */}
       <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sm mb-8">

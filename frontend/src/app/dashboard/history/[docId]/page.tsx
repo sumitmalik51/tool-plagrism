@@ -242,15 +242,17 @@ function SourceCard({ src }: { src: DetectedSource }) {
   );
 }
 
-/* ─── Passage Card ───────────────────────────────────────── */
+/* ─── Passage Card — side-by-side comparison ─────────────── */
 
 function PassageCard({
   passage,
+  matchedSource,
   loading: busy,
   variations,
   onRewrite,
 }: {
   passage: FlaggedPassage;
+  matchedSource?: DetectedSource;
   loading: boolean;
   variations?: string[];
   onRewrite: (mode: string) => void;
@@ -261,27 +263,80 @@ function PassageCard({
     (passage.source.startsWith("http://") ||
       passage.source.startsWith("https://"));
 
+  const sourceTitle = matchedSource
+    ? resolveSourceName(matchedSource)
+    : passage.source || "Unknown";
+
+  const sourceType = matchedSource?.source_type || "Internet";
+
   return (
-    <div className={cn("border-l-4 rounded-r-xl p-4", passageRiskClass(passage.similarity_score ?? 0))}>
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
+    <div className={cn("border-l-4 rounded-r-xl overflow-hidden", passageRiskClass(passage.similarity_score ?? 0))}>
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 pt-4 pb-2 flex-wrap">
         <span className={`text-sm font-bold ${scoreColor(similarity)}`}>
           {similarity.toFixed(1)}% similar
         </span>
-        {passage.source && (
-          <>
-            <span className="text-muted">—</span>
-            <span className="text-xs text-muted truncate max-w-[300px]">
-              {passage.source}
-            </span>
-          </>
+        <Badge variant={sourceTypeVariant(sourceType)} className="text-[10px]">
+          {sourceType}
+        </Badge>
+        {matchedSource && (
+          <span className="text-xs text-muted">
+            {matchedSource.matched_words ?? 0} words matched
+          </span>
         )}
       </div>
-      <p className="text-sm text-txt/80 leading-relaxed mb-3">
-        {passage.text}
-      </p>
+
+      {/* Side-by-side comparison */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+        {/* Left: Your document text */}
+        <div className="px-4 py-3 md:border-r md:border-border/50">
+          <div className="flex items-center gap-1.5 mb-2">
+            <div className="w-2 h-2 rounded-full bg-danger/60" />
+            <span className="text-xs font-semibold text-danger uppercase tracking-wide">Your Document</span>
+          </div>
+          <p className="text-sm text-txt/80 leading-relaxed">
+            {passage.text}
+          </p>
+        </div>
+
+        {/* Right: Source info */}
+        <div className="px-4 py-3 bg-surface2/30">
+          <div className="flex items-center gap-1.5 mb-2">
+            <div className="w-2 h-2 rounded-full bg-accent/60" />
+            <span className="text-xs font-semibold text-accent uppercase tracking-wide">Matched Source</span>
+          </div>
+          <p className="text-sm font-medium text-txt mb-1">{sourceTitle}</p>
+          {isUrl && (
+            <a
+              href={passage.source}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-accent-l hover:text-accent break-all leading-relaxed"
+            >
+              {passage.source.length > 80 ? passage.source.slice(0, 80) + "…" : passage.source}
+            </a>
+          )}
+          <div className="mt-3 pt-3 border-t border-border/30">
+            <p className="text-xs text-muted mb-2 italic">
+              This passage was found to closely match content from the above source.
+            </p>
+            {isUrl && (
+              <a
+                href={passage.source}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-accent-l hover:text-accent bg-accent/10 hover:bg-accent/15 rounded-lg transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                View full source
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Action buttons */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap px-4 pb-4 pt-2 border-t border-border/20">
         <button
           disabled={busy}
           onClick={() => onRewrite("paraphrase")}
@@ -298,22 +353,11 @@ function PassageCard({
           <Bot className="w-3.5 h-3.5" />
           Humanize text
         </button>
-        {isUrl && (
-          <a
-            href={passage.source}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted hover:text-txt bg-surface2 hover:bg-border rounded-lg border border-border transition-colors"
-          >
-            <ArrowLeftRight className="w-3.5 h-3.5" />
-            Compare with source
-          </a>
-        )}
       </div>
 
       {/* Busy spinner */}
       {busy && (
-        <div className="mt-2 flex items-center gap-2 text-xs text-muted">
+        <div className="px-4 pb-3 flex items-center gap-2 text-xs text-muted">
           <div className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
           Processing…
         </div>
@@ -321,7 +365,7 @@ function PassageCard({
 
       {/* Rewritten variations */}
       {variations && variations.length > 0 && (
-        <div className="mt-3 space-y-2">
+        <div className="px-4 pb-4 space-y-2">
           <p className="text-xs font-medium text-ok">
             ✓ {variations.length} variation{variations.length !== 1 ? "s" : ""} generated
           </p>
@@ -783,15 +827,22 @@ export default function ScanDetailPage() {
               No flagged passages.
             </p>
           ) : (
-            passages.map((p, i) => (
-              <PassageCard
-                key={i}
-                passage={p}
-                loading={rewritingIdx === i}
-                variations={rewrittenTexts[i]}
-                onRewrite={(mode) => handleRewrite(p.text, mode, i)}
-              />
-            ))
+            passages.map((p, i) => {
+              /* Find the DetectedSource that matches this passage's source URL */
+              const matchedSource = sources.find(
+                (s) => s.url && p.source && s.url === p.source,
+              );
+              return (
+                <PassageCard
+                  key={i}
+                  passage={p}
+                  matchedSource={matchedSource}
+                  loading={rewritingIdx === i}
+                  variations={rewrittenTexts[i]}
+                  onRewrite={(mode) => handleRewrite(p.text, mode, i)}
+                />
+              );
+            })
           )}
         </div>
       )}

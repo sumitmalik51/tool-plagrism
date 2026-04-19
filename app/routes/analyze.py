@@ -99,6 +99,7 @@ async def analyze_document(file: UploadFile, request: Request, document_id: str 
 
     # --- Enforce word quota (after ingestion so we count actual extracted text) -
     word_count = len(ingestion_result["text"].split())
+    request.state.scan_word_count = word_count
     if user_id:
         tier = PLAN_TO_TIER.get(plan_type, UserTier.FREE)
         wq = limiter.check_word_quota(user_id, tier, word_count=word_count)
@@ -189,6 +190,7 @@ async def analyze_text(
 
     # --- Enforce word quota ----------------------------------------------------
     word_count = len(body.text.split())
+    request.state.scan_word_count = word_count
     if user_id:
         tier = PLAN_TO_TIER.get(plan_type, UserTier.FREE)
         wq = limiter.check_word_quota(user_id, tier, word_count=word_count)

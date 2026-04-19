@@ -180,6 +180,136 @@ def chunk_text(
 # Private helpers
 # ---------------------------------------------------------------------------
 
+def _detect_column_gap(page, y_start_frac: float = 0.15,
+                       y_end_frac: float = 0.85,
+                       min_words: int = 15,
+                       min_side: int = 5) -> float | None:
+    """Return the x-coordinate of a column gap in a y-region of the page.
+
+    Scans x positions from 35 %–65 % of page width and picks the one
+    crossed by the fewest word bounding boxes.  Returns *None* when the
+    region appears to be single-column.
+    """
+    words = page.extract_words(keep_blank_chars=False)
+    if not words or len(words) < 20:
+        return None
+
+    pw = float(page.width)
+    ph = float(page.height)
+
+    body = [w for w in words
+            if ph * y_start_frac < (w["top"] + w["bottom"]) / 2 < ph * y_end_frac]
+    if len(body) < min_words:
+        return None
+
+    best_x: float | None = None
+    min_cross = len(body)
+    for pct in range(35, 66):
+        x = pw * pct / 100
+        cross = sum(1 for w in body if w["x0"] < x < w["x1"])
+        if cross < min_cross:
+            min_cross = cross
+            best_x = x
+
+    if min_cross > max(2, len(body) * 0.02):
+        return None  # too many words span the "gap"
+
+    # Both halves must contain real content
+    left_n = sum(1 for w in body if w["x1"] <= best_x)
+    right_n = sum(1 for w in body if w["x0"] >= best_x)
+    if min(left_n, right_n) < min_side:
+        return None
+
+    return best_x
+
+
+def _find_column_start_y(page, gap_x: float) -> float:
+    """Find the y-coordinate where two-column body text begins.
+
+    Scans bands down the page and checks for a real physical gap between
+    columns (>15 px).  In single-column text the space between words that
+    happen to sit on either side of *gap_x* is just normal inter-word
+    spacing (~5-10 px).
+    """
+    words = page.extract_words(keep_blank_chars=False)
+    ph = float(page.height)
+    step = max(1, int(ph * 0.015))
+    band_h = ph * 0.03
+    required_consecutive = 3
+
+    consecutive = 0
+    first_y: float | None = None
+
+    for y in range(int(ph * 0.15), int(ph * 0.90), step):
+        band = [w for w in words
+                if y < (w["top"] + w["bottom"]) / 2 < y + band_h]
+        left_ws = [w for w in band if w["x1"] <= gap_x]
+        right_ws = [w for w in band if w["x0"] >= gap_x]
+
+        if len(left_ws) >= 3 and len(right_ws) >= 3:
+            rightmost_left = max(w["x1"] for w in left_ws)
+            leftmost_right = min(w["x0"] for w in right_ws)
+            physical_gap = leftmost_right - rightmost_left
+            # Real column gap is typically 15–40 px; normal word spacing ≤12 px
+            if physical_gap > 12:
+                if consecutive == 0:
+                    first_y = y
+                consecutive += 1
+                if consecutive >= required_consecutive:
+                    return float(first_y)
+            else:
+                consecutive = 0
+                first_y = None
+        else:
+            consecutive = 0
+            first_y = None
+
+    return ph * 0.5  # fallback
+
+
+def _extract_page_columns(page, gap_x: float) -> str:
+    """Extract a two-column page by cropping left / right at *gap_x*."""
+    ph = float(page.height)
+    pw = float(page.width)
+
+    left_text = (page.crop((0, 0, gap_x, ph)).extract_text() or "").strip()
+    right_text = (page.crop((gap_x, 0, pw, ph)).extract_text() or "").strip()
+
+    parts: list[str] = []
+    if left_text:
+        parts.append(left_text)
+    if right_text:
+        parts.append(right_text)
+    return "\n".join(parts)
+
+
+def _extract_page_text(page) -> str:
+    """Extract text from one page, handling full or mixed column layouts."""
+    ph = float(page.height)
+    pw = float(page.width)
+
+    # 1. Full-page two-column?
+    gap_x = _detect_column_gap(page)
+    if gap_x is not None:
+        return _extract_page_columns(page, gap_x)
+
+    # 2. Mixed layout: single-column top + two-column bottom.
+    #    Check only the lower portion of the page for a column gap.
+    gap_x = _detect_column_gap(page, y_start_frac=0.50, y_end_frac=0.95,
+                               min_words=10, min_side=3)
+    if gap_x is not None:
+        y_split = _find_column_start_y(page, gap_x)
+        top = (page.crop((0, 0, pw, y_split)).extract_text() or "").strip()
+        bot_l = (page.crop((0, y_split, gap_x, ph)).extract_text() or "").strip()
+        bot_r = (page.crop((gap_x, y_split, pw, ph)).extract_text() or "").strip()
+        parts = [p for p in [top, bot_l, bot_r] if p]
+        if parts:
+            return "\n".join(parts)
+
+    # 3. Single column
+    return page.extract_text() or ""
+
+
 def _extract_from_pdf(file_bytes: bytes) -> tuple[str, bool]:
     # Primary: pdfplumber (much better at preserving spaces)
     try:
@@ -187,7 +317,7 @@ def _extract_from_pdf(file_bytes: bytes) -> tuple[str, bool]:
         pages: list[str] = []
         with pdfplumber.open(BytesIO(file_bytes)) as pdf:
             for page in pdf.pages:
-                page_text = page.extract_text()
+                page_text = _extract_page_text(page)
                 if page_text:
                     pages.append(page_text)
         text = "\n".join(pages)

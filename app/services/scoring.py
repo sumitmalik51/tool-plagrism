@@ -188,8 +188,9 @@ def merge_flagged_passages(
     Internal-duplication passages (``internal_chunk_`` sources) are
     excluded because self-similarity within a document is not plagiarism.
 
-    When the same text appears from multiple agents, the entry with the
-    higher similarity score is kept.
+    Deduplication layers:
+    1. Text dedup: same passage text → keep highest score
+    2. Per-source dedup: same (text_prefix, source) → keep highest score
 
     Filters out:
     - internal-duplication passages (``internal_chunk_`` sources)
@@ -198,6 +199,8 @@ def merge_flagged_passages(
     - leading partial-word artefacts from chunk-boundary splits
     """
     best: dict[str, FlaggedPassage] = {}
+    # Per-source dedup: (text_prefix, source_url) → best passage
+    source_dedup: dict[tuple[str, str], FlaggedPassage] = {}
 
     for output in agent_outputs:
         for fp in output.flagged_passages:
@@ -231,13 +234,30 @@ def merge_flagged_passages(
                     reason=fp.reason,
                 )
 
-            key = fp.text[:100]  # deduplicate on first 100 chars
-
-            existing = best.get(key)
+            # Layer 1: Text dedup (same passage text, any source)
+            text_key = fp.text[:100]
+            existing = best.get(text_key)
             if existing is None or fp.similarity_score > existing.similarity_score:
-                best[key] = fp
+                best[text_key] = fp
 
+            # Layer 2: Per-source dedup (same text + same source URL)
+            source_key = (fp.text[:100], fp.source or "")
+            existing_src = source_dedup.get(source_key)
+            if existing_src is None or fp.similarity_score > existing_src.similarity_score:
+                source_dedup[source_key] = fp
+
+    # Use per-source deduped results for final output
+    # This ensures the same passage is only reported once per source
     all_passages = sorted(
-        best.values(), key=lambda p: p.similarity_score, reverse=True
+        source_dedup.values(), key=lambda p: p.similarity_score, reverse=True
     )
-    return list(all_passages[:max_passages])
+
+    # Final text-level dedup (same text prefix keeps only top-scoring source)
+    final: dict[str, FlaggedPassage] = {}
+    for fp in all_passages:
+        key = fp.text[:100]
+        if key not in final:
+            final[key] = fp
+
+    result = sorted(final.values(), key=lambda p: p.similarity_score, reverse=True)
+    return list(result[:max_passages])

@@ -24,25 +24,20 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# The HuggingFace tokenizer (Rust/PyO3) is NOT thread-safe. To avoid blocking
-# on a single lock, we use a dedicated ThreadPoolExecutor with multiple workers.
-# Each worker acquires the lock sequentially, allowing 2-4 concurrent requests
-# to queue and reduce latency vs. a single-threaded bottleneck.
-_model_lock = threading.Lock()
+# Single-worker executor so the model lock isn't contended by multiple
+# threads spinning on acquire() and starving the event loop of GIL time.
 _executor: ThreadPoolExecutor | None = None
 
 
 def _get_executor() -> ThreadPoolExecutor:
-    """Get or create the embedding executor pool."""
+    """Get or create the single-worker embedding executor."""
     global _executor
     if _executor is None:
-        # Use 2-4 workers based on config or CPU count
-        max_workers = getattr(settings, 'embedding_executor_workers', 3)
         _executor = ThreadPoolExecutor(
-            max_workers=max_workers,
+            max_workers=1,
             thread_name_prefix="embedding-worker-"
         )
-        logger.info("embedding_executor_created", max_workers=max_workers)
+        logger.info("embedding_executor_created", max_workers=1)
     return _executor
 
 
@@ -70,20 +65,15 @@ _BATCH_SIZE = 32  # Small batches so we release the GIL between them
 
 
 def _embed_batch_sync(texts: list[str]) -> NDArray[np.float32]:
-    """Generate embeddings for a SMALL batch synchronously.
-
-    Holds `_model_lock` only for a short burst (≤32 texts) so the GIL
-    is released between batches and the event loop can make progress.
-    """
-    with _model_lock:
-        model = _load_model()
-        embeddings: NDArray[np.float32] = model.encode(
-            texts,
-            batch_size=_BATCH_SIZE,
-            convert_to_numpy=True,
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        )
+    """Generate embeddings for a SMALL batch synchronously (≤32 texts)."""
+    model = _load_model()
+    embeddings: NDArray[np.float32] = model.encode(
+        texts,
+        batch_size=_BATCH_SIZE,
+        convert_to_numpy=True,
+        normalize_embeddings=True,
+        show_progress_bar=False,
+    )
     return embeddings
 
 
@@ -94,6 +84,10 @@ async def generate_embeddings(texts: list[str]) -> NDArray[np.float32]:
     between batches.  This prevents the GIL from being held for 10+
     seconds during tokenisation of large documents, keeping SSE
     heartbeats and health checks responsive.
+
+    Uses a **single-worker** thread pool so only one batch runs at a
+    time (the tokenizer is not thread-safe anyway), and competing
+    threads don't spin on a lock starving the event loop.
 
     Args:
         texts: List of text chunks to embed.
@@ -141,7 +135,7 @@ def generate_embeddings_sync(texts: list[str]) -> dict:
         return {"count": 0, "dimension": 0, "embeddings": []}
 
     start = time.perf_counter()
-    embeddings = _embed_sync(texts)
+    embeddings = _embed_batch_sync(texts)
     elapsed = round(time.perf_counter() - start, 3)
 
     logger.info(

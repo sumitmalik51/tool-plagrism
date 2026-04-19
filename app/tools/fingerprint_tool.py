@@ -29,10 +29,58 @@ logger = get_logger(__name__)
 _PUNCT_RE = re.compile(r"[^\w\s]", re.UNICODE)
 _MULTI_WS = re.compile(r"\s+")
 
+# Citation markers:  [1], [12,13], (Author, 2020), (Author et al., 2020)
+_CITATION_MARKER_RE = re.compile(
+    r"\[\d{1,3}(?:[,;\s]*\d{1,3})*\]"           # [1], [1,2,3]
+    r"|"
+    r"\([A-Z][a-z]+(?:\s+et\s+al\.?)?,?\s*\d{4}\)",  # (Author, 2020)
+    re.UNICODE,
+)
+# Equations / math fragments:  anything with ≥2 math-heavy symbols
+_EQUATION_RE = re.compile(r"(?:[=+\-*/^∫∑∏∂∇≈≤≥∝λμσ]{2,}|\\[a-z]{3,})", re.UNICODE)
+
+# Common academic filler phrases that inflate phrase-overlap counts
+_COMMON_ACADEMIC_PHRASES: set[tuple[str, ...]] = {
+    tuple(p.split()) for p in [
+        "in this paper we",
+        "in this study we",
+        "the results show that",
+        "the results indicate that",
+        "it has been shown that",
+        "it is well known that",
+        "on the other hand",
+        "in order to",
+        "as well as",
+        "with respect to",
+        "in the case of",
+        "it should be noted that",
+        "as shown in figure",
+        "as shown in table",
+        "et al",
+        "for example",
+        "such as",
+        "due to the",
+        "according to the",
+        "based on the",
+        "in terms of",
+        "as a result",
+        "in addition to",
+        "it can be seen that",
+        "we propose a",
+        "we present a",
+        "in the literature",
+        "has been widely used",
+        "state of the art",
+        "to the best of our knowledge",
+    ]
+}
+
 
 def _normalize(text: str) -> str:
-    """Lowercase, strip punctuation, collapse whitespace."""
+    """Lowercase, strip punctuation/citations/equations, collapse whitespace."""
     text = text.lower()
+    text = _CITATION_MARKER_RE.sub(" ", text)
+    text = _EQUATION_RE.sub(" ", text)
     text = _PUNCT_RE.sub("", text)
     text = _MULTI_WS.sub(" ", text).strip()
     return text
@@ -228,6 +276,138 @@ def fingerprint_match_score(
         "max_jaccard": round(max_jaccard, 4),
         "elapsed_s": elapsed,
     }
+
+
+# ---------------------------------------------------------------------------
+# Phrase overlap — counts exact word-sequence matches (5–8 words)
+# ---------------------------------------------------------------------------
+
+_WORD_SPLIT = re.compile(r"\s+")
+
+
+def phrase_overlap_count(
+    passage: str,
+    source_text: str,
+    *,
+    min_words: int = 5,
+    max_words: int = 8,
+) -> int:
+    """Count how many distinct word n-grams (5-8 words) from *passage* appear
+    verbatim in *source_text*.
+
+    Both texts are lowercased and stripped of punctuation before comparison.
+    Returns the total number of matching phrases across all n-gram sizes.
+    """
+    p_norm = _PUNCT_RE.sub("", passage.lower())
+    s_norm = _PUNCT_RE.sub("", source_text.lower())
+
+    p_words = _WORD_SPLIT.split(p_norm.strip())
+    s_words = _WORD_SPLIT.split(s_norm.strip())
+
+    if len(p_words) < min_words or len(s_words) < min_words:
+        return 0
+
+    # Build set of all source n-grams for each size
+    total_matches = 0
+    for n in range(min_words, max_words + 1):
+        if len(s_words) < n or len(p_words) < n:
+            continue
+        source_ngrams: set[tuple[str, ...]] = set()
+        for i in range(len(s_words) - n + 1):
+            source_ngrams.add(tuple(s_words[i : i + n]))
+        # Count passage n-grams that appear in source
+        for i in range(len(p_words) - n + 1):
+            if tuple(p_words[i : i + n]) in source_ngrams:
+                total_matches += 1
+
+    return total_matches
+
+
+def _is_common_phrase(ngram: tuple[str, ...]) -> bool:
+    """Return True if the n-gram is a common academic phrase."""
+    for common in _COMMON_ACADEMIC_PHRASES:
+        clen = len(common)
+        nlen = len(ngram)
+        if nlen >= clen:
+            # Check if common phrase is a contiguous sub-sequence
+            for start in range(nlen - clen + 1):
+                if ngram[start : start + clen] == common:
+                    return True
+        elif clen >= nlen:
+            for start in range(clen - nlen + 1):
+                if common[start : start + nlen] == ngram:
+                    return True
+    return False
+
+
+def idf_filtered_phrase_overlap(
+    passage: str,
+    source_text: str,
+    *,
+    min_words: int = 5,
+    max_words: int = 8,
+) -> int:
+    """Like phrase_overlap_count but filters out common academic phrases.
+
+    Returns count of *non-trivial* matching n-grams — phrases that are
+    content-specific rather than boilerplate.
+    """
+    p_norm = _PUNCT_RE.sub("", passage.lower())
+    s_norm = _PUNCT_RE.sub("", source_text.lower())
+
+    p_words = _WORD_SPLIT.split(p_norm.strip())
+    s_words = _WORD_SPLIT.split(s_norm.strip())
+
+    if len(p_words) < min_words or len(s_words) < min_words:
+        return 0
+
+    total_matches = 0
+    for n in range(min_words, max_words + 1):
+        if len(s_words) < n or len(p_words) < n:
+            continue
+        source_ngrams: set[tuple[str, ...]] = set()
+        for i in range(len(s_words) - n + 1):
+            ng = tuple(s_words[i : i + n])
+            if not _is_common_phrase(ng):
+                source_ngrams.add(ng)
+        for i in range(len(p_words) - n + 1):
+            ng = tuple(p_words[i : i + n])
+            if ng in source_ngrams and not _is_common_phrase(ng):
+                total_matches += 1
+
+    return total_matches
+
+
+def longest_common_token_substring(text_a: str, text_b: str) -> int:
+    """Return the length (in tokens) of the longest contiguous word-sequence
+    shared between *text_a* and *text_b*.
+
+    Uses a simple DP approach bounded by passage length (not full documents).
+    Both texts are normalised before comparison.
+    """
+    a_words = _WORD_SPLIT.split(_normalize(text_a))
+    b_words = _WORD_SPLIT.split(_normalize(text_b))
+
+    if not a_words or not b_words:
+        return 0
+
+    # Limit to first 300 tokens to keep O(n*m) manageable
+    a_words = a_words[:300]
+    b_words = b_words[:300]
+
+    max_len = 0
+    # Use rolling array for space efficiency
+    prev = [0] * (len(b_words) + 1)
+    for i in range(1, len(a_words) + 1):
+        curr = [0] * (len(b_words) + 1)
+        for j in range(1, len(b_words) + 1):
+            if a_words[i - 1] == b_words[j - 1]:
+                curr[j] = prev[j - 1] + 1
+                if curr[j] > max_len:
+                    max_len = curr[j]
+        prev = curr
+
+    return max_len
 
 
 def fingerprint_chunks(

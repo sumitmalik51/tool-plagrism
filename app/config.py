@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     # Web search limits
     web_search_max_queries: int = 8
     web_search_results_per_query: int = 5
-    web_search_similarity_threshold: float = 0.50
+    web_search_similarity_threshold: float = 0.75
 
     # Academic / Scholar search limits
     scholar_max_queries: int = 8

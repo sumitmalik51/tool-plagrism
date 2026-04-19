@@ -24,7 +24,12 @@ from app.tools.content_extractor_tool import chunk_text
 from app.tools.embedding_tool import generate_embeddings
 from app.tools.similarity_tool import cosine_similarity_matrix, compute_overall_score
 from app.tools.web_search_tool import search_multiple, fetch_page_text
-from app.tools.fingerprint_tool import fingerprint_match_score, fingerprint_chunks
+from app.tools.fingerprint_tool import (
+    fingerprint_match_score,
+    fingerprint_chunks,
+    idf_filtered_phrase_overlap,
+    longest_common_token_substring,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -214,52 +219,118 @@ class WebSearchAgent(BaseAgent):
             sim_matrix, threshold=web_threshold,
         )
 
-        # --- 5. Build flagged passages ----------------------------------------
-        flagged: list[FlaggedPassage] = []
-        # Track which sources have already been flagged (avoid duplicates)
-        seen_sources: set[str] = set()
+        # ═══════════════════════════════════════════════════════════════════
+        # MULTI-STAGE SOURCE VALIDATION PIPELINE
+        # Stage 1: Embedding retrieval  (candidates — already in sim_matrix)
+        # Stage 2: Lexical validation   (hard gate — IDF-filtered phrase overlap + LCS)
+        # Stage 3: Fingerprint match    (validate — n-gram Jaccard)
+        # Stage 4: Confidence scoring   (AND logic — require lexical evidence)
+        # ═══════════════════════════════════════════════════════════════════
 
+        # --- Stage 1: Retrieve embedding candidates --------------------------
+        candidates: list[dict] = []
         for i in range(sim_matrix.shape[0]):
             best_j = int(np.argmax(sim_matrix[i]))
-            best_sim = float(min(sim_matrix[i, best_j], 1.0))  # clamp FP rounding
+            best_sim = float(min(sim_matrix[i, best_j], 1.0))
             if best_sim >= web_threshold:
-                # Map index back to original web_results index
                 orig_idx = snippet_indices[best_j]
-                source_url = web_results[orig_idx].get("url", "")
+                candidates.append({
+                    "chunk_idx": i,
+                    "ref_idx": orig_idx,
+                    "embedding_sim": best_sim,
+                    "chunk_text": doc_chunks[i][:settings.passage_display_length],
+                    "source_url": web_results[orig_idx].get("url", ""),
+                    "source_title": web_results[orig_idx].get("title", "Unknown"),
+                })
 
-                flagged.append(FlaggedPassage(
-                    text=doc_chunks[i][:settings.passage_display_length],
-                    similarity_score=best_sim,
-                    source=source_url,
-                    reason=(
-                        f"Chunk matches web source with {best_sim:.0%} similarity: "
-                        f"{web_results[orig_idx].get('title', 'Unknown')}"
-                    ),
-                ))
-                seen_sources.add(source_url)
+        # --- Stage 2: Lexical validation (HARD GATE) -------------------------
+        # IDF-filtered phrase overlap + longest common token substring.
+        # Rejects candidates that have high embedding similarity but no
+        # actual textual overlap (same topic, different text).
+        for cand in candidates:
+            source_full = web_results[cand["ref_idx"]].get("raw_full_text", "") \
+                          or web_results[cand["ref_idx"]].get("full_text", "")
+            if source_full:
+                cand["phrase_hits"] = idf_filtered_phrase_overlap(
+                    cand["chunk_text"], source_full,
+                )
+                cand["lcs_len"] = longest_common_token_substring(
+                    cand["chunk_text"], source_full[:5000],
+                )
+            else:
+                cand["phrase_hits"] = 0
+                cand["lcs_len"] = 0
 
-        confidence = min(len(web_results) / 10, 1.0) * 0.6 + 0.2
-
-        # --- 5b. N-gram fingerprint matching (catches exact copies) -----------
+        # --- Stage 3: Document-level fingerprint validation ------------------
         ref_full_texts = []
-        _ref_to_web_idx = []  # maps ref_full_texts index → web_results index
+        _ref_to_web_idx: list[int] = []
         for i, r in enumerate(web_results):
             ft = r.get("raw_full_text", "")
             if ft:
                 ref_full_texts.append(ft)
                 _ref_to_web_idx.append(i)
 
-        # Offload CPU-heavy fingerprinting to a thread so the event loop
-        # stays responsive for SSE keepalives and health checks.
         import asyncio as _aio
         _loop = _aio.get_running_loop()
         fp_result = await _loop.run_in_executor(
             None, fingerprint_match_score,
             cleaned_text, ref_full_texts,
         )
-        fp_score = fp_result["score"]
 
-        # Boost flagged passages from fingerprint matches
+        # Build set of source URLs that have document-level fingerprint overlap
+        fp_urls_with_overlap: set[str] = set()
+        for fm in fp_result.get("matches", []):
+            ref_idx = fm["ref_index"]
+            if ref_idx < len(_ref_to_web_idx):
+                fp_urls_with_overlap.add(
+                    web_results[_ref_to_web_idx[ref_idx]].get("url", "")
+                )
+
+        # --- Stage 4: Hard validation gate & AND-logic scoring ---------------
+        # A candidate is promoted ONLY if it has lexical evidence:
+        #   a) phrase_hits >= 2      → non-trivial word sequences matched
+        #   b) lcs_len >= 8          → 8+ contiguous words in common
+        #   c) source has fingerprint overlap (document-level Jaccard)
+        # Pure embedding matches with NO lexical evidence are rejected.
+        flagged: list[FlaggedPassage] = []
+        seen_sources: set[str] = set()
+
+        for cand in candidates:
+            hits = cand["phrase_hits"]
+            lcs  = cand["lcs_len"]
+            sim  = cand["embedding_sim"]
+            has_fp = cand["source_url"] in fp_urls_with_overlap
+
+            has_lexical = hits >= 2 or lcs >= 8 or has_fp
+
+            # HARD GATE: no lexical evidence → reject
+            if not has_lexical:
+                continue
+
+            # Confidence tiers based on evidence strength
+            if hits >= 5 and (has_fp or lcs >= 10):
+                match_quality = "strong"
+            elif hits >= 3 or (hits >= 2 and has_fp) or lcs >= 12:
+                match_quality = "moderate"
+            elif hits >= 2 or has_fp or lcs >= 8:
+                match_quality = "weak"
+            else:
+                match_quality = "marginal"
+
+            flagged.append(FlaggedPassage(
+                text=cand["chunk_text"],
+                similarity_score=sim,
+                source=cand["source_url"],
+                reason=(
+                    f"{match_quality.title()} match ({sim:.0%} semantic, "
+                    f"{hits} phrase{'s' if hits != 1 else ''}, "
+                    f"LCS {lcs} words): "
+                    f"{cand['source_title']}"
+                ),
+            ))
+            seen_sources.add(cand["source_url"])
+
+        # --- Also flag fingerprint-only matches (exact copies) ----------------
         for fm in fp_result.get("matches", [])[:5]:
             ref_idx = fm["ref_index"]
             if ref_idx < len(_ref_to_web_idx):
@@ -271,15 +342,35 @@ class WebSearchAgent(BaseAgent):
                         similarity_score=min(fm["jaccard"] * 5, 1.0),
                         source=src_url,
                         reason=(
-                            f"Exact text overlap detected via fingerprinting "
-                            f"(Jaccard: {fm['jaccard']:.2%}) with: "
+                            f"Exact text overlap via fingerprinting "
+                            f"(Jaccard: {fm['jaccard']:.2%}): "
                             f"{web_results[orig_idx].get('title', 'Unknown')}"
                         ),
                     ))
                     seen_sources.add(src_url)
 
-        # Combine embedding score and fingerprint score (max wins)
-        final_score = max(score_info["score"], fp_score)
+        # Confidence: proportional to evidence found, NO floor
+        # If zero flagged passages survived the gate, confidence is 0
+        if flagged:
+            confidence = min(len(web_results) / 10, 1.0) * 0.6
+        else:
+            confidence = 0.0
+
+        # Score: AND logic — only count validated matches.
+        # fp_score is used only if fingerprint matches also passed the gate.
+        # The overall score is the % of doc chunks that survived validation.
+        validated_chunk_idxs = {c["chunk_idx"] for c in candidates
+                                if c["phrase_hits"] >= 2 or c["lcs_len"] >= 8
+                                or c["source_url"] in fp_urls_with_overlap}
+        if doc_chunks:
+            validated_score = round(
+                (len(validated_chunk_idxs) / len(doc_chunks)) * 100, 2
+            )
+        else:
+            validated_score = 0.0
+
+        # Take the lower of embedding and validated score (AND logic)
+        final_score = min(score_info["score"], validated_score) if flagged else 0.0
 
         # Build a map from web_results index → column in sim_matrix
         snippet_col: dict[int, int] = {
