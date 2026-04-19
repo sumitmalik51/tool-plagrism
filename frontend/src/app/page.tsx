@@ -16,6 +16,17 @@ import {
   Layers,
   Fingerprint,
   ShieldCheck,
+  GraduationCap,
+  Building2,
+  UserCheck,
+  FileCheck,
+  Award,
+  Briefcase,
+  PenTool,
+  Scale,
+  ChevronDown,
+  AlertTriangle,
+  Gavel,
 } from "lucide-react";
 import LiveDemo from "@/components/LiveDemo";
 import AnimatedCounter from "@/components/AnimatedCounter";
@@ -23,10 +34,13 @@ import AgentAccordion from "@/components/AgentAccordion";
 import ReportPreview from "@/components/ReportPreview";
 import ConsensusToggle from "@/components/ConsensusToggle";
 import PipelineFlow from "@/components/PipelineFlow";
+import ScrollToTop from "@/components/ScrollToTop";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-bg text-txt">
+      <ScrollToTop />
       {/* ═══ NAVBAR ═══ */}
       <nav className="sticky top-0 z-50 bg-bg/80 backdrop-blur-xl border-b border-border">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -35,13 +49,14 @@ export default function LandingPage() {
             <span className="text-lg font-bold">PlagiarismGuard</span>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm text-muted">
-            <a href="#engine" className="hover:text-txt transition-colors">The Engine</a>
+            <a href="#engine" className="hover:text-txt transition-colors">How It Works</a>
             <a href="#agents" className="hover:text-txt transition-colors">Agents</a>
             <a href="#demo" className="hover:text-txt transition-colors">Demo</a>
             <a href="#cases" className="hover:text-txt transition-colors">Why Now</a>
             <Link href="/pricing" className="hover:text-txt transition-colors">Pricing</Link>
           </div>
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <Link href="/login" className="text-sm text-muted hover:text-txt transition-colors">Sign In</Link>
             <Link href="/signup" className="px-4 py-2 bg-accent hover:bg-accent/90 text-white text-sm font-medium rounded-xl transition-colors">
               Get Started Free
@@ -55,11 +70,12 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-accent/[0.04] to-transparent pointer-events-none" />
         {/* subtle grid */}
         <div
-          className="absolute inset-0 opacity-[0.03] pointer-events-none"
+          className="absolute inset-0 opacity-[0.04] pointer-events-none"
           style={{
             backgroundImage:
-              "linear-gradient(to right, #fff 1px, transparent 1px), linear-gradient(to bottom, #fff 1px, transparent 1px)",
+              "linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)",
             backgroundSize: "64px 64px",
+            color: "var(--txt)",
           }}
         />
         <div className="max-w-4xl mx-auto px-4 pt-32 pb-24 text-center relative">
@@ -109,8 +125,8 @@ export default function LandingPage() {
       </section>
 
       {/* ═══ THE PROBLEM — interactive toggle ═══ */}
-      <section className="max-w-4xl mx-auto px-4 py-32">
-        <div className="text-center mb-14">
+      <section className="max-w-4xl mx-auto px-4 py-24">
+        <div className="text-center mb-10">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted mb-4">The Problem</p>
           <h2 className="text-4xl font-bold mb-5 tracking-tight">
             Every plagiarism tool returns a number.
@@ -129,8 +145,8 @@ export default function LandingPage() {
 
       {/* ═══ THE CONSENSUS ENGINE — named framework ═══ */}
       <section id="engine" className="bg-surface/30 border-y border-border/60">
-        <div className="max-w-5xl mx-auto px-4 py-32">
-          <div className="text-center mb-16">
+        <div className="max-w-5xl mx-auto px-4 py-24">
+          <div className="text-center mb-12">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted mb-4">The Consensus Engine</p>
             <h2 className="text-4xl font-bold mb-5 tracking-tight">
               Every document flows through
@@ -218,8 +234,8 @@ export default function LandingPage() {
       </section>
 
       {/* ═══ VISUAL PROOF — report preview ═══ */}
-      <section className="max-w-5xl mx-auto px-4 py-32">
-        <div className="text-center mb-14">
+      <section className="max-w-4xl mx-auto px-4 py-24">
+        <div className="text-center mb-10">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted mb-4">The Report</p>
           <h2 className="text-4xl font-bold mb-5 tracking-tight">
             Evidence, not just a number.
@@ -236,8 +252,8 @@ export default function LandingPage() {
 
       {/* ═══ AGENTS — accordion (show less, reveal more) ═══ */}
       <section id="agents" className="bg-surface/30 border-y border-border/60">
-        <div className="max-w-3xl mx-auto px-4 py-32">
-          <div className="text-center mb-14">
+        <div className="max-w-3xl mx-auto px-4 py-24">
+          <div className="text-center mb-10">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted mb-4">The Agents</p>
             <h2 className="text-4xl font-bold mb-5 tracking-tight">
               Five agents. Independent analysis.
@@ -254,8 +270,8 @@ export default function LandingPage() {
       </section>
 
       {/* ═══ FEATURES — editorial list style ═══ */}
-      <section id="features" className="max-w-5xl mx-auto px-4 py-32">
-        <div className="text-center mb-16">
+      <section id="features" className="max-w-4xl mx-auto px-4 py-24">
+        <div className="text-center mb-12">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted mb-4">The Platform</p>
           <h2 className="text-4xl font-bold mb-5 tracking-tight">
             Detection is step one.
@@ -327,10 +343,10 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ═══ PERSONAS — one-liners (legalai-style role list) ═══ */}
+      {/* ═══ PERSONAS — categorized icon cards ═══ */}
       <section id="use-cases" className="bg-surface/30 border-y border-border/60">
-        <div className="max-w-4xl mx-auto px-4 py-32">
-          <div className="text-center mb-16">
+        <div className="max-w-4xl mx-auto px-4 py-24">
+          <div className="text-center mb-12">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted mb-4">Built For</p>
             <h2 className="text-4xl font-bold mb-5 tracking-tight">
               The people responsible for
@@ -343,53 +359,99 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-x-12 gap-y-10">
+          {/* 3 categories */}
+          <div className="space-y-12">
             {[
               {
-                role: "Academic Integrity Officers",
-                desc: "Real-time dashboard of every student submission with verification status, AI detection scores, and source attributions. Audit-ready reports, generated automatically.",
+                category: "Academic",
+                roles: [
+                  {
+                    icon: <Scale className="w-4 h-4" />,
+                    role: "Academic Integrity Officers",
+                    desc: "Real-time dashboard of every student submission with verification status, AI detection scores, and source attributions. Audit-ready reports, generated automatically.",
+                  },
+                  {
+                    icon: <UserCheck className="w-4 h-4" />,
+                    role: "Dissertation Supervisors",
+                    desc: "See exactly what your student's checker will find — before submission. Source-mapped flagged passages, with confidence per finding.",
+                  },
+                  {
+                    icon: <GraduationCap className="w-4 h-4" />,
+                    role: "Students & Independent Writers",
+                    desc: "Check your work before your institution does. Fix flagged passages with the built-in rewriter — and ship with confidence.",
+                  },
+                ],
               },
               {
-                role: "Journal Editors & Peer Reviewers",
-                desc: "Screen manuscripts for plagiarism, paraphrased content, and AI-generated passages before acceptance. Evidence-backed rejections, not just percentages.",
+                category: "Publishing",
+                roles: [
+                  {
+                    icon: <FileCheck className="w-4 h-4" />,
+                    role: "Journal Editors & Peer Reviewers",
+                    desc: "Screen manuscripts for plagiarism, paraphrased content, and AI-generated passages before acceptance. Evidence-backed rejections, not just percentages.",
+                  },
+                  {
+                    icon: <Building2 className="w-4 h-4" />,
+                    role: "Publishing Houses",
+                    desc: "Author submissions cross-checked against the web and academic databases. Compliance-ready audit trails for every accepted manuscript.",
+                  },
+                  {
+                    icon: <Award className="w-4 h-4" />,
+                    role: "Grant & Scholarship Reviewers",
+                    desc: "Verify the originality of applications at scale. Consistent, defensible criteria for rejecting duplicated or AI-generated proposals.",
+                  },
+                ],
               },
               {
-                role: "Dissertation Supervisors",
-                desc: "See exactly what your student's checker will find — before submission. Source-mapped flagged passages, with confidence per finding.",
+                category: "Enterprise",
+                roles: [
+                  {
+                    icon: <FlaskConical className="w-4 h-4" />,
+                    role: "Research Group Leaders",
+                    desc: "Cross-check every co-author's contribution against arXiv and OpenAlex. Catch AI-generated sections in collaborative drafts before journal submission.",
+                  },
+                  {
+                    icon: <Briefcase className="w-4 h-4" />,
+                    role: "Content Agency Owners",
+                    desc: "Batch-verify 50 articles at once. Guarantee originality to clients with exportable reports. Detect AI use in outsourced writer drafts.",
+                  },
+                  {
+                    icon: <PenTool className="w-4 h-4" />,
+                    role: "Editorial Teams",
+                    desc: "Route flagged submissions to specialist reviewers with full evidence trails. Keep originality standards consistent across contributors.",
+                  },
+                ],
               },
-              {
-                role: "Research Group Leaders",
-                desc: "Cross-check every co-author's contribution against arXiv and OpenAlex. Catch AI-generated sections in collaborative drafts before journal submission.",
-              },
-              {
-                role: "Content Agency Owners",
-                desc: "Batch-verify 50 articles at once. Guarantee originality to clients with exportable reports. Detect AI use in outsourced writer drafts.",
-              },
-              {
-                role: "Grant & Scholarship Reviewers",
-                desc: "Verify the originality of applications at scale. Consistent, defensible criteria for rejecting duplicated or AI-generated proposals.",
-              },
-              {
-                role: "Publishing Houses",
-                desc: "Author submissions cross-checked against the web and academic databases. Compliance-ready audit trails for every accepted manuscript.",
-              },
-              {
-                role: "Students & Independent Writers",
-                desc: "Check your work before your institution does. Fix flagged passages with the built-in rewriter — and ship with confidence.",
-              },
-            ].map((p) => (
-              <div key={p.role} className="border-l-2 border-border/60 hover:border-txt/60 transition-colors pl-5 py-1">
-                <h3 className="text-base font-semibold mb-1.5">{p.role}</h3>
-                <p className="text-sm text-muted leading-relaxed">{p.desc}</p>
+            ].map((group) => (
+              <div key={group.category}>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted mb-5">
+                  {group.category}
+                </p>
+                <div className="grid md:grid-cols-3 gap-px bg-border/60 border border-border/60 rounded-2xl overflow-hidden">
+                  {group.roles.map((p) => (
+                    <div
+                      key={p.role}
+                      className="group bg-bg hover:bg-surface/40 p-6 transition-colors cursor-default"
+                    >
+                      <div className="flex items-center gap-2 mb-3 text-txt/80 group-hover:text-accent transition-colors">
+                        <span className="w-8 h-8 rounded-lg bg-surface border border-border/60 flex items-center justify-center group-hover:border-accent/40 group-hover:bg-accent/5 transition-colors">
+                          {p.icon}
+                        </span>
+                      </div>
+                      <h3 className="text-sm font-semibold mb-2 leading-snug">{p.role}</h3>
+                      <p className="text-[13px] text-muted leading-relaxed">{p.desc}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ═══ WHY NOW — real cases section ═══ */}
-      <section id="cases" className="max-w-4xl mx-auto px-4 py-32">
-        <div className="text-center mb-16">
+      {/* ═══ WHY NOW — alarming stat cards ═══ */}
+      <section id="cases" className="max-w-4xl mx-auto px-4 py-24">
+        <div className="text-center mb-12">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted mb-4">Why Now</p>
           <h2 className="text-4xl font-bold mb-5 tracking-tight">
             The stakes just got higher.
@@ -400,52 +462,81 @@ export default function LandingPage() {
           </p>
         </div>
 
-        {/* Notable incidents */}
-        <div className="space-y-4 mb-16">
+        {/* Alarming stat cards */}
+        <div className="grid md:grid-cols-3 gap-4 mb-16">
           {[
             {
               tag: "Higher Education",
               year: "2024",
-              title: "3,600+ student integrity cases flagged by a single UK university in one term",
-              desc: "Most institutions report that traditional plagiarism checkers flag AI-generated work as original. Academic integrity offices are overwhelmed — not by volume, but by tools that miss the problem entirely.",
+              stat: "3,600+",
+              statLabel: "integrity cases flagged",
+              icon: <GraduationCap className="w-4 h-4" />,
+              desc: "A single UK university, in one term. Most institutions report that traditional checkers flag AI-generated work as original — integrity offices are overwhelmed by tools that miss the problem entirely.",
+              tone: "danger",
             },
             {
               tag: "Peer Review",
               year: "2024",
-              title: "Publisher retracted 11,300+ papers — many with undetected AI content",
-              desc: "Journals like Wiley and Springer Nature are publicly reporting retractions tied to AI-generated text slipping past editorial review. Reviewer tools weren&apos;t designed to detect modern LLM output.",
+              stat: "11,300+",
+              statLabel: "papers retracted",
+              icon: <FileCheck className="w-4 h-4" />,
+              desc: "Publishers including Wiley and Springer Nature are publicly reporting retractions tied to AI-generated text slipping past editorial review. Reviewer tools weren&apos;t designed for modern LLM output.",
+              tone: "warn",
             },
             {
               tag: "Regulation",
               year: "2026",
-              title: "EU AI Act enforcement begins — originality disclosure now required",
+              stat: "EU AI Act",
+              statLabel: "disclosure required",
+              icon: <Gavel className="w-4 h-4" />,
               desc: "Academic institutions and publishers operating in the EU must disclose AI use and maintain audit trails. A single plagiarism percentage no longer satisfies compliance requirements.",
+              tone: "accent",
             },
-          ].map((c, i) => (
-            <div key={i} className="group flex flex-col sm:flex-row gap-6 py-6 border-b border-border/60">
-              <div className="sm:w-40 shrink-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">{c.tag}</p>
-                <p className="text-xs text-muted/70 mt-1">{c.year}</p>
+          ].map((c, i) => {
+            const borderColor =
+              c.tone === "danger"
+                ? "border-l-danger"
+                : c.tone === "warn"
+                  ? "border-l-warn"
+                  : "border-l-accent";
+            const statColor =
+              c.tone === "danger"
+                ? "text-danger"
+                : c.tone === "warn"
+                  ? "text-warn"
+                  : "text-accent-l";
+            return (
+              <div
+                key={i}
+                className={`bg-surface border border-border/60 border-l-4 ${borderColor} rounded-2xl p-6`}
+              >
+                <div className="flex items-center justify-between mb-5">
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">
+                    <span className={statColor}>{c.icon}</span>
+                    {c.tag}
+                  </span>
+                  <span className="text-[11px] font-mono text-muted/60">{c.year}</span>
+                </div>
+                <p className={`text-4xl font-bold tracking-tight ${statColor} mb-1`}>{c.stat}</p>
+                <p className="text-[11px] uppercase tracking-wider text-muted mb-4">{c.statLabel}</p>
+                <p className="text-[13px] text-muted leading-relaxed">{c.desc}</p>
               </div>
-              <div className="flex-1">
-                <h3 className="text-base font-semibold mb-2 group-hover:text-txt">{c.title}</h3>
-                <p className="text-sm text-muted leading-relaxed">{c.desc}</p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Comparison table — tightened */}
         <div className="bg-surface border border-border/60 rounded-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-border/60">
+          <div className="px-6 py-4 border-b border-border/60 flex items-center justify-between">
             <h3 className="text-sm font-semibold">Where single-model tools fall short</h3>
+            <AlertTriangle className="w-4 h-4 text-warn" />
           </div>
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border/60">
-                <th className="text-left px-6 py-3 font-medium text-[11px] uppercase tracking-wider text-muted">Capability</th>
-                <th className="px-6 py-3 font-medium text-[11px] uppercase tracking-wider text-txt text-center">PlagiarismGuard</th>
-                <th className="px-6 py-3 font-medium text-[11px] uppercase tracking-wider text-muted text-center">Others</th>
+              <tr className="border-b border-border/60 bg-bg/40">
+                <th className="text-left px-6 py-3.5 font-medium text-[11px] uppercase tracking-wider text-muted">Capability</th>
+                <th className="px-6 py-3.5 font-medium text-[11px] uppercase tracking-wider text-txt text-center">PlagiarismGuard</th>
+                <th className="px-6 py-3.5 font-medium text-[11px] uppercase tracking-wider text-muted text-center">Legacy Tools</th>
               </tr>
             </thead>
             <tbody>
@@ -460,12 +551,12 @@ export default function LandingPage() {
                 ["Web content scanning", true, true],
                 ["Free tier", true, true],
               ].map(([feature, us, others], i) => (
-                <tr key={i} className="border-b border-border/40 last:border-0">
-                  <td className="px-6 py-2.5 text-txt/90 text-[13px]">{feature as string}</td>
-                  <td className="px-6 py-2.5 text-center">
+                <tr key={i} className="border-b border-border/40 last:border-0 hover:bg-bg/30 transition-colors">
+                  <td className="px-6 py-3.5 text-txt/90 text-[13px]">{feature as string}</td>
+                  <td className="px-6 py-3.5 text-center">
                     <Check className="w-4 h-4 text-ok inline-block" />
                   </td>
-                  <td className="px-6 py-2.5 text-center">
+                  <td className="px-6 py-3.5 text-center">
                     {others ? <Check className="w-4 h-4 text-ok inline-block" /> : <span className="text-muted/30">—</span>}
                   </td>
                 </tr>
@@ -479,17 +570,36 @@ export default function LandingPage() {
       <section className="bg-surface/30 border-y border-border/60">
         <div className="max-w-5xl mx-auto px-4 py-20">
           <div className="text-center mb-12">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted mb-4">Integrations</p>
-            <h2 className="text-3xl font-bold tracking-tight">Works with your existing workflow.</h2>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted mb-4">Everywhere you write</p>
+            <h2 className="text-3xl font-bold tracking-tight mb-3">Reach your text in every tool you use.</h2>
+            <p className="text-muted max-w-2xl mx-auto">PlagiarismGuard isn&apos;t just a website — it&apos;s available wherever you write, share, or submit work.</p>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-x-10 gap-y-4 text-sm text-muted">
+          {/* Channel cards */}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-10">
+            {[
+              { icon: Globe, title: "Chrome Extension", desc: "Right-click any webpage to scan instantly." },
+              { icon: FileText, title: "Word Add-in", desc: "Check originality without leaving Microsoft Word." },
+              { icon: BookOpen, title: "Google Workspace", desc: "Sidebar add-on for Docs — scan as you write." },
+              { icon: GraduationCap, title: "LMS / LTI 1.3", desc: "Launch from Canvas, Moodle & Blackboard." },
+            ].map((c, i) => (
+              <div key={i} className="bg-bg border border-border/60 rounded-xl p-5">
+                <c.icon className="w-5 h-5 text-accent mb-3" />
+                <p className="text-sm font-semibold mb-1">{c.title}</p>
+                <p className="text-xs text-muted leading-relaxed">{c.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-x-10 gap-y-4 text-sm text-muted pt-8 border-t border-border/60">
             {[
               { icon: <FileText className="w-4 h-4" />, label: "PDF, DOCX, TXT, LaTeX, PPTX" },
-              { icon: <Globe className="w-4 h-4" />, label: "Google Docs Import" },
+              { icon: <Globe className="w-4 h-4" />, label: "50+ Languages auto-detected" },
+              { icon: <Fingerprint className="w-4 h-4" />, label: "Per-model AI fingerprinting" },
               { icon: <Download className="w-4 h-4" />, label: "PDF & DOCX Export" },
-              { icon: <Plug className="w-4 h-4" />, label: "REST API" },
+              { icon: <Plug className="w-4 h-4" />, label: "REST API & Webhooks" },
               { icon: <BookOpen className="w-4 h-4" />, label: "BibTeX Citations" },
+              { icon: <Users className="w-4 h-4" />, label: "Team seats & SSO" },
               { icon: <Layers className="w-4 h-4" />, label: "Batch Upload (50 files)" },
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-2">
@@ -501,30 +611,57 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ═══ SECURITY — tightened ═══ */}
+      {/* ═══ SECURITY — prominent pillars ═══ */}
       <section className="max-w-4xl mx-auto px-4 py-24">
-        <div className="text-center mb-10">
+        <div className="text-center mb-12">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted mb-4">Security</p>
-          <h2 className="text-3xl font-bold tracking-tight">Your documents. Your data. Protected.</h2>
+          <h2 className="text-4xl font-bold tracking-tight">
+            Your documents. Your data.
+            <br />
+            <span className="text-muted">Protected end-to-end.</span>
+          </h2>
         </div>
-        <div className="grid sm:grid-cols-3 gap-px bg-border/60 border border-border/60 rounded-2xl overflow-hidden">
+        <div className="grid sm:grid-cols-3 gap-4">
           {[
-            { icon: <Lock className="w-4 h-4" />, title: "Encrypted", desc: "TLS 1.3 in transit. AES-256 at rest. Zero-knowledge storage." },
-            { icon: <Shield className="w-4 h-4" />, title: "Never used for training", desc: "Your content never becomes training data. Your IP stays yours." },
-            { icon: <Users className="w-4 h-4" />, title: "Role-based access", desc: "Admin, manager, member roles with per-document permissions." },
+            {
+              icon: <Lock className="w-5 h-5" />,
+              title: "Encrypted",
+              desc: "TLS 1.3 in transit. AES-256 at rest. Zero-knowledge storage architecture across all tiers.",
+              meta: "TLS 1.3 · AES-256",
+            },
+            {
+              icon: <ShieldCheck className="w-5 h-5" />,
+              title: "Never used for training",
+              desc: "Your content never becomes training data. Your intellectual property stays yours — always.",
+              meta: "SOC 2 aligned",
+            },
+            {
+              icon: <Users className="w-5 h-5" />,
+              title: "Role-based access",
+              desc: "Admin, manager, member roles with per-document permissions. SAML SSO available on Team plans.",
+              meta: "RBAC · SSO-ready",
+            },
           ].map((s) => (
-            <div key={s.title} className="bg-bg p-6">
-              <span className="text-txt mb-3 block">{s.icon}</span>
-              <h3 className="text-sm font-semibold mb-2">{s.title}</h3>
-              <p className="text-sm text-muted leading-relaxed">{s.desc}</p>
+            <div
+              key={s.title}
+              className="group bg-surface border border-border/60 hover:border-accent/30 rounded-2xl p-7 transition-colors"
+            >
+              <span className="inline-flex w-11 h-11 rounded-xl bg-bg border border-border/60 items-center justify-center text-txt mb-5 group-hover:border-accent/40 group-hover:text-accent transition-colors">
+                {s.icon}
+              </span>
+              <h3 className="text-base font-semibold mb-2">{s.title}</h3>
+              <p className="text-sm text-muted leading-relaxed mb-4">{s.desc}</p>
+              <p className="text-[10px] font-mono uppercase tracking-wider text-muted/60 pt-3 border-t border-border/60">
+                {s.meta}
+              </p>
             </div>
           ))}
         </div>
       </section>
 
       {/* ═══ FAQ — tightened ═══ */}
-      <section className="max-w-3xl mx-auto px-4 py-32">
-        <div className="text-center mb-12">
+      <section className="max-w-3xl mx-auto px-4 py-24">
+        <div className="text-center mb-10">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted mb-4">FAQ</p>
           <h2 className="text-3xl font-bold tracking-tight">Questions, answered.</h2>
         </div>
@@ -540,7 +677,9 @@ export default function LandingPage() {
             <details key={i} className="group border-b border-border/60">
               <summary className="flex items-center justify-between px-1 py-5 cursor-pointer text-[15px] font-medium hover:text-txt list-none">
                 <span>{faq.q}</span>
-                <span className="text-muted group-open:rotate-45 transition-transform text-xl leading-none">+</span>
+                <span className="w-7 h-7 rounded-full border border-border/60 flex items-center justify-center text-muted group-hover:text-accent group-hover:border-accent/40 group-open:text-accent group-open:border-accent/40 group-open:rotate-180 transition-all shrink-0">
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </span>
               </summary>
               <div className="px-1 pb-5"><p className="text-sm text-muted leading-relaxed">{faq.a}</p></div>
             </details>
@@ -550,7 +689,7 @@ export default function LandingPage() {
 
       {/* ═══ FINAL CTA — monochrome, editorial ═══ */}
       <section className="border-t border-border/60">
-        <div className="max-w-3xl mx-auto px-4 py-32 text-center">
+        <div className="max-w-3xl mx-auto px-4 py-24 text-center">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted mb-6">Get Started</p>
           <h2 className="text-5xl font-bold mb-8 tracking-tight leading-[1.05]">
             Stop guessing.

@@ -56,20 +56,44 @@ _JWT_ALGORITHM = "HS256"
 def _get_jwt_secret() -> str:
     """Return the JWT signing secret.
 
-    When PG_JWT_SECRET is not set, auto-generates a runtime secret and logs
-    a warning. Tokens signed with the auto-generated secret will not survive
-    a server restart — users will need to log in again.
+    Production (``PG_DEBUG=false``) refuses to start without ``PG_JWT_SECRET``
+    via ``Settings._validate_production_secrets``, so by the time this is
+    reached in prod the secret is set.
+
+    In dev (``PG_DEBUG=true``) we lazily generate a per-process secret so
+    single-worker `uvicorn --reload` works out of the box. With multiple
+    workers, each process would mint a different secret and tokens would
+    randomly fail validation — so we surface a loud warning and recommend
+    setting ``PG_JWT_SECRET`` explicitly.
     """
     secret = settings.jwt_secret
-    if not secret:
-        if not settings.debug:
-            logger.warning(
-                "jwt_secret_not_configured",
-                hint="Set PG_JWT_SECRET for persistent sessions. "
-                     "Auto-generating a temporary secret — tokens will not survive restart.",
-            )
-        secret = os.environ.setdefault("PG_JWT_SECRET", secrets.token_hex(32))
-    return secret
+    if secret:
+        return secret
+
+    # In production this should never happen (config validator catches it).
+    # Refuse to mint tokens with an ephemeral secret instead of silently
+    # creating one that won't validate across worker processes.
+    if not settings.debug:
+        raise RuntimeError(
+            "PG_JWT_SECRET is not set. Refusing to issue/verify JWTs with an "
+            "ephemeral secret in production. Set PG_JWT_SECRET to a value from "
+            "`openssl rand -base64 32`."
+        )
+
+    # Dev only: cache one secret per process. Warn so users know multi-worker
+    # dev setups need an explicit secret.
+    global _DEV_JWT_SECRET
+    if not _DEV_JWT_SECRET:
+        _DEV_JWT_SECRET = secrets.token_hex(32)
+        logger.warning(
+            "jwt_secret_dev_ephemeral",
+            hint="Generated a per-process JWT secret. Set PG_JWT_SECRET if "
+                 "running multiple workers — tokens will not validate across them.",
+        )
+    return _DEV_JWT_SECRET
+
+
+_DEV_JWT_SECRET: str = ""
 
 
 def create_access_token(user_id: int, email: str, plan_type: str = "free") -> str:
@@ -250,6 +274,97 @@ def login(email: str, password: str) -> dict[str, Any]:
         },
         "token": token,
         "refresh_token": refresh,
+    }
+
+
+def google_oauth_login(email: str, name: str, referral_code: str | None = None) -> dict[str, Any]:
+    """Sign in (or sign up) a user via a verified Google identity.
+
+    Caller MUST have already verified the Google ID token. We trust the
+    ``email`` and ``name`` arguments here.
+
+    Returns the same shape as ``login()`` / ``signup()``.
+    """
+    if not email or "@" not in email:
+        raise AuthError("Google did not return a valid email.")
+
+    email = email.strip().lower()
+    name = (name or email.split("@")[0]).strip()[:100] or "User"
+
+    db = get_db()
+    _ensure_trial_ends_at_column(db)
+    _ensure_referral_tables(db)
+
+    existing = db.fetch_one(
+        "SELECT id, name, email, plan_type, trial_ends_at FROM users WHERE email = ?",
+        (email,),
+    )
+
+    if existing:
+        # Existing user — just issue tokens (no password check needed; Google verified).
+        plan_type, trial_ends_at = _check_trial_expiry(
+            db, existing["id"], existing.get("plan_type", "free"), existing.get("trial_ends_at")
+        )
+        token = create_access_token(existing["id"], existing["email"], plan_type=plan_type)
+        refresh = create_refresh_token(existing["id"], existing["email"])
+        logger.info("user_login_google", user_id=existing["id"], email=email)
+        return {
+            "user": {
+                "id": existing["id"],
+                "name": existing["name"],
+                "email": existing["email"],
+                "plan_type": plan_type,
+                "trial_ends_at": trial_ends_at,
+            },
+            "token": token,
+            "refresh_token": refresh,
+            "is_new_user": False,
+        }
+
+    # New user — create account with a random unguessable password
+    # (they will only ever sign in via Google; password reset still works if they want).
+    random_password = secrets.token_urlsafe(32)
+    hashed = _hash_password(random_password)
+    my_referral_code = secrets.token_urlsafe(8)
+    trial_ends_at = (datetime.now(timezone.utc) + timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    user_id = db.execute(
+        "INSERT INTO users (name, email, password, plan_type, trial_ends_at, referral_code) VALUES (?, ?, ?, ?, ?, ?)",
+        (name, email, hashed, "pro", trial_ends_at, my_referral_code),
+    )
+
+    if referral_code and referral_code.strip():
+        try:
+            _process_referral(db, user_id, referral_code.strip())
+        except Exception as exc:
+            logger.warning("google_signup_referral_failed", error=str(exc))
+
+    # Mark email as verified — Google already verified it for us.
+    _ensure_email_verifications_table(db)
+    try:
+        db.execute(
+            "UPDATE users SET email_verified = 1 WHERE id = ?",
+            (user_id,),
+        )
+    except Exception:
+        pass  # column may not exist on older schemas
+
+    token = create_access_token(user_id, email, plan_type="pro")
+    refresh = create_refresh_token(user_id, email)
+    logger.info("user_created_google", user_id=user_id, email=email)
+
+    return {
+        "user": {
+            "id": user_id,
+            "name": name,
+            "email": email,
+            "plan_type": "pro",
+            "trial_ends_at": trial_ends_at,
+            "referral_code": my_referral_code,
+        },
+        "token": token,
+        "refresh_token": refresh,
+        "is_new_user": True,
     }
 
 

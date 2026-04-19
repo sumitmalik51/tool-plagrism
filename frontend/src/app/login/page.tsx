@@ -8,6 +8,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useToastStore } from "@/lib/stores/toast-store";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 
 function LoginContent() {
   const [email, setEmail] = useState("");
@@ -58,6 +59,23 @@ function LoginContent() {
 
         {/* Card */}
         <div className="bg-surface border border-border rounded-2xl p-8">
+          {/* Tabs */}
+          <div className="grid grid-cols-2 gap-1 p-1 mb-6 bg-bg border border-border rounded-xl">
+            <button
+              type="button"
+              className="px-4 py-2 rounded-lg text-sm font-semibold bg-surface text-txt shadow-sm"
+              aria-current="page"
+            >
+              Sign in
+            </button>
+            <Link
+              href={`/signup${searchParams.get("redirect") ? `?redirect=${encodeURIComponent(searchParams.get("redirect") as string)}` : ""}`}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-muted hover:text-txt text-center transition-colors"
+            >
+              Join free
+            </Link>
+          </div>
+
           <h1 className="text-2xl font-bold text-center mb-2">Welcome back</h1>
           <p className="text-muted text-center text-sm mb-6">
             Sign in to your account
@@ -68,6 +86,21 @@ function LoginContent() {
               {error}
             </div>
           )}
+
+          {/* Google sign-in */}
+          <GoogleSignInButton
+            text="signin_with"
+            onSuccess={() => {
+              const redirect = searchParams.get("redirect") || "/dashboard";
+              router.push(redirect);
+            }}
+          />
+
+          <div className="my-5 flex items-center gap-3">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs uppercase tracking-wider text-muted">or</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
@@ -125,16 +158,6 @@ function LoginContent() {
             </Button>
           </form>
         </div>
-
-        <p className="text-center text-sm text-muted mt-6">
-          Don&apos;t have an account?{" "}
-          <Link
-            href="/signup"
-            className="text-accent-l hover:text-accent font-medium transition-colors"
-          >
-            Create one
-          </Link>
-        </p>
       </div>
     </div>
   );

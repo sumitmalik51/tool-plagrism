@@ -8,26 +8,39 @@ export default function ConsensusToggle() {
 
   return (
     <div>
-      {/* Toggle */}
-      <div className="flex justify-center mb-8">
-        <div className="inline-flex bg-surface border border-border/60 rounded-full p-1">
+      {/* Toggle with persuasive hint */}
+      <div className="flex flex-col items-center gap-3 mb-8">
+        <div className="inline-flex bg-surface border border-border/60 rounded-full p-1 relative">
+          {/* Sliding indicator */}
+          <span
+            aria-hidden
+            className={`absolute top-1 bottom-1 w-1/2 rounded-full transition-all duration-500 ease-out ${
+              mode === "without"
+                ? "left-1 bg-danger/15 shadow-[0_0_0_1px_rgba(239,68,68,0.25)]"
+                : "left-[calc(50%-4px)] bg-ok/15 shadow-[0_0_0_1px_rgba(34,197,94,0.25)]"
+            }`}
+            style={{ width: "calc(50% - 4px)" }}
+          />
           <button
             onClick={() => setMode("without")}
-            className={`px-5 py-2 text-xs font-medium rounded-full transition-colors ${
-              mode === "without" ? "bg-danger/15 text-danger" : "text-muted hover:text-txt"
+            className={`relative z-10 px-5 py-2 text-xs font-medium rounded-full transition-colors ${
+              mode === "without" ? "text-danger" : "text-muted hover:text-txt"
             }`}
           >
             Without PlagiarismGuard
           </button>
           <button
             onClick={() => setMode("with")}
-            className={`px-5 py-2 text-xs font-medium rounded-full transition-colors ${
-              mode === "with" ? "bg-ok/15 text-ok" : "text-muted hover:text-txt"
+            className={`relative z-10 px-5 py-2 text-xs font-medium rounded-full transition-colors ${
+              mode === "with" ? "text-ok" : "text-muted hover:text-txt"
             }`}
           >
             With PlagiarismGuard
           </button>
         </div>
+        <p className="text-[11px] text-muted/70">
+          Click either side to see the same text analyzed both ways \u2192
+        </p>
       </div>
 
       {/* Result panel */}
@@ -45,7 +58,7 @@ export default function ConsensusToggle() {
         </div>
 
         {mode === "without" ? (
-          <div className="space-y-5">
+          <div className="space-y-5 animate-[fadeIn_400ms_ease-out]">
             <div className="flex items-center gap-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-danger">
                 Output — single-model tool
@@ -85,7 +98,7 @@ export default function ConsensusToggle() {
             </div>
           </div>
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-5 animate-[fadeIn_400ms_ease-out]">
             <div className="flex items-center gap-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ok">
                 Output — 5-agent consensus

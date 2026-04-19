@@ -147,6 +147,11 @@ class Settings(BaseSettings):
     # Set PG_APP_BASE_URL in production.
     app_base_url: str = "https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net"
 
+    # Google OAuth — for "Continue with Google" sign-in.
+    # Create credentials at https://console.cloud.google.com/apis/credentials
+    # Set PG_GOOGLE_CLIENT_ID in both backend and NEXT_PUBLIC_GOOGLE_CLIENT_ID in frontend.
+    google_client_id: str = ""
+
     # Admin panel — comma-separated list of admin email addresses.
     # Set PG_ADMIN_EMAILS in production.
     admin_emails: str = ""

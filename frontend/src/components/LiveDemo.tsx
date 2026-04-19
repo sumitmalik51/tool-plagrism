@@ -1,7 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { ArrowRight, AlertTriangle, ExternalLink, Search, BookOpen, Bot, Brain, FileSearch, Check } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import {
+  ArrowRight,
+  AlertTriangle,
+  ExternalLink,
+  Search,
+  BookOpen,
+  Bot,
+  Brain,
+  FileSearch,
+  Check,
+  Upload,
+  FileText,
+} from "lucide-react";
 
 const SAMPLE_TEXT = `Artificial intelligence has revolutionized the way we process and analyze large datasets. Machine learning algorithms can identify patterns in data that would be impossible for humans to detect manually. Deep learning, a subset of machine learning, uses neural networks with multiple layers to learn hierarchical representations of data. These technologies have found applications in healthcare, finance, natural language processing, and autonomous vehicles.`;
 
@@ -79,24 +91,79 @@ export default function LiveDemo() {
     setText("");
   }
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setFileName(f.name);
+    // For the demo we just seed sample text; in production this would upload
+    f.text()
+      .then((t) => setText(t.slice(0, 5000)))
+      .catch(() => setText(SAMPLE_TEXT));
+  }
+
   return (
-    <div className="max-w-5xl mx-auto px-4 py-20">
+    <div className="max-w-3xl mx-auto px-4 py-20">
       <div className="text-center mb-10">
-        <p className="text-xs font-semibold text-accent uppercase tracking-widest mb-3">LIVE DEMO</p>
-        <h2 className="text-3xl font-bold mb-3">Try It Now — See Results Instantly</h2>
-        <p className="text-muted">Paste your content and watch our multi-agent system analyze it in real time. No sign-up required.</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted mb-4">Live Demo</p>
+        <h2 className="text-4xl font-bold mb-4 tracking-tight">
+          Try it now.
+          <br />
+          <span className="text-muted">See results in seconds.</span>
+        </h2>
+        <p className="text-muted max-w-xl mx-auto leading-relaxed">
+          Paste text or upload a document. Watch five agents analyze it in real time — no sign-up required.
+        </p>
       </div>
 
       {!showResult ? (
-        <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8">
+        <div className="relative group">
+          {/* Glow ring */}
+          <div className="absolute -inset-px rounded-2xl bg-gradient-to-br from-accent/40 via-accent/10 to-transparent opacity-60 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
+          <div className="relative bg-surface border border-border/80 group-focus-within:border-accent/60 rounded-2xl p-5 sm:p-6 transition-colors">
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            rows={6}
+            rows={7}
             disabled={analyzing}
-            placeholder="Paste your text here to check for plagiarism... or click Analyze to try with sample text."
-            className="w-full bg-bg border border-border rounded-xl p-4 text-sm text-txt placeholder:text-muted/60 resize-none focus:outline-none focus:border-accent/50 disabled:opacity-50"
+            placeholder="Paste your text here to check for plagiarism & AI content..."
+            className="w-full bg-bg border border-border/60 hover:border-border rounded-xl p-4 text-sm text-txt placeholder:text-muted/60 resize-none focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:opacity-50 transition-all"
           />
+
+          {/* File upload row */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.pdf,.docx,.tex,.md"
+            onChange={handleFile}
+            className="hidden"
+          />
+          <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-border/60">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={analyzing}
+              className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-txt transition-colors px-2.5 py-1.5 border border-border/60 hover:border-border rounded-lg"
+            >
+              <Upload className="w-3.5 h-3.5" /> Upload file
+            </button>
+            <button
+              type="button"
+              onClick={() => setText(SAMPLE_TEXT)}
+              disabled={analyzing}
+              className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-txt transition-colors px-2.5 py-1.5 border border-border/60 hover:border-border rounded-lg"
+            >
+              <FileText className="w-3.5 h-3.5" /> Use sample text
+            </button>
+            {fileName && (
+              <span className="text-[11px] text-muted/80 flex items-center gap-1">
+                <Check className="w-3 h-3 text-ok" /> {fileName}
+              </span>
+            )}
+            <span className="ml-auto text-[11px] text-muted">{text.length.toLocaleString()} chars</span>
+          </div>
 
           {/* Agent progress panel */}
           {analyzing && currentStep >= 0 && (
@@ -134,24 +201,26 @@ export default function LiveDemo() {
             </div>
           )}
 
-          <div className="flex items-center justify-between mt-4">
-            <span className="text-xs text-muted">{text.length} characters</span>
-            <button
-              onClick={handleAnalyze}
-              disabled={analyzing}
-              className="inline-flex items-center gap-2 px-6 py-2.5 bg-accent hover:bg-accent/90 disabled:opacity-60 text-white text-sm font-medium rounded-xl transition-colors"
-            >
-              {analyzing ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  Analyze <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
+          {/* Prominent full-width CTA */}
+          <button
+            onClick={handleAnalyze}
+            disabled={analyzing}
+            className="w-full mt-4 inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-accent hover:bg-accent/90 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors shadow-[0_0_0_1px_rgba(139,92,246,0.25)]"
+          >
+            {analyzing ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Analyzing with 5 agents…
+              </>
+            ) : (
+              <>
+                Analyze text <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </button>
+          <p className="text-[11px] text-muted/70 text-center mt-3">
+            Free — no sign-up. Results in under 30s.
+          </p>
           </div>
         </div>
       ) : (

@@ -13,6 +13,7 @@ interface AuthState {
 
   login: (credentials: LoginRequest) => Promise<void>;
   signup: (data: SignupRequest) => Promise<void>;
+  googleLogin: (credential: string, referralCode?: string) => Promise<void>;
   logout: () => void;
   loadFromStorage: () => void;
   fetchUser: () => Promise<void>;
@@ -45,6 +46,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signup: async (signupData) => {
     const { data } = await api.post("/api/v1/auth/signup", signupData);
+    const { user, token, refresh_token } = data;
+
+    localStorage.setItem("pg_token", token);
+    if (refresh_token) localStorage.setItem("pg_refresh_token", refresh_token);
+    localStorage.setItem("pg_user", JSON.stringify(user));
+
+    set({
+      user,
+      token,
+      refreshToken: refresh_token || null,
+      isAuthenticated: true,
+      isLoading: false,
+    });
+  },
+
+  googleLogin: async (credential, referralCode) => {
+    const { data } = await api.post("/api/v1/auth/google", {
+      credential,
+      referral_code: referralCode,
+    });
     const { user, token, refresh_token } = data;
 
     localStorage.setItem("pg_token", token);

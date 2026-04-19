@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   GitCompare,
   Highlighter,
@@ -14,40 +16,262 @@ import {
   Check,
   X,
   FileText,
+  ArrowLeft,
+  ArrowRight,
+  Sparkles,
+  Zap,
+  type LucideIcon,
 } from "lucide-react";
 import api from "@/lib/api";
 import { useToastStore } from "@/lib/stores/toast-store";
 import { scoreColor } from "@/lib/utils";
-import { Button, Input, Textarea, Badge, Tabs } from "@/components/ui";
+import { Button, Input, Textarea, Badge } from "@/components/ui";
 import Card from "@/components/ui/Card";
 
-const TOOL_TABS = [
-  { id: "compare", label: "Compare", icon: <GitCompare className="w-4 h-4" /> },
-  { id: "highlight", label: "Highlight", icon: <Highlighter className="w-4 h-4" /> },
-  { id: "batch", label: "Batch", icon: <Layers className="w-4 h-4" /> },
-  { id: "rewrite", label: "Rewrite", icon: <PenLine className="w-4 h-4" /> },
-  { id: "grammar", label: "Grammar", icon: <SpellCheck className="w-4 h-4" /> },
-  { id: "readability", label: "Readability", icon: <BookOpen className="w-4 h-4" /> },
+interface ToolDef {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  short: string;
+  description: string;
+  accent: string; // tailwind gradient classes
+}
+
+const TOOLS: ToolDef[] = [
+  {
+    id: "compare",
+    label: "Compare scans",
+    icon: GitCompare,
+    short: "Diff two scans",
+    description: "See exactly what changed between two scans — score, sources, and flagged passages.",
+    accent: "from-accent/20 to-accent/5",
+  },
+  {
+    id: "highlight",
+    label: "Highlight viewer",
+    icon: Highlighter,
+    short: "Inspect flagged passages",
+    description: "Open any shared report and review the flagged passages with source attribution.",
+    accent: "from-warn/20 to-warn/5",
+  },
+  {
+    id: "batch",
+    label: "Batch analyze",
+    icon: Layers,
+    short: "Up to 10 files at once",
+    description: "Upload multiple PDFs, DOCXs or TXTs and run plagiarism analysis in one go.",
+    accent: "from-info/20 to-info/5",
+  },
+  {
+    id: "rewrite",
+    label: "Rewriter",
+    icon: PenLine,
+    short: "Paraphrase & humanize",
+    description: "Rewrite text in 7 modes — paraphrase, simplify, expand, humanize, and more.",
+    accent: "from-ok/20 to-ok/5",
+  },
+  {
+    id: "grammar",
+    label: "Grammar check",
+    icon: SpellCheck,
+    short: "Spelling, style, punctuation",
+    description: "Find spelling, grammar, style, and punctuation issues with suggested fixes.",
+    accent: "from-danger/20 to-danger/5",
+  },
+  {
+    id: "readability",
+    label: "Readability",
+    icon: BookOpen,
+    short: "Flesch, Gunning Fog & more",
+    description: "Get reading-level scores (Flesch-Kincaid, Gunning Fog, SMOG) plus improvement tips.",
+    accent: "from-purple-500/20 to-purple-500/5",
+  },
 ];
 
-export default function ToolsPage() {
-  const [activeTab, setActiveTab] = useState("compare");
+function ToolsContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const activeTool = TOOLS.find((t) => t.id === tabParam);
 
+  // Land on the overview when no ?tab= or unknown tab
+  if (!activeTool) {
+    return (
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Hero */}
+        <div className="rounded-3xl border border-border bg-gradient-to-br from-accent/10 via-surface to-surface p-8 sm:p-10">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-accent-l mb-3">
+            <Sparkles className="w-3.5 h-3.5" /> Writing toolkit
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
+            Everything you need after the scan
+          </h1>
+          <p className="text-muted max-w-2xl">
+            Compare revisions, fix flagged passages, batch-process whole folders, and tune your
+            text for tone, grammar, and readability — all from one place.
+          </p>
+        </div>
+
+        {/* Tool grid */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {TOOLS.map((tool) => {
+            const Icon = tool.icon;
+            return (
+              <button
+                key={tool.id}
+                onClick={() => router.push(`/dashboard/tools?tab=${tool.id}`)}
+                className={`group text-left rounded-2xl border border-border bg-gradient-to-br ${tool.accent} p-5 transition-all hover:border-accent/50 hover:shadow-lg hover:shadow-accent/5 hover:-translate-y-0.5`}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-11 h-11 rounded-xl bg-surface border border-border grid place-items-center text-accent-l">
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-muted group-hover:text-accent-l group-hover:translate-x-1 transition-all" />
+                </div>
+                <h3 className="font-semibold text-base mb-1">{tool.label}</h3>
+                <p className="text-xs text-accent-l/80 font-medium mb-2">{tool.short}</p>
+                <p className="text-sm text-muted leading-relaxed">{tool.description}</p>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Helper strip */}
+        <div className="rounded-2xl border border-border bg-surface p-5 flex items-start gap-4">
+          <div className="w-10 h-10 rounded-lg bg-accent/10 grid place-items-center shrink-0">
+            <Zap className="w-5 h-5 text-accent-l" />
+          </div>
+          <div className="text-sm">
+            <p className="font-semibold mb-1">Tip · Tools work best after a scan</p>
+            <p className="text-muted">
+              Run a scan first from the{" "}
+              <Link href="/dashboard" className="text-accent-l hover:text-accent">
+                Analyze
+              </Link>{" "}
+              page — Compare and Highlight will pull your recent scans automatically.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Single-tool view
+  const Icon = activeTool.icon;
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">Tools</h1>
-      <Tabs
-        tabs={TOOL_TABS}
-        active={activeTab}
-        onChange={setActiveTab}
-      />
-      {activeTab === "compare" && <CompareTab />}
-      {activeTab === "highlight" && <HighlightTab />}
-      {activeTab === "batch" && <BatchTab />}
-      {activeTab === "rewrite" && <RewriteTab />}
-      {activeTab === "grammar" && <GrammarTab />}
-      {activeTab === "readability" && <ReadabilityTab />}
+      <div>
+        <button
+          onClick={() => router.push("/dashboard/tools")}
+          className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-txt transition-colors mb-3"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          All tools
+        </button>
+        <div className="flex items-start gap-4">
+          <div
+            className={`w-12 h-12 rounded-2xl border border-border bg-gradient-to-br ${activeTool.accent} grid place-items-center text-accent-l shrink-0`}
+          >
+            <Icon className="w-6 h-6" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight">{activeTool.label}</h1>
+            <p className="text-sm text-muted mt-0.5">{activeTool.description}</p>
+          </div>
+        </div>
+      </div>
+
+      {activeTool.id === "compare" && <CompareTab />}
+      {activeTool.id === "highlight" && <HighlightTab />}
+      {activeTool.id === "batch" && <BatchTab />}
+      {activeTool.id === "rewrite" && <RewriteTab />}
+      {activeTool.id === "grammar" && <GrammarTab />}
+      {activeTool.id === "readability" && <ReadabilityTab />}
     </div>
+  );
+}
+
+export default function ToolsPage() {
+  return (
+    <Suspense fallback={<div className="max-w-5xl mx-auto" />}>
+      <ToolsContent />
+    </Suspense>
+  );
+}
+
+/* ─── Recent scans hook ─────────────────────────────────── */
+
+interface RecentScan {
+  id: string;
+  filename: string;
+  plagiarism_score: number;
+  created_at: string;
+}
+
+function useRecentScans() {
+  const [scans, setScans] = useState<RecentScan[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get("/api/v1/auth/scans?limit=20")
+      .then((res) => {
+        if (cancelled) return;
+        const items = (res.data?.scans || res.data || []) as Array<Record<string, unknown>>;
+        setScans(
+          items.map((s) => ({
+            id: String(s.id ?? s.document_id ?? ""),
+            filename: String(s.filename ?? s.title ?? "Untitled scan"),
+            plagiarism_score: Number(s.plagiarism_score ?? 0),
+            created_at: String(s.created_at ?? ""),
+          })).filter((s) => s.id)
+        );
+      })
+      .catch(() => {
+        /* silent — user can paste IDs manually */
+      })
+      .finally(() => !cancelled && setLoaded(true));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { scans, loaded };
+}
+
+function ScanPicker({
+  scans,
+  loaded,
+  onPick,
+}: {
+  scans: RecentScan[];
+  loaded: boolean;
+  onPick: (id: string) => void;
+}) {
+  if (!loaded) return null;
+  if (scans.length === 0) return null;
+  return (
+    <select
+      onChange={(e) => {
+        if (e.target.value) {
+          onPick(e.target.value);
+          e.target.value = "";
+        }
+      }}
+      defaultValue=""
+      className="bg-bg border border-border rounded-lg px-2.5 py-1.5 text-xs text-muted hover:text-txt focus:outline-none focus:ring-2 focus:ring-accent/50 transition-colors"
+    >
+      <option value="" disabled>
+        Pick from recent…
+      </option>
+      {scans.map((s) => (
+        <option key={s.id} value={s.id}>
+          {s.filename.length > 40 ? s.filename.slice(0, 40) + "…" : s.filename}{" "}
+          ({s.plagiarism_score.toFixed(0)}%)
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -71,6 +295,7 @@ function CompareTab() {
   const [idB, setIdB] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CompareResult | null>(null);
+  const { scans, loaded } = useRecentScans();
 
   const compare = async () => {
     if (!idA.trim() || !idB.trim()) {
@@ -99,18 +324,28 @@ function CompareTab() {
           Compare two scans to see how scores and sources changed.
         </p>
         <div className="grid sm:grid-cols-2 gap-4 mb-4">
-          <Input
-            label="Document ID A"
-            placeholder="Paste first document ID"
-            value={idA}
-            onChange={(e) => setIdA(e.target.value)}
-          />
-          <Input
-            label="Document ID B"
-            placeholder="Paste second document ID"
-            value={idB}
-            onChange={(e) => setIdB(e.target.value)}
-          />
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-sm font-medium">Document ID A</label>
+              <ScanPicker scans={scans} loaded={loaded} onPick={setIdA} />
+            </div>
+            <Input
+              placeholder="Paste first document ID"
+              value={idA}
+              onChange={(e) => setIdA(e.target.value)}
+            />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-sm font-medium">Document ID B</label>
+              <ScanPicker scans={scans} loaded={loaded} onPick={setIdB} />
+            </div>
+            <Input
+              placeholder="Paste second document ID"
+              value={idB}
+              onChange={(e) => setIdB(e.target.value)}
+            />
+          </div>
         </div>
         <Button onClick={compare} loading={loading}>
           <GitCompare className="w-4 h-4 mr-1" /> Compare
@@ -215,6 +450,7 @@ function HighlightTab() {
   const toast = useToastStore();
   const [shareId, setShareId] = useState("");
   const [loading, setLoading] = useState(false);
+  const { scans, loaded } = useRecentScans();
   const [report, setReport] = useState<{
     plagiarism_score: number;
     risk_level: string;
@@ -248,6 +484,10 @@ function HighlightTab() {
           Load a shared report to view highlighted passages with source
           attribution.
         </p>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="text-sm font-medium">Share ID</label>
+          <ScanPicker scans={scans} loaded={loaded} onPick={setShareId} />
+        </div>
         <div className="flex gap-3">
           <div className="flex-1">
             <Input

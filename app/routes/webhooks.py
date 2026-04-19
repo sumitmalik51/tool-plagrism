@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import ipaddress
 import secrets
-import socket
 from typing import Any
-from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, Header, HTTPException
@@ -17,6 +14,7 @@ from pydantic import BaseModel, Field
 from app.services.auth_service import verify_access_token
 from app.services.database import get_db
 from app.utils.logger import get_logger
+from app.utils.ssrf import is_private_url
 
 logger = get_logger(__name__)
 
@@ -24,21 +22,8 @@ router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
 
 
 def _is_private_url(url: str) -> bool:
-    """Check if a URL resolves to a private/internal/loopback IP address."""
-    try:
-        parsed = urlparse(url)
-        hostname = parsed.hostname
-        if not hostname:
-            return True
-        # Resolve hostname to IP
-        addr_info = socket.getaddrinfo(hostname, parsed.port or 443, proto=socket.IPPROTO_TCP)
-        for family, _, _, _, sockaddr in addr_info:
-            ip = ipaddress.ip_address(sockaddr[0])
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-                return True
-    except (socket.gaierror, ValueError, OSError):
-        return True  # Reject if we can't resolve
-    return False
+    """Backwards-compat shim — delegates to the shared SSRF guard."""
+    return is_private_url(url)
 
 
 def _get_user_id(authorization: str) -> int:

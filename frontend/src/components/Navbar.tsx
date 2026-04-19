@@ -2,6 +2,7 @@
 
 import { useAuthStore } from "@/lib/stores/auth-store";
 import Badge from "@/components/ui/Badge";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function Navbar() {
   const { user } = useAuthStore();
@@ -17,6 +18,7 @@ export default function Navbar() {
 
         {/* Right side */}
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <Badge
             variant={
               user?.plan_type?.startsWith("premium")

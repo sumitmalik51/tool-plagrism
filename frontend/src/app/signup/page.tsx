@@ -8,6 +8,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useToastStore } from "@/lib/stores/toast-store";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 
 function SignupContent() {
   const [name, setName] = useState("");
@@ -81,6 +82,23 @@ function SignupContent() {
 
         {/* Card */}
         <div className="bg-surface border border-border rounded-2xl p-8">
+          {/* Tabs */}
+          <div className="grid grid-cols-2 gap-1 p-1 mb-6 bg-bg border border-border rounded-xl">
+            <Link
+              href="/login"
+              className="px-4 py-2 rounded-lg text-sm font-medium text-muted hover:text-txt text-center transition-colors"
+            >
+              Sign in
+            </Link>
+            <button
+              type="button"
+              className="px-4 py-2 rounded-lg text-sm font-semibold bg-surface text-txt shadow-sm"
+              aria-current="page"
+            >
+              Join free
+            </button>
+          </div>
+
           <h1 className="text-2xl font-bold text-center mb-2">
             Create your account
           </h1>
@@ -110,6 +128,19 @@ function SignupContent() {
               {error}
             </div>
           )}
+
+          {/* Google sign-up */}
+          <GoogleSignInButton
+            text="signup_with"
+            referralCode={referralCode || undefined}
+            onSuccess={() => router.push("/dashboard")}
+          />
+
+          <div className="my-5 flex items-center gap-3">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs uppercase tracking-wider text-muted">or</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
@@ -187,16 +218,6 @@ function SignupContent() {
             </Button>
           </form>
         </div>
-
-        <p className="text-center text-sm text-muted mt-6">
-          Already have an account?{" "}
-          <Link
-            href="/login"
-            className="text-accent-l hover:text-accent font-medium transition-colors"
-          >
-            Sign in
-          </Link>
-        </p>
       </div>
     </div>
   );

@@ -30,52 +30,62 @@ const PLANS = [
   {
     id: "free",
     name: "Free",
+    tagline: "Try the full engine",
     monthlyInr: 0,
     annualInr: 0,
     icon: <Zap className="w-5 h-5" />,
     features: [
       "3 scans per day",
-      "5,000 word limit",
-      "Basic plagiarism detection",
-      "AI content detection",
-      "Limited rewrite uses",
+      "5,000 words / month",
+      "All 5 detection agents",
+      "AI content + per-model fingerprinting",
+      "PDF, DOCX, TXT, PPTX, LaTeX uploads",
+      "Google Docs import",
+      "Chrome extension",
+      "50+ languages",
+      "1 trial of each Research Writer tool",
     ],
   },
   {
     id: "pro",
     name: "Pro",
+    tagline: "For serious writers & researchers",
     monthlyInr: 299,
     annualInr: 2999,
     icon: <Star className="w-5 h-5" />,
     popular: true,
     features: [
       "25 scans per day",
-      "25,000 word limit",
-      "Advanced multi-agent detection",
-      "AI content detection",
+      "200,000 words / month",
+      "All Free features, plus:",
       "Batch analysis (5 files)",
-      "Grammar & readability",
-      "Research Writer access",
-      "PDF/DOCX export",
+      "50 MB per file upload",
+      "Grammar, readability & 7-mode rewriter",
+      "Research Writer (25 generations / day)",
+      "Compare, highlight & share reports",
+      "PDF / DOCX report export",
+      "5 API keys",
       "Priority support",
     ],
   },
   {
     id: "premium",
     name: "Premium",
+    tagline: "Power users & small teams",
     monthlyInr: 599,
     annualInr: 5999,
     icon: <Sparkles className="w-5 h-5" />,
     features: [
       "Unlimited scans",
-      "100,000 word limit",
-      "Full multi-agent detection",
-      "AI content detection",
+      "500,000 words / month",
+      "All Pro features, plus:",
       "Batch analysis (10 files)",
-      "Grammar & readability",
-      "Research Writer (unlimited)",
-      "All export formats",
-      "API access",
+      "100 MB per file upload",
+      "Deeper web search (15 queries / scan)",
+      "Research Writer (75 generations + unlimited check/expand/improve)",
+      "Webhooks for scan events",
+      "20 API keys",
+      "Repository check & cross-compare",
       "Dedicated support",
     ],
   },
@@ -257,10 +267,11 @@ export default function PricingPage() {
                   </div>
                 )}
 
-                <div className="flex items-center gap-2 mb-4 text-accent">
+                <div className="flex items-center gap-2 mb-1 text-accent">
                   {plan.icon}
                   <h3 className="text-xl font-bold text-txt">{plan.name}</h3>
                 </div>
+                <p className="text-xs text-muted mb-4">{plan.tagline}</p>
 
                 <div className="mb-6">
                   {plan.monthlyInr === 0 ? (
@@ -319,6 +330,119 @@ export default function PricingPage() {
               </div>
             );
           })}
+        </div>
+
+        {/* Full feature comparison */}
+        <div className="mt-20">
+          <h2 className="text-2xl font-bold text-center mb-2">
+            Compare every feature
+          </h2>
+          <p className="text-sm text-muted text-center mb-8">
+            All plans include our 5-agent detection engine — the limits scale up.
+          </p>
+          <div className="overflow-x-auto bg-surface border border-border rounded-2xl">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-bg/40">
+                  <th className="text-left font-medium text-muted px-5 py-4">Feature</th>
+                  <th className="text-center font-semibold px-5 py-4">Free</th>
+                  <th className="text-center font-semibold px-5 py-4 text-accent-l">Pro</th>
+                  <th className="text-center font-semibold px-5 py-4">Premium</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {[
+                  { f: "Scans per day", free: "3", pro: "25", prem: "Unlimited" },
+                  { f: "Word quota / month", free: "5,000", pro: "200,000", prem: "500,000" },
+                  { f: "Max file size", free: "5 MB", pro: "50 MB", prem: "100 MB" },
+                  { f: "5 detection agents", free: "✓", pro: "✓", prem: "✓" },
+                  { f: "AI model fingerprinting (GPT/Claude/Gemini)", free: "✓", pro: "✓", prem: "✓" },
+                  { f: "PDF, DOCX, TXT, PPTX, LaTeX", free: "✓", pro: "✓", prem: "✓" },
+                  { f: "Google Docs import", free: "✓", pro: "✓", prem: "✓" },
+                  { f: "Chrome extension", free: "✓", pro: "✓", prem: "✓" },
+                  { f: "50+ language support", free: "✓", pro: "✓", prem: "✓" },
+                  { f: "Batch analysis", free: "—", pro: "5 files", prem: "10 files" },
+                  { f: "Grammar & readability", free: "—", pro: "✓", prem: "✓" },
+                  { f: "7-mode AI rewriter", free: "Trial", pro: "✓", prem: "✓" },
+                  { f: "Research Writer", free: "1 trial each", pro: "25 / day", prem: "75 / day + unlimited check / expand / improve" },
+                  { f: "Compare scans", free: "—", pro: "✓", prem: "✓" },
+                  { f: "Highlight diff", free: "—", pro: "✓", prem: "✓" },
+                  { f: "Share reports", free: "—", pro: "✓", prem: "✓" },
+                  { f: "PDF / DOCX report export", free: "—", pro: "✓", prem: "✓" },
+                  { f: "Repository check & cross-compare", free: "—", pro: "—", prem: "✓" },
+                  { f: "Web search depth", free: "Standard", pro: "Standard", prem: "Deep (15 queries)" },
+                  { f: "API keys", free: "—", pro: "5", prem: "20" },
+                  { f: "Webhooks", free: "—", pro: "—", prem: "✓" },
+                  { f: "Word add-in & Google Workspace add-on", free: "✓", pro: "✓", prem: "✓" },
+                  { f: "Support", free: "Community", pro: "Priority", prem: "Dedicated" },
+                ].map((row, i) => (
+                  <tr key={i} className="hover:bg-bg/30">
+                    <td className="px-5 py-3 text-txt/85">{row.f}</td>
+                    <td className="px-5 py-3 text-center text-muted">{row.free}</td>
+                    <td className="px-5 py-3 text-center font-medium">{row.pro}</td>
+                    <td className="px-5 py-3 text-center text-muted">{row.prem}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Teams / Enterprise CTA */}
+        <div className="mt-12 bg-gradient-to-br from-accent/10 to-transparent border border-accent/30 rounded-2xl p-8 text-center">
+          <h3 className="text-xl font-bold mb-2">Need a team plan or LMS integration?</h3>
+          <p className="text-sm text-muted mb-5 max-w-xl mx-auto">
+            Seat-based teams, LTI 1.3 launch from Canvas / Moodle / Blackboard, SSO, custom rate limits, and on-premise deployment.
+          </p>
+          <a
+            href="mailto:sales@plagiarismguard.com"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-txt text-bg font-semibold rounded-full text-sm hover:bg-txt/90 transition-colors"
+          >
+            Talk to sales
+          </a>
+        </div>
+
+        {/* FAQ */}
+        <div className="mt-16">
+          <h2 className="text-2xl font-bold text-center mb-8">
+            Frequently asked questions
+          </h2>
+          <div className="grid md:grid-cols-2 gap-6">
+            {[
+              {
+                q: "What happens if I hit my word quota?",
+                a: "Scans are paused until your quota resets at the start of the next month, or you can buy a top-up credit pack or upgrade your plan instantly.",
+              },
+              {
+                q: "Can I cancel any time?",
+                a: "Yes. Cancel from Settings — you keep access until the end of your billing period and never get auto-charged again.",
+              },
+              {
+                q: "Is my content stored or used for training?",
+                a: "No. Documents are processed and the report is saved to your private history. We never use your text to train any model.",
+              },
+              {
+                q: "Do you accept international cards?",
+                a: "Yes — Razorpay handles INR, and we accept Stripe for international USD / EUR / GBP cards.",
+              },
+              {
+                q: "What's the difference between Pro and Premium?",
+                a: "Pro is sized for individual writers (200K words, 25 scans/day). Premium adds unlimited scans, deeper web search, repository check, webhooks, and more API keys for power users.",
+              },
+              {
+                q: "Refund policy?",
+                a: "7-day money-back guarantee on the first month of any paid plan, no questions asked.",
+              },
+            ].map((item, i) => (
+              <div
+                key={i}
+                className="bg-surface border border-border rounded-xl p-5"
+              >
+                <p className="font-semibold mb-2 text-sm">{item.q}</p>
+                <p className="text-sm text-muted leading-relaxed">{item.a}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Back link */}

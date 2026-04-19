@@ -358,8 +358,15 @@ def run_migrations(db: Any) -> int:
         if version in applied:
             continue
         logger.info("applying_migration", version=version, description=description)
-        for statement in _split_sql(sql):
-            db.execute(statement)
+        try:
+            for statement in _split_sql(sql):
+                db.execute(statement)
+        except Exception as e:
+            msg = str(e).lower()
+            if "duplicate column" in msg or "already exists" in msg:
+                logger.warning("migration_already_applied", version=version, error=str(e))
+            else:
+                raise
         db.execute(
             "INSERT INTO schema_migrations (version, description) VALUES (?, ?)",
             (version, description),

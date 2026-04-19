@@ -26,11 +26,25 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Runs before hydration to set the correct theme and prevent flash.
+  const themeInit = `
+(function(){try{
+  var t = localStorage.getItem('theme');
+  if (t !== 'light' && t !== 'dark') {
+    t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+  document.documentElement.setAttribute('data-theme', t);
+}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();`;
+
   return (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInit }} />
+      </head>
       <body className="min-h-full flex flex-col bg-bg text-txt">
         {children}
         <ToastContainer />

@@ -17,7 +17,7 @@ export default function TermsPage() {
       </nav>
       <article className="max-w-3xl mx-auto px-4 py-16 prose-sm text-txt/80">
         <h1 className="text-3xl font-bold text-txt mb-8">Terms of Service</h1>
-        <p className="text-muted mb-6">Last updated: April 2025</p>
+        <p className="text-muted mb-6">Last updated: April 2026</p>
 
         <h2 className="text-xl font-semibold text-txt mt-8 mb-3">1. Acceptance</h2>
         <p className="mb-4 leading-relaxed">By using PlagiarismGuard, you agree to these terms. If you do not agree, do not use the service.</p>

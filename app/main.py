@@ -30,6 +30,7 @@ from app.routes.lms import router as lms_router
 from app.routes.stripe_payments import router as stripe_router
 from app.routes.chatbot import router as chatbot_router
 from app.routes.research_writer import router as research_writer_router
+from app.routes.jobs import router as jobs_router
 from app.utils.logger import setup_logging, get_logger
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -114,6 +115,7 @@ app.include_router(lms_router)
 app.include_router(stripe_router)
 app.include_router(chatbot_router)
 app.include_router(research_writer_router)
+app.include_router(jobs_router)
 
 
 # --- Custom OpenAPI schema with security schemes -----------------------------
@@ -339,23 +341,47 @@ async def serve_sitemap() -> FileResponse:
 
 # --- Health check -------------------------------------------------------------
 @app.get("/health", tags=["system"])
-async def health_check() -> dict[str, Any]:
-    """Minimal health check for load balancers and uptime monitors."""
-    start = time.time()
+async def health_check() -> JSONResponse:
+    """Liveness probe — always cheap, never blocks the event loop.
 
-    # Quick database connectivity check
+    Returns 200 when the process is up. Database connectivity is reported
+    in the body but does not affect status (use /health/ready for that).
+    """
+    return JSONResponse(
+        content={
+            "status": "healthy",
+            "version": settings.app_version,
+        },
+    )
+
+
+@app.get("/health/ready", tags=["system"])
+async def readiness_check() -> JSONResponse:
+    """Readiness probe — 503 when DB is unreachable so load balancers depool us.
+
+    The DB call is dispatched to a worker thread so an Azure SQL serverless
+    cold start (30–60 s) does not block uvicorn's event loop.
+    """
+    import asyncio
+
+    start = time.time()
     db_status = "connected"
     try:
         from app.services.database import get_db
-        db = get_db()
-        db.fetch_one("SELECT 1", ())
+
+        def _ping() -> None:
+            db = get_db()
+            db.fetch_one("SELECT 1", ())
+
+        await asyncio.wait_for(asyncio.to_thread(_ping), timeout=5.0)
     except Exception:
         db_status = "error"
 
     elapsed_ms = round((time.time() - start) * 1000, 1)
-
-    return {
+    body = {
         "status": "healthy" if db_status == "connected" else "degraded",
         "version": settings.app_version,
+        "db": db_status,
         "response_time_ms": elapsed_ms,
     }
+    return JSONResponse(content=body, status_code=200 if db_status == "connected" else 503)

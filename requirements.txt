@@ -29,6 +29,7 @@ numpy>=1.26.0
 
 # Authentication
 PyJWT==2.9.0
+google-auth==2.35.0
 
 # Payments
 razorpay==1.4.2

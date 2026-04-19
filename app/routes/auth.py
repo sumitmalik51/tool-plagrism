@@ -31,6 +31,7 @@ from app.services.auth_service import (
     get_rw_credits,
     deduct_rw_credit,
     add_rw_credits,
+    google_oauth_login,
 )
 from app.services.api_key_service import (
     create_api_key,
@@ -127,6 +128,11 @@ class LoginRequest(BaseModel):
     password: str = Field(..., min_length=1, max_length=128)
 
 
+class GoogleLoginRequest(BaseModel):
+    credential: str = Field(..., min_length=1, description="Google ID token (JWT) from GIS")
+    referral_code: str | None = Field(default=None, max_length=50)
+
+
 class ForgotPasswordRequest(BaseModel):
     email: str = Field(..., min_length=3, max_length=255)
 
@@ -206,6 +212,61 @@ async def route_refresh_token(body: RefreshTokenRequest):
     plan_type = payload.get("plan_type", "free")
     new_token = create_access_token(user_id, email, plan_type=plan_type)
     return {"token": new_token}
+
+
+@router.post("/google", response_model=AuthResponse)
+async def route_google_login(body: GoogleLoginRequest, request: Request):
+    """Sign in (or sign up) with a Google ID token from Google Identity Services.
+
+    The frontend obtains a credential JWT via the GIS button; we verify it
+    server-side against Google's public keys to confirm the email is real and
+    matches our configured client ID.
+    """
+    _auth_limiter.check(_client_ip(request))
+
+    if not settings.google_client_id:
+        raise HTTPException(
+            status_code=503,
+            detail="Google sign-in is not configured on this server.",
+        )
+
+    # Verify the ID token. We import lazily so missing dep gives a clean error.
+    try:
+        from google.oauth2 import id_token  # type: ignore
+        from google.auth.transport import requests as google_requests  # type: ignore
+    except ImportError:
+        logger.error("google_auth_library_missing")
+        raise HTTPException(
+            status_code=503,
+            detail="Google sign-in dependency is not installed on the server.",
+        )
+
+    try:
+        idinfo = id_token.verify_oauth2_token(
+            body.credential,
+            google_requests.Request(),
+            settings.google_client_id,
+        )
+    except ValueError as exc:
+        logger.warning("google_token_verification_failed", error=str(exc))
+        raise HTTPException(status_code=401, detail="Invalid Google credential.")
+
+    if not idinfo.get("email_verified"):
+        raise HTTPException(status_code=401, detail="Google email is not verified.")
+
+    email = idinfo.get("email", "")
+    name = idinfo.get("name") or idinfo.get("given_name") or email.split("@")[0]
+
+    try:
+        result = google_oauth_login(email=email, name=name, referral_code=body.referral_code)
+        # Drop is_new_user from response (kept internal); AuthResponse only has user+token
+        result.pop("is_new_user", None)
+        return result
+    except AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.error("google_login_db_error", error_type=type(exc).__name__, error=str(exc))
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable. Please try again in a few seconds.")
 
 
 @router.post("/forgot-password")

@@ -55,8 +55,10 @@ function planBadgeVariant(plan: string) {
 
 export default function Sidebar() {
   const [open, setOpen] = useState(false);
-  const [toolsOpen, setToolsOpen] = useState(false);
   const pathname = usePathname();
+  const [toolsOpen, setToolsOpen] = useState(
+    pathname.startsWith("/dashboard/tools")
+  );
   const { user, logout } = useAuthStore();
 
   const isActive = (href: string) => {
@@ -73,10 +75,10 @@ export default function Sidebar() {
       href={item.href}
       onClick={onClick}
       className={cn(
-        "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
+        "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors",
         isActive(item.href)
-          ? "bg-accent/15 text-accent-l"
-          : "text-muted hover:text-txt hover:bg-surface2"
+          ? "bg-accent/25 text-accent-l font-semibold shadow-sm"
+          : "text-muted font-medium hover:text-txt hover:bg-surface2"
       )}
     >
       <item.icon className="w-4 h-4 shrink-0" />
@@ -106,10 +108,10 @@ export default function Sidebar() {
         <button
           onClick={() => setToolsOpen(!toolsOpen)}
           className={cn(
-            "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
+            "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors",
             pathname.startsWith("/dashboard/tools")
-              ? "bg-accent/15 text-accent-l"
-              : "text-muted hover:text-txt hover:bg-surface2"
+              ? "bg-accent/25 text-accent-l font-semibold shadow-sm"
+              : "text-muted font-medium hover:text-txt hover:bg-surface2"
           )}
         >
           <Wrench className="w-4 h-4 shrink-0" />

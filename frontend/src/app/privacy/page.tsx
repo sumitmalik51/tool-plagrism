@@ -17,7 +17,7 @@ export default function PrivacyPage() {
       </nav>
       <article className="max-w-3xl mx-auto px-4 py-16 prose-sm text-txt/80">
         <h1 className="text-3xl font-bold text-txt mb-8">Privacy Policy</h1>
-        <p className="text-muted mb-6">Last updated: April 2025</p>
+        <p className="text-muted mb-6">Last updated: April 2026</p>
 
         <h2 className="text-xl font-semibold text-txt mt-8 mb-3">1. Information We Collect</h2>
         <p className="mb-4 leading-relaxed">We collect information you provide when creating an account (name, email), documents you upload for analysis, and usage data to improve our service.</p>

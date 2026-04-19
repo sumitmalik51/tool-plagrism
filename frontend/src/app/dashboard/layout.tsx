@@ -5,6 +5,8 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import AuthGuard from "@/components/AuthGuard";
 import Sidebar from "@/components/Sidebar";
 import Navbar from "@/components/Navbar";
+import ScanJobIndicator from "@/components/ScanJobIndicator";
+import ScanJobMount from "@/components/ScanJobMount";
 
 export default function DashboardLayout({
   children,
@@ -25,6 +27,8 @@ export default function DashboardLayout({
           <Navbar />
           <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
         </div>
+        <ScanJobMount />
+        <ScanJobIndicator />
       </div>
     </AuthGuard>
   );

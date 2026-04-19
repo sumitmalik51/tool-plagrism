@@ -16,6 +16,7 @@ import httpx
 
 from app.config import settings
 from app.utils.logger import get_logger
+from app.utils.ssrf import is_private_url
 
 logger = get_logger(__name__)
 
@@ -222,6 +223,11 @@ def _html_to_text(html: str) -> str:
 async def _fetch_one(client: httpx.AsyncClient, url: str) -> tuple[str, str]:
     """Fetch a single URL and return ``(url, plain_text)``."""
     _MAX_PAGE_BYTES = 2 * 1024 * 1024  # 2 MB limit
+    # SSRF guard: block private/internal IPs before issuing the request,
+    # in case a search backend returns a poisoned URL pointing at cloud
+    # metadata or localhost services.
+    if is_private_url(url):
+        return url, ""
     try:
         resp = await client.get(
             url,
