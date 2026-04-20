@@ -155,6 +155,26 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_lti_states_state ON lti_states(state);
         """,
     ),
+    (
+        8,
+        "Add passage_dismissals table",
+        """
+        CREATE TABLE IF NOT EXISTS passage_dismissals (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id      INTEGER NOT NULL,
+            document_id  TEXT NOT NULL,
+            passage_key  TEXT NOT NULL,
+            kind         TEXT NOT NULL,
+            note         TEXT,
+            created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(user_id, document_id, passage_key)
+        );
+        ---
+        CREATE INDEX IF NOT EXISTS idx_dismissals_user_doc
+            ON passage_dismissals(user_id, document_id);
+        """,
+    ),
 ]
 
 # MSSQL variants — same version numbers, different syntax
@@ -301,6 +321,27 @@ MIGRATIONS_MSSQL: list[tuple[int, str, str]] = [
         ---
         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_lti_states_state')
         CREATE INDEX idx_lti_states_state ON lti_states(state);
+        """,
+    ),
+    (
+        8,
+        "Add passage_dismissals table",
+        """
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'passage_dismissals')
+        CREATE TABLE passage_dismissals (
+            id           INT IDENTITY(1,1) PRIMARY KEY,
+            user_id      INT NOT NULL,
+            document_id  NVARCHAR(255) NOT NULL,
+            passage_key  NVARCHAR(64) NOT NULL,
+            kind         NVARCHAR(32) NOT NULL,
+            note         NVARCHAR(500) NULL,
+            created_at   DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+            updated_at   DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+            CONSTRAINT uq_passage_dismissals UNIQUE(user_id, document_id, passage_key)
+        );
+        ---
+        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_dismissals_user_doc')
+        CREATE INDEX idx_dismissals_user_doc ON passage_dismissals(user_id, document_id);
         """,
     ),
 ]

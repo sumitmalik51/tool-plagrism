@@ -388,6 +388,16 @@ async def export_pdf_report(document_id: str, request: Request):
     sources_count = scan.get("sources_count", 0) or 0
     flagged_count = scan.get("flagged_count", 0) or 0
     original_pct = max(0, round(100 - score, 1))
+
+    # ── Apply user dismissals (if any) ──
+    from app.services.persistence import get_dismissals
+    from app.utils.passage_key import adjusted_score, passage_key_for
+    dismissals = get_dismissals(user_id, document_id) or {}
+    raw_passages = report_data.get("flagged_passages", []) or []
+    adj_score = adjusted_score(score, raw_passages, dismissals) if dismissals else score
+    has_dismissals = bool(dismissals)
+    # Display score = adjusted; original is shown alongside when dismissals exist.
+    display_score = adj_score
     risk_colors = {"LOW": (0, 184, 148), "MEDIUM": (253, 203, 110), "HIGH": (225, 112, 85)}
     rc = risk_colors.get(risk, (100, 100, 100))
 
@@ -426,7 +436,13 @@ async def export_pdf_report(document_id: str, request: Request):
     pdf.set_xy(10, hero_y + 9)
     pdf.set_font("Helvetica", "B", 36)
     pdf.set_text_color(*rc)
-    pdf.cell(60, 16, f"{score:.0f}%", align="C", ln=True)
+    pdf.cell(60, 16, f"{display_score:.0f}%", align="C", ln=True)
+    # If user dismissed any passages, surface the original under the adjusted figure.
+    if has_dismissals:
+        pdf.set_xy(10, hero_y + 24)
+        pdf.set_font("Helvetica", "", 6)
+        pdf.set_text_color(120, 120, 140)
+        pdf.cell(60, 3, f"Adjusted - original {score:.0f}%", align="C", ln=True)
     # Risk badge
     pdf.set_xy(22, hero_y + 27)
     pdf.set_fill_color(*rc)
@@ -602,7 +618,12 @@ async def export_pdf_report(document_id: str, request: Request):
     if passages:
         pdf.set_font("Helvetica", "B", 12)
         pdf.set_text_color(30, 30, 30)
-        pdf.cell(0, 8, f"Flagged Passages ({len(passages)})", ln=True)
+        header_label = f"Flagged Passages ({len(passages)})"
+        if has_dismissals:
+            dismissed_count = sum(1 for p in passages if passage_key_for(p) in dismissals)
+            if dismissed_count:
+                header_label += f"  -  {dismissed_count} dismissed"
+        pdf.cell(0, 8, header_label, ln=True)
         pdf.ln(1)
 
         src_idx = {}
@@ -610,13 +631,27 @@ async def export_pdf_report(document_id: str, request: Request):
             if s.get("url"):
                 src_idx[s["url"]] = i
 
+        dismissal_label = {
+            "quotation": "Quotation",
+            "prior_work": "Prior work",
+            "false_positive": "Not a match",
+        }
+
         for i, p in enumerate(passages[:40], 1):
             text = (p.get("text") or "")[:300].replace("\n", " ")
             sim = p.get("similarity_score", 0) or 0
             sim_pct = sim * 100
             src_url = p.get("source", "")
             src_num = src_idx.get(src_url, "")
-            sim_color = (225, 112, 85) if sim > 0.7 else (253, 203, 110) if sim > 0.4 else (0, 184, 148)
+            pkey = passage_key_for(p)
+            dismissal_info = dismissals.get(pkey)
+            is_dismissed = dismissal_info is not None
+            sim_color = (
+                (160, 160, 170) if is_dismissed
+                else (225, 112, 85) if sim > 0.7
+                else (253, 203, 110) if sim > 0.4
+                else (0, 184, 148)
+            )
 
             p_y = pdf.get_y()
             # Left accent bar
@@ -632,12 +667,16 @@ async def export_pdf_report(document_id: str, request: Request):
                 label += f"  [Source {src_num}]"
             elif src_url:
                 label += f"  - {_sanitize(src_url[:50])}"
+            if is_dismissed:
+                kind_label = dismissal_label.get(dismissal_info.get("kind", ""), "Dismissed")
+                label += f"  - DISMISSED: {kind_label}"
             pdf.cell(0, 4, label, ln=True)
 
             # Passage text
             pdf.set_x(14)
             pdf.set_font("Helvetica", "", 7)
-            pdf.set_text_color(70, 70, 80)
+            # Slightly faded body text for dismissed entries
+            pdf.set_text_color(*((140, 140, 150) if is_dismissed else (70, 70, 80)))
             pdf.multi_cell(186, 3.5, f'"{_sanitize(text)}"')
             pdf.ln(2)
 

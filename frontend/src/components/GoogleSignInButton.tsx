@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Script from "next/script";
 import { Loader2 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -17,6 +17,7 @@ declare global {
             auto_select?: boolean;
             ux_mode?: "popup" | "redirect";
             use_fedcm_for_prompt?: boolean;
+            itp_support?: boolean;
           }) => void;
           renderButton: (
             parent: HTMLElement,
@@ -29,16 +30,6 @@ declare global {
               logo_alignment?: "left" | "center";
               width?: number | string;
             }
-          ) => void;
-          prompt: (
-            momentListener?: (notification: {
-              isNotDisplayed: () => boolean;
-              isSkippedMoment: () => boolean;
-              isDismissedMoment: () => boolean;
-              getNotDisplayedReason: () => string;
-              getSkippedReason: () => string;
-              getDismissedReason: () => string;
-            }) => void
           ) => void;
           disableAutoSelect: () => void;
           cancel: () => void;
@@ -59,12 +50,39 @@ interface GoogleSignInButtonProps {
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
-type GsiTheme = "outline" | "filled_blue" | "filled_black";
+const LABELS: Record<NonNullable<GoogleSignInButtonProps["text"]>, string> = {
+  signin_with: "Sign in with Google",
+  signup_with: "Sign up with Google",
+  continue_with: "Continue with Google",
+};
 
-function readSiteTheme(): "light" | "dark" {
-  if (typeof document === "undefined") return "dark";
-  const t = document.documentElement.getAttribute("data-theme");
-  return t === "light" ? "light" : "dark";
+/** Official multi-color Google "G" mark (allowed for use on custom buttons). */
+function GoogleGIcon({ className = "w-[18px] h-[18px]" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 48 48"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        fill="#FFC107"
+        d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"
+      />
+      <path
+        fill="#FF3D00"
+        d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"
+      />
+      <path
+        fill="#4CAF50"
+        d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"
+      />
+      <path
+        fill="#1976D2"
+        d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571.001-.001.002-.001.003-.002l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"
+      />
+    </svg>
+  );
 }
 
 export default function GoogleSignInButton({
@@ -72,24 +90,15 @@ export default function GoogleSignInButton({
   referralCode,
   onSuccess,
 }: GoogleSignInButtonProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const hiddenContainerRef = useRef<HTMLDivElement>(null);
   const [scriptReady, setScriptReady] = useState(false);
+  const [gsiReady, setGsiReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [siteTheme, setSiteTheme] = useState<"light" | "dark">("dark");
   const { googleLogin } = useAuthStore();
   const toast = useToastStore();
 
-  // Track site theme via the data-theme attribute on <html>.
-  useEffect(() => {
-    setSiteTheme(readSiteTheme());
-    const html = document.documentElement;
-    const obs = new MutationObserver(() => setSiteTheme(readSiteTheme()));
-    obs.observe(html, { attributes: true, attributeFilter: ["data-theme"] });
-    return () => obs.disconnect();
-  }, []);
-
-  // Keep latest callback deps in refs so the init effect runs only once.
+  // Keep latest deps in refs so init runs only once.
   const googleLoginRef = useRef(googleLogin);
   const onSuccessRef = useRef(onSuccess);
   const referralCodeRef = useRef(referralCode);
@@ -101,10 +110,10 @@ export default function GoogleSignInButton({
     toastRef.current = toast;
   });
 
+  // Initialise GSI + render the official button (hidden off-screen) once.
   useEffect(() => {
-    if (!scriptReady || !CLIENT_ID || !containerRef.current || !window.google) return;
+    if (!scriptReady || !CLIENT_ID || !window.google || !hiddenContainerRef.current) return;
 
-    // Module-level guard so init runs only once even with HMR / multiple mounts.
     const w = window as unknown as { __pgGsiInitialized?: string };
     if (w.__pgGsiInitialized !== CLIENT_ID) {
       window.google.accounts.id.initialize({
@@ -123,34 +132,55 @@ export default function GoogleSignInButton({
                 ?.detail || "Google sign-in failed. Please try again.";
             setError(msg);
           } finally {
-            // Always clear the spinner so the user isn't stuck on "Signing you in…"
-            // even if route navigation is slow (webpack dev compile, etc.).
             setBusy(false);
           }
         },
         ux_mode: "popup",
+        itp_support: true,
+        auto_select: false,
       });
       w.__pgGsiInitialized = CLIENT_ID;
     }
 
-    const gsiTheme: GsiTheme = siteTheme === "light" ? "outline" : "filled_black";
-
-    containerRef.current.innerHTML = "";
-    window.google.accounts.id.renderButton(containerRef.current, {
+    // Render the official Google button into a hidden container. We forward our
+    // custom button's clicks to it so the user sees a native Google popup
+    // (the only flow that reliably returns an id_token credential JWT).
+    hiddenContainerRef.current.innerHTML = "";
+    window.google.accounts.id.renderButton(hiddenContainerRef.current, {
       type: "standard",
-      theme: gsiTheme,
+      theme: "outline",
       size: "large",
-      text,
-      shape: "pill",
-      logo_alignment: "center",
-      width: containerRef.current.offsetWidth || 360,
+      text: "continue_with",
+      shape: "rectangular",
+      logo_alignment: "left",
+      width: 320,
     });
-  }, [scriptReady, text, siteTheme]);
+    setGsiReady(true);
+  }, [scriptReady]);
+
+  const handleClick = useCallback(() => {
+    if (!gsiReady || !hiddenContainerRef.current) return;
+    setError("");
+    // The rendered GSI button is wrapped in a div > div[role=button]. Click
+    // it programmatically so Google opens its popup with our credentials.
+    const realBtn =
+      hiddenContainerRef.current.querySelector<HTMLElement>("div[role=button]") ||
+      hiddenContainerRef.current.querySelector<HTMLElement>("[role=button]") ||
+      (hiddenContainerRef.current.firstElementChild as HTMLElement | null);
+    if (realBtn) {
+      realBtn.click();
+    } else {
+      setError("Google sign-in is still loading. Please try again in a moment.");
+    }
+  }, [gsiReady]);
 
   if (!CLIENT_ID) {
     // Hide entirely if not configured — don't show a broken button.
     return null;
   }
+
+  const label = LABELS[text];
+  const disabled = !gsiReady || busy;
 
   return (
     <>
@@ -161,25 +191,48 @@ export default function GoogleSignInButton({
         onLoad={() => setScriptReady(true)}
       />
       <div className="space-y-2">
-        <div className="relative">
-          <div
-            ref={containerRef}
-            className={`w-full flex justify-center min-h-[44px] transition-opacity ${
-              busy ? "opacity-0 pointer-events-none" : "opacity-100"
-            }`}
-          />
-          {busy && (
-            <div className="absolute inset-0 flex items-center justify-center gap-2 rounded-full border border-border bg-surface">
+        <button
+          type="button"
+          onClick={handleClick}
+          disabled={disabled}
+          aria-label={label}
+          className="w-full flex items-center justify-center gap-3 h-11 px-4 rounded-xl border border-border bg-surface2 text-sm font-medium text-txt transition-colors hover:bg-border focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {busy ? (
+            <>
               <Loader2 className="w-4 h-4 animate-spin text-accent" />
-              <span className="text-sm font-medium text-txt">
-                Signing you in with Google…
-              </span>
-            </div>
+              <span>Signing you in with Google…</span>
+            </>
+          ) : (
+            <>
+              <GoogleGIcon />
+              <span>{label}</span>
+            </>
           )}
+        </button>
+        {/*
+          Hidden GSI-rendered button. Kept off-screen but interactive so we can
+          forward our custom button's clicks to it. Using `position: fixed` +
+          negative offset (rather than display:none / visibility:hidden) because
+          Google's library refuses to open the popup if the button isn't
+          considered visible by the browser.
+        */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: "fixed",
+            top: "-1000px",
+            left: "-1000px",
+            width: "320px",
+            height: "44px",
+            opacity: 0,
+            pointerEvents: "none",
+            overflow: "hidden",
+          }}
+        >
+          <div ref={hiddenContainerRef} />
         </div>
-        {error && (
-          <p className="text-xs text-danger text-center">{error}</p>
-        )}
+        {error && <p className="text-xs text-danger text-center">{error}</p>}
       </div>
     </>
   );

@@ -6,3 +6,4 @@ export { default as Badge } from "./Badge";
 export { default as Modal } from "./Modal";
 export { default as Spinner } from "./Spinner";
 export { default as Tabs } from "./Tabs";
+export { default as Tooltip, TooltipProvider } from "./Tooltip";

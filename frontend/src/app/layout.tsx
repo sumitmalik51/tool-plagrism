@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ToastContainer from "@/components/Toast";
 import ChatWidget from "@/components/ChatWidget";
+import { TooltipProvider } from "@/components/ui";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -46,9 +47,11 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>
       <body className="min-h-full flex flex-col bg-bg text-txt">
-        {children}
-        <ToastContainer />
-        <ChatWidget />
+        <TooltipProvider delayDuration={200}>
+          {children}
+          <ToastContainer />
+          <ChatWidget />
+        </TooltipProvider>
       </body>
     </html>
   );

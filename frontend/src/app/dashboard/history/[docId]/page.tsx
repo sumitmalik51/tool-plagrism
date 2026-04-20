@@ -15,6 +15,7 @@ import {
   BookOpen,
   Sparkles,
   Plus,
+  X,
 } from "lucide-react";
 import api from "@/lib/api";
 import { useToastStore } from "@/lib/stores/toast-store";
@@ -30,7 +31,16 @@ import {
 import {
   useDismissalsStore,
   adjustedScore,
+  fullyDismissedSources,
+  passageKey,
+  dismissalLabel,
+  type DismissalKind,
 } from "@/lib/stores/dismissals-store";
+import PassageMinimap from "@/components/PassageMinimap";
+import {
+  sourceAnchorId,
+  SELECT_SOURCE_EVENT,
+} from "@/lib/anchors";
 
 /* ─── Types ──────────────────────────────────────────────── */
 
@@ -198,16 +208,40 @@ function DonutChart({
 
 /* ─── Source Card ─────────────────────────────────────────── */
 
-function SourceCard({ src }: { src: DetectedSource }) {
+function SourceCard({
+  src,
+  faded,
+  isFiltering,
+  onFilterByPassage,
+}: {
+  src: DetectedSource;
+  faded?: boolean;
+  isFiltering?: boolean;
+  onFilterByPassage?: () => void;
+}) {
   const similarity = (src.similarity ?? 0) * 100;
   const name = resolveSourceName(src);
   return (
-    <div className="bg-surface border border-border rounded-xl p-4 hover:border-accent/30 transition-colors">
+    <div
+      className={cn(
+        "bg-surface border rounded-xl p-4 transition-colors",
+        isFiltering
+          ? "border-accent/50"
+          : "border-border hover:border-accent/30",
+        faded && "opacity-50",
+      )}
+      title={faded ? "All passages from this source have been dismissed." : undefined}
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-2">
-            <span className={`text-lg font-bold ${scoreColor(similarity)}`}>
-              {similarity.toFixed(1)}%
+            <span
+              className={cn(
+                "text-lg font-bold",
+                faded ? "text-muted line-through" : scoreColor(similarity),
+              )}
+            >
+              {Math.round(similarity)}%
             </span>
             <Badge variant={sourceTypeVariant(src.source_type)}>
               {src.source_type || "Internet"}
@@ -217,6 +251,11 @@ function SourceCard({ src }: { src: DetectedSource }) {
               {src.text_blocks ?? 0} passage
               {(src.text_blocks ?? 0) !== 1 ? "s" : ""}
             </span>
+            {isFiltering && (
+              <span className="text-[10px] text-accent-l uppercase tracking-wide">
+                Filtering
+              </span>
+            )}
           </div>
           <p className="text-sm font-medium text-txt mb-1">{name}</p>
           {src.url && (
@@ -230,16 +269,27 @@ function SourceCard({ src }: { src: DetectedSource }) {
             </a>
           )}
         </div>
-        {src.url && (
-          <a
-            href={src.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0 flex items-center gap-1 px-3 py-1.5 bg-surface2 hover:bg-border text-sm text-muted hover:text-txt rounded-lg border border-border transition-colors"
-          >
-            Compare <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-        )}
+        <div className="shrink-0 flex flex-col gap-2 items-end">
+          {src.url && (
+            <a
+              href={src.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-3 py-1.5 bg-surface2 hover:bg-border text-sm text-muted hover:text-txt rounded-lg border border-border transition-colors"
+            >
+              Compare <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
+          {onFilterByPassage && src.url && (
+            <button
+              type="button"
+              onClick={onFilterByPassage}
+              className="text-[11px] text-accent-l hover:text-accent transition-colors"
+            >
+              {isFiltering ? "Clear passage filter" : "Show matching passages →"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -329,6 +379,10 @@ export default function ScanDetailPage() {
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [sourceSort, setSourceSort] = useState<SourceSort>("similarity");
   const [showAllSources, setShowAllSources] = useState(false);
+  // Passage ↔ source cross-filter (parity with Results.tsx).
+  const [selectedPassageSource, setSelectedPassageSource] = useState<
+    string | null
+  >(null);
   const [rewritingIdx, setRewritingIdx] = useState<number | null>(null);
   const [rewrittenTexts, setRewrittenTexts] = useState<Record<number, string[]>>(
     {},
@@ -398,6 +452,27 @@ export default function ScanDetailPage() {
     (s) => s.dismissed[docId],
   );
   const clearAllDismissals = useDismissalsStore((s) => s.clearAll);
+  const hydrateFromServer = useDismissalsStore((s) => s.hydrateFromServer);
+
+  // Pull authoritative dismissals from the server on first render.
+  useEffect(() => {
+    void hydrateFromServer(docId);
+  }, [docId, hydrateFromServer]);
+
+  // Cross-component "Find in sources list" → switch to sources tab + filter.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const url = (e as CustomEvent<string>).detail;
+      if (typeof url === "string") {
+        setSelectedPassageSource(url);
+      }
+    };
+    window.addEventListener(SELECT_SOURCE_EVENT, handler);
+    return () => window.removeEventListener(SELECT_SOURCE_EVENT, handler);
+  }, []);
+
+  const setDismissalAction = useDismissalsStore((s) => s.set);
+
   const dismissedCount = dismissedForDoc
     ? Object.keys(dismissedForDoc).length
     : 0;
@@ -405,25 +480,26 @@ export default function ScanDetailPage() {
     () => adjustedScore(plagiarismScore, passages, dismissedForDoc),
     [plagiarismScore, passages, dismissedForDoc],
   );
+  const fadedSources = useMemo(
+    () => fullyDismissedSources(passages, dismissedForDoc),
+    [passages, dismissedForDoc],
+  );
 
   const webPct = useMemo(() => {
     const g = matchGroups.find((m) => m.category === "Internet Matches");
     return g
-      ? Math.round(g.percentage * 10) / 10
-      : Math.round(plagiarismScore * 0.35 * 10) / 10;
+      ? Math.round(g.percentage)
+      : Math.round(plagiarismScore * 0.35);
   }, [matchGroups, plagiarismScore]);
 
   const paraphrasePct = useMemo(() => {
     const g = matchGroups.find((m) => m.category === "Paraphrased Similarity");
     return g
-      ? Math.round(g.percentage * 10) / 10
-      : Math.round(plagiarismScore * 0.65 * 10) / 10;
+      ? Math.round(g.percentage)
+      : Math.round(plagiarismScore * 0.65);
   }, [matchGroups, plagiarismScore]);
 
-  const originalPct = Math.max(
-    0,
-    Math.round((100 - plagiarismScore) * 10) / 10,
-  );
+  const originalPct = Math.max(0, Math.round(100 - plagiarismScore));
 
   /* ── Filtered + sorted sources ── */
   const filteredSources = useMemo(() => {
@@ -623,13 +699,20 @@ export default function ScanDetailPage() {
 
         {/* Right column: Score Breakdown */}
         <div className="bg-surface border border-border rounded-2xl p-6">
-          <p className="text-sm text-muted mb-6">
+          <p className="text-sm text-muted mb-1">
             Score breakdown —{" "}
             {matchGroups.length > 0
               ? `${matchGroups.length}-agent`
               : "multi-agent"}{" "}
             consensus
           </p>
+          {dismissedCount > 0 && (
+            <p className="text-[11px] text-muted/80 mb-5 italic">
+              Original breakdown — frozen at scan time. Does not reflect your{" "}
+              {dismissedCount} dismissal{dismissedCount === 1 ? "" : "s"}.
+            </p>
+          )}
+          {dismissedCount === 0 && <div className="mb-5" />}
           <div className="space-y-5">
             {matchGroups.length > 0 ? (
               matchGroups.map((g, i) => {
@@ -653,7 +736,7 @@ export default function ScanDetailPage() {
                       <span
                         className={cn("text-sm font-semibold", cfg.labelColor)}
                       >
-                        {(g.percentage ?? 0).toFixed(1)}%
+                        {Math.round(g.percentage ?? 0)}%
                       </span>
                     </div>
                     <div className="h-2.5 bg-surface2 rounded-full overflow-hidden">
@@ -672,7 +755,7 @@ export default function ScanDetailPage() {
               })
             ) : (
               <div className="text-sm text-muted space-y-1">
-                <p>Plagiarism: {plagiarismScore.toFixed(1)}%</p>
+                <p>Plagiarism: {Math.round(plagiarismScore)}%</p>
                 <p>Original: {originalPct}%</p>
               </div>
             )}
@@ -762,7 +845,28 @@ export default function ScanDetailPage() {
             <>
               <div className="space-y-3">
                 {visibleSources.map((src, i) => (
-                  <SourceCard key={i} src={src} />
+                  <div
+                    key={i}
+                    id={src.url ? sourceAnchorId(src.url) : undefined}
+                    className="transition-shadow rounded-xl"
+                  >
+                    <SourceCard
+                      src={src}
+                      faded={!!src.url && fadedSources.has(src.url)}
+                      isFiltering={selectedPassageSource === src.url}
+                      onFilterByPassage={
+                        src.url
+                          ? () => {
+                              const url = src.url!;
+                              const next =
+                                selectedPassageSource === url ? null : url;
+                              setSelectedPassageSource(next);
+                              if (next) setActiveTab("passages");
+                            }
+                          : undefined
+                      }
+                    />
+                  </div>
                 ))}
               </div>
               {!showAllSources && filteredSources.length > 4 && (
@@ -782,23 +886,128 @@ export default function ScanDetailPage() {
       {/* ── Passages Tab ── */}
       {activeTab === "passages" && (
         <div className="space-y-3">
-          {passages.length === 0 ? (
-            <PassagesEmptyState
-              allPassagesEmpty={true}
-              selectedSource={null}
-              onClearFilter={() => {}}
-              emptyReason={report.empty_reason ?? null}
-            />
-          ) : (
-            passages.map((p, i) => {
+          <PassageMinimap
+            documentId={docId}
+            passages={
+              selectedPassageSource
+                ? passages.filter((p) => p.source === selectedPassageSource)
+                : passages
+            }
+          />
+          {/* Per-source provenance suggestion */}
+          {(() => {
+            if (!selectedPassageSource) return null;
+            const fromSource = passages.filter(
+              (p) => p.source === selectedPassageSource,
+            );
+            if (fromSource.length < 2) return null;
+            const counts = new Map<DismissalKind, number>();
+            const undismissed: typeof fromSource = [];
+            for (const p of fromSource) {
+              const k = dismissedForDoc?.[passageKey(p)];
+              if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
+              else undismissed.push(p);
+            }
+            if (undismissed.length === 0) return null;
+            let topKind: DismissalKind | null = null;
+            let topCount = 0;
+            for (const [k, n] of counts) {
+              if (n > topCount) {
+                topCount = n;
+                topKind = k;
+              }
+            }
+            if (!topKind || topCount < 2) return null;
+            const kind = topKind;
+            return (
+              <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-accent/30 bg-accent/5">
+                <p className="text-xs text-txt/80">
+                  <span className="font-semibold">
+                    {topCount} passage{topCount === 1 ? "" : "s"}
+                  </span>{" "}
+                  from this source already marked as{" "}
+                  <span className="font-semibold">
+                    {dismissalLabel[kind].toLowerCase()}
+                  </span>
+                  . Apply the same to the remaining {undismissed.length}?
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    for (const p of undismissed) {
+                      setDismissalAction(docId, passageKey(p), kind);
+                    }
+                    toast.add(
+                      "success",
+                      `Marked ${undismissed.length} passage${
+                        undismissed.length === 1 ? "" : "s"
+                      } as ${dismissalLabel[kind].toLowerCase()}.`,
+                    );
+                  }}
+                  className="shrink-0 px-3 py-1.5 text-xs font-medium bg-accent/15 hover:bg-accent/25 text-accent-l rounded transition-colors"
+                >
+                  Mark all
+                </button>
+              </div>
+            );
+          })()}
+          {/* Source cross-filter (parity with live Results panel) */}
+          {selectedPassageSource && (
+            <div className="flex items-center justify-between gap-2 px-3 py-2 bg-accent/5 border border-accent/20 rounded-lg flex-wrap">
+              <span className="text-xs text-muted">
+                Filtering by source:{" "}
+                <span className="text-txt break-all">
+                  {selectedPassageSource.length > 60
+                    ? selectedPassageSource.slice(0, 60) + "\u2026"
+                    : selectedPassageSource}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedPassageSource(null)}
+                className="inline-flex items-center gap-1 text-xs text-accent-l hover:text-accent"
+              >
+                <X className="w-3 h-3" />
+                Clear filter
+              </button>
+            </div>
+          )}
+          {(() => {
+            const visible = selectedPassageSource
+              ? passages.filter((p) => p.source === selectedPassageSource)
+              : passages;
+            if (passages.length === 0) {
+              return (
+                <PassagesEmptyState
+                  allPassagesEmpty={true}
+                  selectedSource={null}
+                  onClearFilter={() => {}}
+                  emptyReason={report.empty_reason ?? null}
+                />
+              );
+            }
+            if (visible.length === 0) {
+              return (
+                <PassagesEmptyState
+                  allPassagesEmpty={false}
+                  selectedSource={selectedPassageSource}
+                  onClearFilter={() => setSelectedPassageSource(null)}
+                  emptyReason={report.empty_reason ?? null}
+                />
+              );
+            }
+            return visible.map((p) => {
+              // Use the original index inside `passages` so the rewrite-state
+              // map (rewrittenTexts / rewritingIdx) stays consistent across
+              // filter changes. Dismissals key themselves off (text+source).
+              const i = passages.indexOf(p);
               const matchedSource =
                 (p.source && sourcesByUrl.get(p.source)) || undefined;
               return (
                 <SharedPassageCard
-                  key={i}
+                  key={`${i}::${(p.source ?? "").slice(0, 32)}`}
                   documentId={docId}
                   passage={p}
-                  passageIndex={i}
                   matchedSource={matchedSource}
                   actions={
                     <RewriteActions
@@ -809,8 +1018,8 @@ export default function ScanDetailPage() {
                   }
                 />
               );
-            })
-          )}
+            });
+          })()}
         </div>
       )}
 
@@ -856,7 +1065,7 @@ export default function ScanDetailPage() {
                   <span
                     className={`text-sm font-semibold ${scoreColor(rev.plagiarism_score)}`}
                   >
-                    {(rev.plagiarism_score ?? 0).toFixed(1)}%
+                    {Math.round(rev.plagiarism_score ?? 0)}%
                   </span>
                   <Badge variant={riskVariant(rev.risk_level)}>
                     {rev.risk_level}

@@ -41,7 +41,17 @@ from app.services.api_key_service import (
     revoke_api_key,
 )
 from app.services.email_service import send_password_reset_email, send_verification_email, send_welcome_email
-from app.services.persistence import delete_scan, get_scan, get_user_scans, get_user_stats
+from app.services.persistence import (
+    DISMISSAL_KINDS,
+    clear_all_dismissals,
+    clear_dismissal,
+    delete_scan,
+    get_dismissals,
+    get_scan,
+    get_user_scans,
+    get_user_stats,
+    set_dismissal,
+)
 from app.services.rate_limiter import PLAN_TO_TIER, UserTier, limiter
 
 logger = structlog.get_logger(__name__)
@@ -539,6 +549,76 @@ async def route_scan_revisions(
     if not revisions:
         raise HTTPException(status_code=404, detail="No revisions found.")
     return {"revisions": revisions}
+
+
+# ---------------------------------------------------------------------------
+# Passage dismissals  (server-side persistence of the user's verdicts)
+# ---------------------------------------------------------------------------
+
+class DismissalUpsertRequest(BaseModel):
+    passage_key: str = Field(..., min_length=1, max_length=128)
+    kind: str  # validated below against DISMISSAL_KINDS
+    note: str | None = Field(default=None, max_length=500)
+
+
+def _assert_owns_scan(document_id: str, user_id: int) -> None:
+    scan = get_scan(document_id)
+    if not scan or scan.get("user_id") != user_id:
+        raise HTTPException(status_code=404, detail="Scan not found.")
+
+
+@router.get("/scans/{document_id}/dismissals")
+async def route_list_dismissals(
+    document_id: str,
+    authorization: str = Header(default=""),
+):
+    """Return the user's saved dismissals for a scan."""
+    user_id = _get_user_id(authorization)
+    _assert_owns_scan(document_id, user_id)
+    return {"dismissals": get_dismissals(user_id, document_id)}
+
+
+@router.post("/scans/{document_id}/dismissals")
+async def route_upsert_dismissal(
+    document_id: str,
+    body: DismissalUpsertRequest,
+    authorization: str = Header(default=""),
+):
+    """Insert or update a single dismissal verdict."""
+    user_id = _get_user_id(authorization)
+    _assert_owns_scan(document_id, user_id)
+    if body.kind not in DISMISSAL_KINDS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"kind must be one of {list(DISMISSAL_KINDS)}",
+        )
+    set_dismissal(user_id, document_id, body.passage_key, body.kind, body.note)
+    return {"ok": True}
+
+
+@router.delete("/scans/{document_id}/dismissals/{passage_key}")
+async def route_clear_dismissal(
+    document_id: str,
+    passage_key: str,
+    authorization: str = Header(default=""),
+):
+    """Remove a single dismissal."""
+    user_id = _get_user_id(authorization)
+    _assert_owns_scan(document_id, user_id)
+    removed = clear_dismissal(user_id, document_id, passage_key)
+    return {"ok": True, "removed": removed}
+
+
+@router.delete("/scans/{document_id}/dismissals")
+async def route_clear_all_dismissals(
+    document_id: str,
+    authorization: str = Header(default=""),
+):
+    """Remove every dismissal the user has saved for this scan."""
+    user_id = _get_user_id(authorization)
+    _assert_owns_scan(document_id, user_id)
+    count = clear_all_dismissals(user_id, document_id)
+    return {"ok": True, "removed": count}
 
 
 @router.get("/stats")
