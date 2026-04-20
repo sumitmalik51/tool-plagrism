@@ -487,19 +487,35 @@ export default function ScanDetailPage() {
 
   const webPct = useMemo(() => {
     const g = matchGroups.find((m) => m.category === "Internet Matches");
+    // When the user has dismissed passages, scale the segmented-bar
+    // components proportionally to the adjusted score so the bar matches
+    // the headline number. Guard against divide-by-zero and degenerate
+    // cases where adjusted >= original.
+    const scale =
+      dismissedCount > 0 && plagiarismScore > 0
+        ? Math.min(1, adjusted / plagiarismScore)
+        : 1;
     return g
-      ? Math.round(g.percentage)
-      : Math.round(plagiarismScore * 0.35);
-  }, [matchGroups, plagiarismScore]);
+      ? Math.round(g.percentage * scale)
+      : Math.round(plagiarismScore * 0.35 * scale);
+  }, [matchGroups, plagiarismScore, adjusted, dismissedCount]);
 
   const paraphrasePct = useMemo(() => {
     const g = matchGroups.find((m) => m.category === "Paraphrased Similarity");
+    const scale =
+      dismissedCount > 0 && plagiarismScore > 0
+        ? Math.min(1, adjusted / plagiarismScore)
+        : 1;
     return g
-      ? Math.round(g.percentage)
-      : Math.round(plagiarismScore * 0.65);
-  }, [matchGroups, plagiarismScore]);
+      ? Math.round(g.percentage * scale)
+      : Math.round(plagiarismScore * 0.65 * scale);
+  }, [matchGroups, plagiarismScore, adjusted, dismissedCount]);
 
-  const originalPct = Math.max(0, Math.round(100 - plagiarismScore));
+  // "Original text" share grows when dismissals reduce the plagiarism slice.
+  const originalPct = Math.max(
+    0,
+    Math.round(100 - (dismissedCount > 0 ? adjusted : plagiarismScore)),
+  );
 
   /* ── Filtered + sorted sources ── */
   const filteredSources = useMemo(() => {

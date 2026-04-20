@@ -777,16 +777,25 @@ export function AdjustedScorePill({
         <span className="text-muted">
           (original {Math.round(original)}%{noImpact ? " — no change" : ""})
         </span>
-        <Tooltip content="Undo all dismissals">
-          <button
-            type="button"
-            onClick={onReset}
-            aria-label="Undo all dismissals"
-            className="ml-1 text-muted hover:text-txt"
-          >
-            <RotateCcw className="w-3 h-3" />
-          </button>
-        </Tooltip>
+        {/*
+          Reset button is intentionally NOT wrapped in its own Tooltip:
+          nesting a Radix Tooltip trigger inside another causes both
+          providers to fire on hover/focus, producing flicker and a
+          double-popover. The outer pill already explains the surface;
+          the button only needs an accessible name.
+        */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onReset();
+          }}
+          aria-label="Undo all dismissals"
+          title="Undo all dismissals"
+          className="ml-1 text-muted hover:text-txt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded"
+        >
+          <RotateCcw className="w-3 h-3" />
+        </button>
       </div>
     </Tooltip>
   );
