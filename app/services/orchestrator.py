@@ -148,16 +148,23 @@ async def run_pipeline(
     )
 
     # --- 2. Run detection agents in parallel ----------------------------------
-    tracker.emit("agents", "Running detection agents in parallel...", 20,
-                 agents=["semantic", "web_search", "academic", "ai_detection"])
+    # The semantic agent is gated on its weight: when weight_semantic == 0 its
+    # output is multiplied by zero in the aggregator, so running it just burns
+    # an embedding round-trip per scan. Skip it entirely in that case.
+    detection_agents: list = []
+    agent_names: list[str] = []
+    if settings.weight_semantic > 0:
+        detection_agents.append(SemanticAgent())
+        agent_names.append("Semantic Analysis")
+    detection_agents.extend([WebSearchAgent(), AcademicAgent(), AIDetectionAgent()])
+    agent_names.extend(["Web Search", "Academic Search", "AI Detection"])
 
-    agent_names = ["Semantic Analysis", "Web Search", "Academic Search", "AI Detection"]
-    detection_agents = [
-        SemanticAgent(),
-        WebSearchAgent(),
-        AcademicAgent(),
-        AIDetectionAgent(),
-    ]
+    tracker.emit(
+        "agents",
+        "Running detection agents in parallel...",
+        20,
+        agents=[a.replace(" Analysis", "").replace(" Search", "_search").lower() for a in agent_names],
+    )
 
     agents_done = 0
 
@@ -178,7 +185,7 @@ async def run_pipeline(
         pct = 20 + (agents_done * 15)  # 35, 50, 65, 80
         tracker.emit(
             "agent_done",
-            f"{agent.name} completed ({agents_done}/4)",
+            f"{agent.name} completed ({agents_done}/{len(detection_agents)})",
             min(pct, 75),
             agent_name=agent.name,
             score=result.score,

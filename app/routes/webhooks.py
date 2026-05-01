@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import secrets
 from typing import Any
 
@@ -115,7 +116,7 @@ async def fire_webhooks(user_id: int, event: str, payload: dict[str, Any]) -> No
         if event not in events and "*" not in events:
             continue
 
-        body_bytes = __import__("json").dumps(payload).encode()
+        body_bytes = json.dumps(payload).encode()
         signature = hmac.new(sub["secret"].encode(), body_bytes, hashlib.sha256).hexdigest()
 
         try:

@@ -75,6 +75,12 @@
     .progress-bar { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #6c5ce7, #00b894); animation: progress-fill 25s ease-out forwards; }
     @keyframes wiggle { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-8deg); } 75% { transform: rotate(8deg); } }
     .wiggle { display: inline-block; animation: wiggle .6s ease-in-out infinite; }
+    /* Vestibular accessibility: kill the bouncy emojis + 25-second progress
+       animation when the user has asked the OS for reduced motion. */
+    @media (prefers-reduced-motion: reduce) {
+      .wiggle { animation: none; }
+      .progress-bar { animation: none; width: 100%; }
+    }
   </style>
 </head>
 <body class="bg-bg text-txt min-h-screen flex items-center justify-center relative overflow-hidden">
@@ -163,18 +169,14 @@
       $('errorMsg').classList.add('hidden');
     }
 
-    /* Fun loading overlay controller — 10 unique steps = 20s before any repeat */
+    /* Status copy that maps to what's actually happening on the wire —
+       previously this rotated marketing slogans ("Indexing 250M+ research
+       papers…") that have nothing to do with a login request. */
     const funSteps = [
-      { emoji: '🔐', msg: 'Unlocking your research vault…' },
-      { emoji: '📖', msg: 'Dusting off your manuscripts…' },
-      { emoji: '🎓', msg: 'Checking your academic credentials…' },
-      { emoji: '🧠', msg: 'Warming up the AI brain…' },
-      { emoji: '📡', msg: 'Connecting to scholarly databases…' },
-      { emoji: '🔬', msg: 'Calibrating the plagiarism detector…' },
-      { emoji: '📚', msg: 'Indexing 250M+ research papers…' },
-      { emoji: '☕', msg: 'Brewing a cup of knowledge…' },
-      { emoji: '🚀', msg: 'Almost there, preparing your desk…' },
-      { emoji: '✨', msg: 'Polishing your dashboard…' },
+      { emoji: '🔐', msg: 'Verifying your credentials…' },
+      { emoji: '🔑', msg: 'Issuing your session token…' },
+      { emoji: '📂', msg: 'Loading your account profile…' },
+      { emoji: '✨', msg: 'Opening your dashboard…' },
     ];
     let stepTimer = null;
 

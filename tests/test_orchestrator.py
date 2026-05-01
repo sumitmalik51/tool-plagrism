@@ -38,7 +38,7 @@ async def test_pipeline_returns_report(mock_sem, mock_web, mock_acad, mock_tool,
     assert 0 <= report.confidence_score <= 1
     assert report.risk_level in ("LOW", "MEDIUM", "HIGH")
     assert "Report generated at" in report.explanation
-    assert len(report.agent_results) == 4  # 4 detection agents
+    assert len(report.agent_results) == 3  # 3 detection agents (semantic skipped when weight_semantic == 0)
 
 
 @pytest.mark.asyncio

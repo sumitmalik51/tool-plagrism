@@ -74,9 +74,17 @@ app = FastAPI(
 )
 
 # --- CORS (needed for Foundry agents calling cross-origin) -------------------
-_allowed_origins = [
-    "https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net",
-]
+# Origins are derived from settings (env-driven) so a domain change is not a
+# code change. `app_base_url` is the canonical prod origin; `cors_extra_origins`
+# (comma-separated) lets ops add staging / preview hosts without redeploying
+# code. Debug mode adds local dev origins.
+_allowed_origins: list[str] = []
+if settings.app_base_url:
+    _allowed_origins.append(settings.app_base_url.rstrip("/"))
+if settings.cors_extra_origins:
+    _allowed_origins.extend(
+        o.strip().rstrip("/") for o in settings.cors_extra_origins.split(",") if o.strip()
+    )
 if settings.debug:
     _allowed_origins.extend([
         "http://localhost:8000",
@@ -84,6 +92,8 @@ if settings.debug:
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ])
+# De-dupe while preserving order.
+_allowed_origins = list(dict.fromkeys(_allowed_origins))
 
 app.add_middleware(
     CORSMiddleware,
@@ -216,11 +226,14 @@ async def get_openapi_foundry() -> JSONResponse:
     import json
     import logging
 
-    # Try multiple candidate paths (covers local dev + Azure App Service)
+    # Try multiple candidate paths (covers local dev + Azure App Service).
+    # We deliberately do NOT include `Path.cwd()` — if the process happens to
+    # be launched from a writable / world-readable directory, that becomes a
+    # path-confusion footgun. The two pinned candidates cover every supported
+    # deployment.
     candidates = [
         Path(__file__).resolve().parent.parent / "openai-foundry.json",   # relative to app/
         Path("/home/site/wwwroot/openai-foundry.json"),                   # Azure absolute
-        Path.cwd() / "openai-foundry.json",                              # cwd-relative
     ]
 
     for spec_path in candidates:
@@ -238,118 +251,57 @@ async def get_openapi_foundry() -> JSONResponse:
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
-@app.get("/", include_in_schema=False)
-async def serve_landing() -> FileResponse:
-    """Serve the lightweight landing page for guests / SEO."""
-    return FileResponse(STATIC_DIR / "landing.html")
+# Map URL path -> (filename, optional media type). Drives both the route
+# registration loop below AND any future page-listing UI. Adding a page is a
+# one-line edit instead of an 8-line handler block.
+_STATIC_PAGES: list[tuple[str, str, str | None]] = [
+    ("/",                "landing.html",         None),
+    ("/app",             "index.html",           None),
+    ("/login",           "login.html",           None),
+    ("/signup",          "signup.html",          None),
+    ("/admin",           "admin.html",           None),
+    ("/history",         "history.html",         None),
+    ("/api-docs",        "api-docs.html",        None),
+    ("/batch",           "batch.html",           None),
+    ("/highlight",       "highlight.html",       None),
+    ("/compare",         "compare.html",         None),
+    ("/research-writer", "research-writer.html", None),
+    ("/pricing",         "pricing.html",         None),
+    ("/terms",           "terms.html",           None),
+    ("/privacy",         "privacy.html",         None),
+    ("/about",           "about.html",           None),
+    ("/forgot-password", "forgot-password.html", None),
+    ("/verify-email",    "verify-email.html",    None),
+    ("/robots.txt",      "robots.txt",           "text/plain"),
+    ("/sitemap.xml",     "sitemap.xml",          "application/xml"),
+]
 
 
-@app.get("/app", include_in_schema=False)
-async def serve_app() -> FileResponse:
-    """Serve the full application (dashboard + tools + report)."""
-    return FileResponse(STATIC_DIR / "index.html")
+def _make_static_handler(filename: str, media_type: str | None):
+    """Build a closure that serves a single file. Closure captures by value
+    via default args so all 19 routes don't end up serving the last filename
+    in the loop (Python late-binding gotcha)."""
+    target = STATIC_DIR / filename
+
+    if media_type:
+        async def _handler(_filename: str = filename, _mt: str = media_type) -> FileResponse:
+            return FileResponse(target, media_type=_mt)
+    else:
+        async def _handler(_filename: str = filename) -> FileResponse:
+            return FileResponse(target)
+
+    _handler.__name__ = f"serve_{filename.replace('.', '_').replace('-', '_')}"
+    _handler.__doc__ = f"Serve static page {filename}."
+    return _handler
 
 
-@app.get("/login", include_in_schema=False)
-async def serve_login() -> FileResponse:
-    """Serve the login page."""
-    return FileResponse(STATIC_DIR / "login.html")
-
-
-@app.get("/signup", include_in_schema=False)
-async def serve_signup() -> FileResponse:
-    """Serve the signup page."""
-    return FileResponse(STATIC_DIR / "signup.html")
-
-
-@app.get("/admin", include_in_schema=False)
-async def serve_admin() -> FileResponse:
-    """Serve the admin dashboard page."""
-    return FileResponse(STATIC_DIR / "admin.html")
-
-
-@app.get("/history", include_in_schema=False)
-async def serve_history() -> FileResponse:
-    """Serve the scan history dashboard."""
-    return FileResponse(STATIC_DIR / "history.html")
-
-
-@app.get("/api-docs", include_in_schema=False)
-async def serve_api_docs() -> FileResponse:
-    """Serve the branded API documentation page."""
-    return FileResponse(STATIC_DIR / "api-docs.html")
-
-
-@app.get("/batch", include_in_schema=False)
-async def serve_batch() -> FileResponse:
-    """Serve the batch upload page."""
-    return FileResponse(STATIC_DIR / "batch.html")
-
-
-@app.get("/highlight", include_in_schema=False)
-async def serve_highlight() -> FileResponse:
-    """Serve the Turnitin-style highlight comparison view."""
-    return FileResponse(STATIC_DIR / "highlight.html")
-
-
-@app.get("/compare", include_in_schema=False)
-async def serve_compare() -> FileResponse:
-    """Serve the scan comparison page."""
-    return FileResponse(STATIC_DIR / "compare.html")
-
-
-@app.get("/research-writer", include_in_schema=False)
-async def serve_research_writer() -> FileResponse:
-    """Serve the Research Writer tool page."""
-    return FileResponse(STATIC_DIR / "research-writer.html")
-
-
-@app.get("/pricing", include_in_schema=False)
-async def serve_pricing() -> FileResponse:
-    """Serve the pricing / subscription page."""
-    return FileResponse(STATIC_DIR / "pricing.html")
-
-
-@app.get("/terms", include_in_schema=False)
-async def serve_terms() -> FileResponse:
-    """Serve the Terms of Service page."""
-    return FileResponse(STATIC_DIR / "terms.html")
-
-
-@app.get("/privacy", include_in_schema=False)
-async def serve_privacy() -> FileResponse:
-    """Serve the Privacy Policy page."""
-    return FileResponse(STATIC_DIR / "privacy.html")
-
-
-@app.get("/about", include_in_schema=False)
-async def serve_about() -> FileResponse:
-    """Serve the About / bio page."""
-    return FileResponse(STATIC_DIR / "about.html")
-
-
-@app.get("/forgot-password", include_in_schema=False)
-async def serve_forgot_password() -> FileResponse:
-    """Serve the forgot-password page."""
-    return FileResponse(STATIC_DIR / "forgot-password.html")
-
-
-@app.get("/verify-email", include_in_schema=False)
-async def serve_verify_email() -> FileResponse:
-    """Serve the email verification landing page."""
-    return FileResponse(STATIC_DIR / "verify-email.html")
-
-
-@app.get("/robots.txt", include_in_schema=False)
-async def serve_robots() -> FileResponse:
-    """Serve robots.txt for search engine crawlers."""
-    return FileResponse(STATIC_DIR / "robots.txt", media_type="text/plain")
-
-
-@app.get("/sitemap.xml", include_in_schema=False)
-async def serve_sitemap() -> FileResponse:
-    """Serve sitemap.xml for search engine indexing."""
-    return FileResponse(STATIC_DIR / "sitemap.xml", media_type="application/xml")
+for _path, _file, _mt in _STATIC_PAGES:
+    app.add_api_route(
+        _path,
+        _make_static_handler(_file, _mt),
+        methods=["GET"],
+        include_in_schema=False,
+    )
 
 
 # --- Health check -------------------------------------------------------------

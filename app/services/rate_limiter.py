@@ -43,8 +43,9 @@ class UserTier(str, Enum):
     PREMIUM = "premium"
 
 
-# Backwards-compat alias — DEPRECATED, use UserTier.PRO directly
-UserTier.PAID = UserTier.PRO  # type: ignore[attr-defined]
+# (Removed: `UserTier.PAID = UserTier.PRO` enum monkey-patch. It had no
+# in-tree callers and was breaking type checkers / serializers. The legacy
+# string alias "paid" is still resolved via PLAN_TO_TIER below.)
 
 
 # Map plan_type strings → UserTier
@@ -77,10 +78,16 @@ class UsageRateLimiter:
     - Automatic invalidation at midnight UTC
     """
 
-    # In-memory cache: (identifier, today_str) → (count, expires_at_timestamp)
-    _cache: dict[tuple[str, str], tuple[int, float]] = {}
-    _cache_lock = threading.Lock()
+    # Class-level cache TTL is fine to share — it's just configuration.
     _cache_ttl_seconds = 30  # Cache expires after 30 seconds
+
+    def __init__(self) -> None:
+        # Per-instance cache so each test (or each request-scoped limiter)
+        # gets its own state. Previously this lived on the class, which
+        # meant test isolation required explicit `_cache.clear()` and any
+        # consumer instantiating two limiters silently shared state.
+        self._cache: dict[tuple[str, str], tuple[int, float]] = {}
+        self._cache_lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # Core operations

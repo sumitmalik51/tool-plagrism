@@ -208,12 +208,13 @@ def signup(name: str, email: str, password: str, referral_code: str | None = Non
     if referral_code and referral_code.strip():
         _process_referral(db, user_id, referral_code.strip())
 
-    # Store verification token
+    # Store verification token (7-day expiry, mirroring password resets).
     _ensure_email_verifications_table(db)
     try:
+        verify_expires = int(time.time()) + 7 * 24 * 3600
         db.execute(
-            "INSERT INTO email_verifications (user_id, token) VALUES (?, ?)",
-            (user_id, verification_token),
+            "INSERT INTO email_verifications (user_id, token, expires_at) VALUES (?, ?, ?)",
+            (user_id, verification_token, verify_expires),
         )
     except Exception as exc:
         logger.warning("email_verification_insert_failed", error=str(exc))
@@ -576,16 +577,27 @@ def _ensure_password_resets_table(db) -> None:
 # ---------------------------------------------------------------------------
 
 def verify_email(token: str) -> bool:
-    """Verify a user's email using a verification token. Returns True on success."""
+    """Verify a user's email using a verification token. Returns True on success.
+
+    Tokens older than their `expires_at` (7 days from issue, see signup) are
+    rejected with the same error message as missing/used tokens to avoid
+    leaking which case was hit.
+    """
     db = get_db()
     _ensure_email_verifications_table(db)
 
     row = db.fetch_one(
-        "SELECT user_id FROM email_verifications WHERE token = ?",
+        "SELECT user_id, expires_at FROM email_verifications WHERE token = ?",
         (token,),
     )
     if not row:
         raise AuthError("Invalid or already used verification link.")
+
+    expires_at = row.get("expires_at")
+    if expires_at is not None and int(expires_at) < int(time.time()):
+        # Clean up so a stale token doesn't sit in the table forever.
+        db.execute("DELETE FROM email_verifications WHERE token = ?", (token,))
+        raise AuthError("Verification link has expired. Please request a new one.")
 
     # Mark user as verified — add email_verified column if needed
     _ensure_email_verified_column(db)
@@ -621,16 +633,22 @@ def resend_verification_token(user_id: int) -> str:
     db.execute("DELETE FROM email_verifications WHERE user_id = ?", (user_id,))
 
     token = secrets.token_urlsafe(32)
+    expires_at = int(time.time()) + 7 * 24 * 3600
     db.execute(
-        "INSERT INTO email_verifications (user_id, token) VALUES (?, ?)",
-        (user_id, token),
+        "INSERT INTO email_verifications (user_id, token, expires_at) VALUES (?, ?, ?)",
+        (user_id, token, expires_at),
     )
     logger.info("verification_token_resent", user_id=user_id)
     return token
 
 
 def _ensure_email_verifications_table(db) -> None:
-    """Create the email_verifications table if it doesn't exist."""
+    """Create the email_verifications table if it doesn't exist.
+
+    Also backfills the `expires_at` column for older deployments — verify_email
+    treats a NULL `expires_at` as "non-expiring (legacy)" so existing tokens
+    keep working until consumed or DELETEd.
+    """
     try:
         if _is_mssql(db):
             db.execute(
@@ -639,16 +657,34 @@ def _ensure_email_verifications_table(db) -> None:
                 "  id INT IDENTITY(1,1) PRIMARY KEY,"
                 "  user_id INT NOT NULL,"
                 "  token NVARCHAR(255) NOT NULL,"
+                "  expires_at INT NULL,"
                 "  created_at DATETIME2 NOT NULL DEFAULT GETUTCDATE())"
             )
+            try:
+                db.execute(
+                    "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('email_verifications') AND name = 'expires_at') "
+                    "ALTER TABLE email_verifications ADD expires_at INT NULL"
+                )
+            except Exception:
+                pass
         else:
             db.execute(
                 "CREATE TABLE IF NOT EXISTS email_verifications ("
                 "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
                 "  user_id INTEGER NOT NULL,"
                 "  token TEXT NOT NULL,"
+                "  expires_at INTEGER,"
                 "  created_at TEXT NOT NULL DEFAULT (datetime('now')))"
             )
+            # Backfill the column for SQLite databases created before the
+            # expiry feature shipped. Errors here are expected when the
+            # column already exists.
+            try:
+                db.execute(
+                    "ALTER TABLE email_verifications ADD COLUMN expires_at INTEGER"
+                )
+            except Exception:
+                pass
     except Exception:
         pass
 

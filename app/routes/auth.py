@@ -112,13 +112,33 @@ class _AuthRateLimiter:
 _auth_limiter = _AuthRateLimiter()
 
 
+# RFC 7239 / X-Forwarded-For convention is:
+#     X-Forwarded-For: <client>, <proxy1>, <proxy2>
+# i.e. the LEFTMOST entry is the originating client and each proxy in the
+# chain appends itself on the right. Earlier code took parts[-1] which
+# meant every request from anywhere on the internet bucketed into the
+# closest-proxy IP (Azure App Service front-end), turning per-IP rate
+# limits into a global rate limit and an easy DoS vector.
+#
+# We trust ONE hop in front of us (Azure App Service / a single CDN /
+# reverse proxy). If that assumption changes, bump _TRUSTED_PROXY_HOPS.
+_TRUSTED_PROXY_HOPS = 1
+
+
 def _client_ip(request: Request) -> str:
-    """Best-effort client IP (handles X-Forwarded-For behind proxies)."""
+    """Best-effort client IP (handles X-Forwarded-For behind proxies).
+
+    Returns the leftmost untrusted address from XFF, falling back to the
+    direct peer when XFF is absent.
+    """
     forwarded = request.headers.get("X-Forwarded-For", "")
     if forwarded:
-        # Use rightmost IP (appended by trusted Azure App Service proxy)
         parts = [p.strip() for p in forwarded.split(",") if p.strip()]
-        return parts[-1] if parts else (request.client.host if request.client else "unknown")
+        if parts:
+            # Drop the trusted proxy hops from the right, then take the
+            # leftmost remaining entry as the client.
+            untrusted = parts[: max(1, len(parts) - _TRUSTED_PROXY_HOPS)]
+            return untrusted[0]
     return request.client.host if request.client else "unknown"
 
 

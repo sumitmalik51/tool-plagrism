@@ -147,6 +147,18 @@ class Settings(BaseSettings):
     # Set PG_APP_BASE_URL in production.
     app_base_url: str = "https://plagiarismguard-jl6yu5wij5mu4.azurewebsites.net"
 
+    # Server-side pepper for API-key hashes. When set, API keys are stored as
+    # HMAC-SHA256(pepper, key) instead of bare SHA-256, so a stolen DB cannot
+    # be brute-forced offline without also stealing this secret. Leaving it
+    # empty preserves the legacy bare-SHA-256 behaviour for backwards compat.
+    # Set PG_API_KEY_PEPPER in production.
+    api_key_pepper: str = ""
+
+    # Comma-separated list of additional CORS origins beyond `app_base_url`.
+    # Examples: "https://app.example.com,https://staging.example.com".
+    # In debug mode, common localhost origins are added automatically.
+    cors_extra_origins: str = ""
+
     # Google OAuth — for "Continue with Google" sign-in.
     # Create credentials at https://console.cloud.google.com/apis/credentials
     # Set PG_GOOGLE_CLIENT_ID in both backend and NEXT_PUBLIC_GOOGLE_CLIENT_ID in frontend.

@@ -188,10 +188,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         structlog.contextvars.bind_contextvars(request_id=request_id)
 
         # CSRF check: state-changing requests must have auth or X-Requested-With.
-        # Skip when auth is disabled (no API keys — dev/test mode) so tests pass.
+        #
+        # Previously this was gated on `settings.api_keys` so that dev/test runs
+        # without admin keys configured wouldn't 403. That had a real prod hole:
+        # a JWT-only deployment with no admin API keys configured would also
+        # silently skip the CSRF check. We now always run the check outside of
+        # debug mode and the explicit test bypass, regardless of api_keys.
         if (
             request.method not in self._CSRF_SAFE_METHODS
-            and settings.api_keys
+            and not settings.debug
             and not _is_public_path(request.url.path)
             and not any(request.url.path.startswith(p) for p in self._CSRF_EXEMPT_PREFIXES)
         ):
