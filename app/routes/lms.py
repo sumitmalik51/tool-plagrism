@@ -206,7 +206,8 @@ async def lti_launch(request: Request):
         import httpx
 
         try:
-            resp = httpx.get(platform["jwks_uri"], timeout=10)
+            async with httpx.AsyncClient(timeout=10) as _client:
+                resp = await _client.get(platform["jwks_uri"])
             resp.raise_for_status()
             jwks = resp.json()
             public_keys = {}

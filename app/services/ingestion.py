@@ -9,7 +9,13 @@ import aiofiles
 
 from app.config import settings
 from app.services.text_extractor import extract_text
-from app.utils.helpers import ensure_upload_dir, validate_file_extension, validate_file_size, get_upload_limit_mb
+from app.utils.helpers import (
+    ensure_upload_dir,
+    get_upload_limit_mb,
+    validate_file_extension,
+    validate_file_signature,
+    validate_file_size,
+)
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,6 +40,21 @@ async def ingest_file(filename: str, file_bytes: bytes, plan_type: str = "free",
         limit = get_upload_limit_mb(plan_type)
         raise ValueError(
             f"File exceeds maximum allowed size of {limit} MB."
+        )
+
+    # Magic-byte sniffing — reject spoofed binary formats (e.g. a .pdf whose
+    # body is actually a zip) before they hit PyPDF2 / python-docx parsers,
+    # both of which have a history of CVEs on malformed input.
+    if not validate_file_signature(filename, file_bytes):
+        ext = Path(filename).suffix.lower().lstrip(".") or "file"
+        logger.warning(
+            "file_signature_mismatch",
+            filename=filename,
+            extension=ext,
+            head_hex=file_bytes[:8].hex(),
+        )
+        raise ValueError(
+            f"Uploaded file does not appear to be a valid {ext.upper()} document."
         )
 
     # --- Persist file ---------------------------------------------------------

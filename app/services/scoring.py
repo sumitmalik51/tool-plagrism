@@ -93,10 +93,72 @@ _CITATION_RE = re.compile(
 # Only matches when followed by an uppercase letter (the real sentence start).
 _LEADING_FRAGMENT_RE = re.compile(r'^[a-z]{1,10}\s+(?=[A-Z])')
 
+# Matches URLs (http/https/ftp or naked domain patterns like "pubs.acs.org/...")
+_URL_RE = re.compile(
+    r'https?://[^\s]+|ftp://[^\s]+|(?:[a-z0-9-]+\.)+(?:com|org|net|edu|gov|io|co)\b[/\S]*',
+    re.IGNORECASE,
+)
+
+# DOI patterns
+_DOI_RE = re.compile(r'10\.\d{4,}/[^\s]+', re.IGNORECASE)
+
+# Reference list markers: "[1] ...", "1. Author (2020)", etc.
+_REF_MARKER_RE = re.compile(r'^\s*\[?\d{1,3}\]?[\s.)\-]')
+
 
 def _is_citation_metadata(text: str) -> bool:
     """Return True if text is primarily citation/bibliographic metadata."""
     return len(_CITATION_RE.findall(text)) >= 2
+
+
+def _is_reference_line(text: str) -> bool:
+    """Return True if text looks like a bibliography/reference entry or URL-only snippet.
+
+    Catches:
+    - Text that's mostly URLs, DOIs, or domain names
+    - Short text with a reference-list prefix ("[1]", "2.")
+    - Short passages that are source titles/headers with no real sentence structure
+    """
+    stripped = text.strip()
+    words = stripped.split()
+    word_count = len(words)
+
+    # Strip all URLs and DOIs from the text
+    no_urls = _URL_RE.sub(" ", stripped)
+    no_urls = _DOI_RE.sub(" ", no_urls)
+    no_urls = re.sub(r'\s+', ' ', no_urls).strip()
+
+    remaining_words = len(no_urls.split()) if no_urls else 0
+
+    # If removing URLs/DOIs leaves very little, it's a reference line
+    if word_count > 0 and remaining_words <= 3:
+        return True
+
+    # Short passages (≤ 15 words total): check for sentence structure
+    # Real prose contains function words (articles, verbs, conjunctions)
+    # Source titles / headers are mostly proper nouns and labels
+    if word_count <= 15 and remaining_words <= 10:
+        has_sentence_structure = bool(
+            re.search(
+                r'\b(?:is|are|was|were|has|have|had|been|be|being|'
+                r'the|this|these|those|which|that|who|whom|whose|'
+                r'can|could|may|might|shall|should|will|would|must|'
+                r'because|although|however|therefore|moreover|furthermore|'
+                r'with|from|into|between|through|during|before|after|'
+                r'if|when|where|while|since|until|unless)\b',
+                no_urls,
+                re.IGNORECASE,
+            )
+        )
+        if not has_sentence_structure:
+            return True
+
+    # Reference marker prefix: "[1] ...", "2. Author..."
+    if word_count <= 15 and _REF_MARKER_RE.match(stripped):
+        if len(no_urls) < 60:
+            return True
+
+    return False
 
 
 def _trim_leading_fragment(text: str) -> str:
@@ -126,8 +188,9 @@ def merge_flagged_passages(
     Internal-duplication passages (``internal_chunk_`` sources) are
     excluded because self-similarity within a document is not plagiarism.
 
-    When the same text appears from multiple agents, the entry with the
-    higher similarity score is kept.
+    Deduplication layers:
+    1. Text dedup: same passage text → keep highest score
+    2. Per-source dedup: same (text_prefix, source) → keep highest score
 
     Filters out:
     - internal-duplication passages (``internal_chunk_`` sources)
@@ -136,6 +199,8 @@ def merge_flagged_passages(
     - leading partial-word artefacts from chunk-boundary splits
     """
     best: dict[str, FlaggedPassage] = {}
+    # Per-source dedup: (text_prefix, source_url) → best passage
+    source_dedup: dict[tuple[str, str], FlaggedPassage] = {}
 
     for output in agent_outputs:
         for fp in output.flagged_passages:
@@ -156,6 +221,10 @@ def merge_flagged_passages(
             if _is_citation_metadata(cleaned):
                 continue
 
+            # Skip reference lines (URLs, DOIs, journal headers)
+            if _is_reference_line(cleaned):
+                continue
+
             # Build a possibly-cleaned FlaggedPassage
             if cleaned != stripped:
                 fp = FlaggedPassage(
@@ -165,13 +234,30 @@ def merge_flagged_passages(
                     reason=fp.reason,
                 )
 
-            key = fp.text[:100]  # deduplicate on first 100 chars
-
-            existing = best.get(key)
+            # Layer 1: Text dedup (same passage text, any source)
+            text_key = fp.text[:100]
+            existing = best.get(text_key)
             if existing is None or fp.similarity_score > existing.similarity_score:
-                best[key] = fp
+                best[text_key] = fp
 
+            # Layer 2: Per-source dedup (same text + same source URL)
+            source_key = (fp.text[:100], fp.source or "")
+            existing_src = source_dedup.get(source_key)
+            if existing_src is None or fp.similarity_score > existing_src.similarity_score:
+                source_dedup[source_key] = fp
+
+    # Use per-source deduped results for final output
+    # This ensures the same passage is only reported once per source
     all_passages = sorted(
-        best.values(), key=lambda p: p.similarity_score, reverse=True
+        source_dedup.values(), key=lambda p: p.similarity_score, reverse=True
     )
-    return list(all_passages[:max_passages])
+
+    # Final text-level dedup (same text prefix keeps only top-scoring source)
+    final: dict[str, FlaggedPassage] = {}
+    for fp in all_passages:
+        key = fp.text[:100]
+        if key not in final:
+            final[key] = fp
+
+    result = sorted(final.values(), key=lambda p: p.similarity_score, reverse=True)
+    return list(result[:max_passages])

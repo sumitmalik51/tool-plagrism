@@ -12,6 +12,8 @@ Delegates all computation to the tools layer.
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 
 from app.agents.base_agent import BaseAgent
@@ -24,6 +26,12 @@ from app.tools.arxiv_tool import search_arxiv_multi
 from app.tools.scholar_tool import search_scholar_multi
 from app.tools.similarity_tool import cosine_similarity_matrix
 from app.tools.relevance_scorer import score_relevance
+from app.tools.fingerprint_tool import (
+    idf_filtered_phrase_overlap,
+    idf_weighted_phrase_hits,
+    build_idf_table,
+    longest_common_token_substring,
+)
 
 
 def _extract_queries(chunks: list[str], max_queries: int = 8) -> list[str]:
@@ -61,6 +69,43 @@ def _extract_queries(chunks: list[str], max_queries: int = 8) -> list[str]:
             break
 
     return queries
+
+
+# ---------------------------------------------------------------------------
+# Module-level dedup helpers (pure, testable, recompiled-once)
+# ---------------------------------------------------------------------------
+
+_DOI_PREFIX_RE = re.compile(r"^https?://(?:dx\.)?doi\.org/", re.I)
+_OPENALEX_PREFIX_RE = re.compile(r"^https?://openalex\.org/", re.I)
+
+
+def _canonical(p: dict) -> str:
+    """Canonical key for paper dedup across providers.
+
+    Order of preference:
+      1. bare DOI (10.xxxx/...) — most stable cross-provider key
+      2. bare OpenAlex Work ID (Wxxxx)
+      3. arXiv ID if present
+      4. canonicalized URL (lowercase, no query/fragment)
+    """
+    doi = (p.get("doi") or "").strip()
+    if doi:
+        bare = _DOI_PREFIX_RE.sub("", doi).lower().rstrip("/")
+        if bare:
+            return f"doi:{bare}"
+
+    oa = (p.get("openalex_id") or "").strip()
+    if oa:
+        bare_oa = _OPENALEX_PREFIX_RE.sub("", oa).lower().rstrip("/")
+        if bare_oa:
+            return f"openalex:{bare_oa}"
+
+    arxiv = (p.get("arxiv_id") or "").strip().lower()
+    if arxiv:
+        return f"arxiv:{arxiv}"
+
+    url = (p.get("url") or p.get("scholar_url") or "").lower()
+    return url.split("?", 1)[0].split("#", 1)[0].rstrip("/")
 
 
 class AcademicAgent(BaseAgent):
@@ -220,45 +265,115 @@ class AcademicAgent(BaseAgent):
         # --- 4. Cross-similarity (doc chunks vs paper abstracts) --------------
         sim_matrix = cosine_similarity_matrix(doc_embeddings, paper_embeddings)
 
-        # Use a lower threshold for cross-source matching because abstracts
-        # are summaries — matching verbatim text produces ~0.6-0.8 similarity,
-        # not the 0.8+ seen in self-similarity.
-        base_threshold = settings.semantic_similarity_threshold
-        cross_threshold = max(base_threshold - 0.15, 0.50)
+        # Use the full semantic threshold — do NOT lower it for abstracts.
+        cross_threshold = settings.semantic_similarity_threshold
         flagged: list[FlaggedPassage] = []
         flagged_chunk_indices: set[int] = set()
+
+        # Build per-request IDF over the candidate abstracts/titles
+        idf_table = build_idf_table(paper_texts) if paper_texts else {}
+
+        seen_sources: set[str] = set()
+
+        # Track best evidence for confidence calculation
+        best_hits = 0
+        best_lcs = 0
 
         for i in range(sim_matrix.shape[0]):
             for j in range(sim_matrix.shape[1]):
                 sim_val = float(min(sim_matrix[i, j], 1.0))  # clamp FP rounding
-                if sim_val >= cross_threshold:
-                    flagged_chunk_indices.add(i)
-                    paper = paper_meta[j]
-                    authors = paper.get("authors", [])
-                    author_str = (
-                        ", ".join(authors[:3])
-                        if isinstance(authors, list)
-                        else str(authors)
+                if sim_val < cross_threshold:
+                    continue
+
+                paper = paper_meta[j]
+                abstract = paper.get("abstract") or paper.get("title", "")
+                chunk_snippet = chunks[i][:settings.passage_display_length]
+
+                # IDF-weighted phrase overlap (per-request IDF over abstracts)
+                hits = idf_weighted_phrase_hits(chunk_snippet, abstract, idf_table)
+
+                # Longest common token substring for verbatim detection
+                lcs = longest_common_token_substring(chunk_snippet, abstract)
+
+                # HARD GATE (AND-logic, recalibrated for IDF-weighted hits):
+                # IDF-weighted hits are stricter than the old static-list
+                # count, so the academic threshold drops accordingly.
+                # Strong-embed lane requires very high cosine + long verbatim.
+                primary  = hits >= 2 and lcs >= 10
+                strong   = sim_val >= 0.95 and lcs >= 15
+
+                if not (primary or strong):
+                    continue
+
+                # Per-source dedup
+                canon = _canonical(paper)
+                if canon and canon in seen_sources:
+                    continue
+
+                flagged_chunk_indices.add(i)
+                if canon:
+                    seen_sources.add(canon)
+
+                if hits > best_hits:
+                    best_hits = hits
+                if lcs > best_lcs:
+                    best_lcs = lcs
+
+                authors = paper.get("authors", [])
+                author_str = (
+                    ", ".join(authors[:3])
+                    if isinstance(authors, list)
+                    else str(authors)
+                )
+                year = paper.get("year", "")
+                title = paper.get("title", "Unknown")
+
+                if hits >= 4 and lcs >= 12:
+                    match_quality = "Strong"
+                elif hits >= 2 and lcs >= 10:
+                    match_quality = "Moderate"
+                else:
+                    match_quality = "Weak"
+
+                # match_type: kind of overlap. Academic agent has no full-text
+                # fingerprint, so "exact" requires a long verbatim run; otherwise
+                # IDF-rare phrase hits indicate paraphrase, else semantic-only.
+                if lcs >= 15:
+                    match_type = "exact"
+                elif hits >= 2 and lcs >= 8:
+                    match_type = "paraphrase"
+                else:
+                    match_type = "semantic"
+
+                flagged.append(
+                    FlaggedPassage(
+                        text=chunk_snippet,
+                        similarity_score=sim_val,
+                        source=paper.get("url") or paper.get("openalex_id") or paper.get("scholar_url", ""),
+                        reason=(
+                            f"{match_quality} match ({sim_val:.0%} semantic, "
+                            f"{hits} IDF-rare phrase{'s' if hits != 1 else ''}, "
+                            f"LCS {lcs} words, abstract-only) "
+                            f"with: \"{title}\" by {author_str} ({year})"
+                        ),
+                        match_type=match_type,
                     )
-                    year = paper.get("year", "")
-                    title = paper.get("title", "Unknown")
-                    flagged.append(
-                        FlaggedPassage(
-                            text=chunks[i][:settings.passage_display_length],
-                            similarity_score=sim_val,
-                            source=paper.get("url") or paper.get("openalex_id") or paper.get("scholar_url", ""),
-                            reason=(
-                                f"{sim_val:.0%} similarity with: \"{title}\" "
-                                f"by {author_str} ({year})"
-                            ),
-                        )
-                    )
+                )
 
         # Score = % of chunks that matched a paper
         score = round(
             (len(flagged_chunk_indices) / len(chunks)) * 100, 2
         ) if chunks else 0.0
-        confidence = min(len(papers) / 10, 1.0) * 0.6 + 0.2
+
+        # Evidence-based confidence (NOT paper-count). NO floor.
+        if flagged:
+            evidence = (
+                min(best_hits / 5.0, 1.0) * 0.5
+                + min(best_lcs / 15.0, 1.0) * 0.5
+            )
+            confidence = round(min(evidence, 1.0), 2)
+        else:
+            confidence = 0.0
 
         self.logger.info(
             "academic_analysis_complete",
@@ -268,6 +383,14 @@ class AcademicAgent(BaseAgent):
             papers_found=len(papers),
             flagged_count=len(flagged),
         )
+
+        # Empty-state classification for transparent UX
+        if flagged:
+            empty_reason: str | None = None
+        elif not papers:
+            empty_reason = "no_corpus"
+        else:
+            empty_reason = "no_matches"
 
         return AgentOutput(
             agent_name=self.name,
@@ -281,6 +404,7 @@ class AcademicAgent(BaseAgent):
                 "papers_found": len(papers),
                 "flagged_chunks": len(flagged_chunk_indices),
                 "queries_used": queries,
+                "empty_reason": empty_reason,
             },
         )
 

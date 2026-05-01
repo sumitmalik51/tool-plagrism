@@ -64,6 +64,24 @@ def build_report(
         f"Report generated at {timestamp}."
     )
 
+    # --- Aggregate empty_reason across agents (only when no flagged passages)
+    empty_reason: str | None = None
+    if not aggregation_output.flagged_passages:
+        reasons = [
+            o.details.get("empty_reason")
+            for o in agent_outputs
+            if o.details.get("empty_reason") is not None
+        ]
+        if reasons:
+            if "weak_only" in reasons:
+                empty_reason = "weak_only"
+            elif all(r == "no_corpus" for r in reasons):
+                empty_reason = "no_corpus"
+            else:
+                empty_reason = "no_matches"
+        else:
+            empty_reason = "no_matches"
+
     report = PlagiarismReport(
         document_id=document_id,
         plagiarism_score=aggregation_output.score,
@@ -75,6 +93,7 @@ def build_report(
         flagged_passages=aggregation_output.flagged_passages,
         agent_results=agent_outputs,
         explanation=full_explanation,
+        empty_reason=empty_reason,  # type: ignore[arg-type]
     )
 
     logger.info(

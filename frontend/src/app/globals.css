@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+/* ═══ Theme tokens — switched via [data-theme] on <html> ═══ */
+
+/* Dark (default) */
+:root,
+:root[data-theme="dark"] {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #242836;
+  --border: #2e3348;
+  --txt: #e1e4ed;
+  --muted: #8b8fa3;
+  --accent: #6c5ce7;
+  --accent-l: #a29bfe;
+  --ok: #00b894;
+  --warn: #fdcb6e;
+  --danger: #e17055;
+
+  /* Raw RGB channels for rgb(var(--x) / alpha) usage */
+  --txt-rgb: 225 228 237;
+  --bg-rgb: 15 17 23;
+  --accent-rgb: 108 92 231;
+
+  color-scheme: dark;
+}
+
+/* Light */
+:root[data-theme="light"] {
+  --bg: #ffffff;
+  --surface: #f6f7fa;
+  --surface2: #eceef3;
+  --border: #d9dde6;
+  --txt: #111318;
+  --muted: #5b6374;
+  --accent: #6c5ce7;
+  --accent-l: #7a6bf0;
+  --ok: #0a9872;
+  --warn: #b5820f;
+  --danger: #c93f1c;
+
+  --txt-rgb: 17 19 24;
+  --bg-rgb: 255 255 255;
+  --accent-rgb: 108 92 231;
+
+  color-scheme: light;
+}
+
+/* Map CSS vars → Tailwind theme tokens */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface2);
+  --color-border: var(--border);
+  --color-txt: var(--txt);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-l: var(--accent-l);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* Global theme transition — only when user actively toggles */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition:
+    background-color 280ms ease,
+    color 280ms ease,
+    border-color 280ms ease,
+    fill 280ms ease,
+    stroke 280ms ease !important;
+}
+
+body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* Toast animations */
+@keyframes toast-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes toast-out { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+.toast-enter { animation: toast-in 0.3s ease-out; }
+.toast-exit { animation: toast-out 0.3s ease-in forwards; }
+
+/* Generic fade-in */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }

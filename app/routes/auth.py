@@ -31,6 +31,7 @@ from app.services.auth_service import (
     get_rw_credits,
     deduct_rw_credit,
     add_rw_credits,
+    google_oauth_login,
 )
 from app.services.api_key_service import (
     create_api_key,
@@ -40,7 +41,17 @@ from app.services.api_key_service import (
     revoke_api_key,
 )
 from app.services.email_service import send_password_reset_email, send_verification_email, send_welcome_email
-from app.services.persistence import delete_scan, get_scan, get_user_scans, get_user_stats
+from app.services.persistence import (
+    DISMISSAL_KINDS,
+    clear_all_dismissals,
+    clear_dismissal,
+    delete_scan,
+    get_dismissals,
+    get_scan,
+    get_user_scans,
+    get_user_stats,
+    set_dismissal,
+)
 from app.services.rate_limiter import PLAN_TO_TIER, UserTier, limiter
 
 logger = structlog.get_logger(__name__)
@@ -101,13 +112,33 @@ class _AuthRateLimiter:
 _auth_limiter = _AuthRateLimiter()
 
 
+# RFC 7239 / X-Forwarded-For convention is:
+#     X-Forwarded-For: <client>, <proxy1>, <proxy2>
+# i.e. the LEFTMOST entry is the originating client and each proxy in the
+# chain appends itself on the right. Earlier code took parts[-1] which
+# meant every request from anywhere on the internet bucketed into the
+# closest-proxy IP (Azure App Service front-end), turning per-IP rate
+# limits into a global rate limit and an easy DoS vector.
+#
+# We trust ONE hop in front of us (Azure App Service / a single CDN /
+# reverse proxy). If that assumption changes, bump _TRUSTED_PROXY_HOPS.
+_TRUSTED_PROXY_HOPS = 1
+
+
 def _client_ip(request: Request) -> str:
-    """Best-effort client IP (handles X-Forwarded-For behind proxies)."""
+    """Best-effort client IP (handles X-Forwarded-For behind proxies).
+
+    Returns the leftmost untrusted address from XFF, falling back to the
+    direct peer when XFF is absent.
+    """
     forwarded = request.headers.get("X-Forwarded-For", "")
     if forwarded:
-        # Use rightmost IP (appended by trusted Azure App Service proxy)
         parts = [p.strip() for p in forwarded.split(",") if p.strip()]
-        return parts[-1] if parts else (request.client.host if request.client else "unknown")
+        if parts:
+            # Drop the trusted proxy hops from the right, then take the
+            # leftmost remaining entry as the client.
+            untrusted = parts[: max(1, len(parts) - _TRUSTED_PROXY_HOPS)]
+            return untrusted[0]
     return request.client.host if request.client else "unknown"
 
 
@@ -125,6 +156,11 @@ class SignupRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str = Field(..., min_length=3, max_length=255)
     password: str = Field(..., min_length=1, max_length=128)
+
+
+class GoogleLoginRequest(BaseModel):
+    credential: str = Field(..., min_length=1, description="Google ID token (JWT) from GIS")
+    referral_code: str | None = Field(default=None, max_length=50)
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -206,6 +242,61 @@ async def route_refresh_token(body: RefreshTokenRequest):
     plan_type = payload.get("plan_type", "free")
     new_token = create_access_token(user_id, email, plan_type=plan_type)
     return {"token": new_token}
+
+
+@router.post("/google", response_model=AuthResponse)
+async def route_google_login(body: GoogleLoginRequest, request: Request):
+    """Sign in (or sign up) with a Google ID token from Google Identity Services.
+
+    The frontend obtains a credential JWT via the GIS button; we verify it
+    server-side against Google's public keys to confirm the email is real and
+    matches our configured client ID.
+    """
+    _auth_limiter.check(_client_ip(request))
+
+    if not settings.google_client_id:
+        raise HTTPException(
+            status_code=503,
+            detail="Google sign-in is not configured on this server.",
+        )
+
+    # Verify the ID token. We import lazily so missing dep gives a clean error.
+    try:
+        from google.oauth2 import id_token  # type: ignore
+        from google.auth.transport import requests as google_requests  # type: ignore
+    except ImportError:
+        logger.error("google_auth_library_missing")
+        raise HTTPException(
+            status_code=503,
+            detail="Google sign-in dependency is not installed on the server.",
+        )
+
+    try:
+        idinfo = id_token.verify_oauth2_token(
+            body.credential,
+            google_requests.Request(),
+            settings.google_client_id,
+        )
+    except ValueError as exc:
+        logger.warning("google_token_verification_failed", error=str(exc))
+        raise HTTPException(status_code=401, detail="Invalid Google credential.")
+
+    if not idinfo.get("email_verified"):
+        raise HTTPException(status_code=401, detail="Google email is not verified.")
+
+    email = idinfo.get("email", "")
+    name = idinfo.get("name") or idinfo.get("given_name") or email.split("@")[0]
+
+    try:
+        result = google_oauth_login(email=email, name=name, referral_code=body.referral_code)
+        # Drop is_new_user from response (kept internal); AuthResponse only has user+token
+        result.pop("is_new_user", None)
+        return result
+    except AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.error("google_login_db_error", error_type=type(exc).__name__, error=str(exc))
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable. Please try again in a few seconds.")
 
 
 @router.post("/forgot-password")
@@ -478,6 +569,76 @@ async def route_scan_revisions(
     if not revisions:
         raise HTTPException(status_code=404, detail="No revisions found.")
     return {"revisions": revisions}
+
+
+# ---------------------------------------------------------------------------
+# Passage dismissals  (server-side persistence of the user's verdicts)
+# ---------------------------------------------------------------------------
+
+class DismissalUpsertRequest(BaseModel):
+    passage_key: str = Field(..., min_length=1, max_length=128)
+    kind: str  # validated below against DISMISSAL_KINDS
+    note: str | None = Field(default=None, max_length=500)
+
+
+def _assert_owns_scan(document_id: str, user_id: int) -> None:
+    scan = get_scan(document_id)
+    if not scan or scan.get("user_id") != user_id:
+        raise HTTPException(status_code=404, detail="Scan not found.")
+
+
+@router.get("/scans/{document_id}/dismissals")
+async def route_list_dismissals(
+    document_id: str,
+    authorization: str = Header(default=""),
+):
+    """Return the user's saved dismissals for a scan."""
+    user_id = _get_user_id(authorization)
+    _assert_owns_scan(document_id, user_id)
+    return {"dismissals": get_dismissals(user_id, document_id)}
+
+
+@router.post("/scans/{document_id}/dismissals")
+async def route_upsert_dismissal(
+    document_id: str,
+    body: DismissalUpsertRequest,
+    authorization: str = Header(default=""),
+):
+    """Insert or update a single dismissal verdict."""
+    user_id = _get_user_id(authorization)
+    _assert_owns_scan(document_id, user_id)
+    if body.kind not in DISMISSAL_KINDS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"kind must be one of {list(DISMISSAL_KINDS)}",
+        )
+    set_dismissal(user_id, document_id, body.passage_key, body.kind, body.note)
+    return {"ok": True}
+
+
+@router.delete("/scans/{document_id}/dismissals/{passage_key}")
+async def route_clear_dismissal(
+    document_id: str,
+    passage_key: str,
+    authorization: str = Header(default=""),
+):
+    """Remove a single dismissal."""
+    user_id = _get_user_id(authorization)
+    _assert_owns_scan(document_id, user_id)
+    removed = clear_dismissal(user_id, document_id, passage_key)
+    return {"ok": True, "removed": removed}
+
+
+@router.delete("/scans/{document_id}/dismissals")
+async def route_clear_all_dismissals(
+    document_id: str,
+    authorization: str = Header(default=""),
+):
+    """Remove every dismissal the user has saved for this scan."""
+    user_id = _get_user_id(authorization)
+    _assert_owns_scan(document_id, user_id)
+    count = clear_all_dismissals(user_id, document_id)
+    return {"ok": True, "removed": count}
 
 
 @router.get("/stats")

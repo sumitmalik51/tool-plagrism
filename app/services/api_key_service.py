@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import secrets
 from typing import Any
 
@@ -23,8 +24,35 @@ def _max_keys_for_plan(plan_type: str) -> int:
 
 
 def _hash_key(raw_key: str) -> str:
-    """SHA-256 hash of the raw API key (we never store the full key)."""
-    return hashlib.sha256(raw_key.encode()).hexdigest()
+    """Hash an API key for storage.
+
+    Uses HMAC-SHA256 with `settings.api_key_pepper` when configured — a
+    stolen DB without the pepper cannot be brute-forced offline. When the
+    pepper is empty, falls back to bare SHA-256 so existing keys hashed
+    without a pepper continue to validate. Rotate by setting the pepper and
+    asking users to regenerate keys.
+    """
+    raw_bytes = raw_key.encode()
+    pepper = (settings.api_key_pepper or "").encode()
+    if pepper:
+        return hmac.new(pepper, raw_bytes, hashlib.sha256).hexdigest()
+    return hashlib.sha256(raw_bytes).hexdigest()
+
+
+def _hash_candidates(raw_key: str) -> list[str]:
+    """Return all hashes a raw key could match against.
+
+    During pepper rollout we have to validate keys created BEFORE the pepper
+    was set (bare SHA-256) and keys created AFTER (HMAC). Look up both.
+    """
+    raw_bytes = raw_key.encode()
+    sha = hashlib.sha256(raw_bytes).hexdigest()
+    pepper = (settings.api_key_pepper or "").encode()
+    if pepper:
+        hmac_hash = hmac.new(pepper, raw_bytes, hashlib.sha256).hexdigest()
+        # HMAC first — the common case once rollout completes.
+        return [hmac_hash, sha]
+    return [sha]
 
 
 def create_api_key(user_id: int, name: str = "Default", plan_type: str = "pro") -> dict[str, Any]:
@@ -139,19 +167,29 @@ def validate_api_key(raw_key: str) -> dict[str, Any] | None:
     """Validate a raw API key. Returns user info if valid, None otherwise.
 
     Also updates ``last_used_at`` timestamp.
+
+    During pepper rollout we look up against BOTH the new HMAC hash and the
+    legacy bare-SHA-256 hash, so existing keys keep working until users
+    regenerate them.
     """
     if not raw_key or not raw_key.startswith(_KEY_PREFIX):
         return None
 
     db = get_db()
-    key_hash = _hash_key(raw_key)
+    candidates = _hash_candidates(raw_key)
 
-    row = db.fetch_one(
-        "SELECT k.id, k.user_id, k.name, u.email, u.plan_type "
-        "FROM user_api_keys k JOIN users u ON k.user_id = u.id "
-        "WHERE k.key_hash = ? AND k.is_active = 1",
-        (key_hash,),
-    )
+    # Try each candidate hash. Most deployments will hit the first; the
+    # fallback only fires for legacy keys hashed before the pepper was set.
+    row = None
+    for candidate in candidates:
+        row = db.fetch_one(
+            "SELECT k.id, k.user_id, k.name, u.email, u.plan_type "
+            "FROM user_api_keys k JOIN users u ON k.user_id = u.id "
+            "WHERE k.key_hash = ? AND k.is_active = 1",
+            (candidate,),
+        )
+        if row:
+            break
     if not row:
         return None
 

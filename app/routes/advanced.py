@@ -71,10 +71,13 @@ async def scan_progress_sse(document_id: str):
         try:
             while True:
                 try:
-                    event = await asyncio.wait_for(queue.get(), timeout=300.0)
+                    # Short timeout so we can send keepalive comments to
+                    # prevent proxies / browsers from closing an idle SSE.
+                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
                 except asyncio.TimeoutError:
-                    yield "data: {\"stage\": \"timeout\", \"message\": \"Progress stream timed out\", \"percent\": -1}\n\n"
-                    break
+                    # No progress in 15s — send SSE comment as keepalive
+                    yield ": keepalive\n\n"
+                    continue
 
                 if event is None:
                     # Scan completed
@@ -96,6 +99,7 @@ async def scan_progress_sse(document_id: str):
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
     )

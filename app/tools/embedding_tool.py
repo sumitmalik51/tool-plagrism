@@ -24,25 +24,20 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# The HuggingFace tokenizer (Rust/PyO3) is NOT thread-safe. To avoid blocking
-# on a single lock, we use a dedicated ThreadPoolExecutor with multiple workers.
-# Each worker acquires the lock sequentially, allowing 2-4 concurrent requests
-# to queue and reduce latency vs. a single-threaded bottleneck.
-_model_lock = threading.Lock()
+# Single-worker executor so the model lock isn't contended by multiple
+# threads spinning on acquire() and starving the event loop of GIL time.
 _executor: ThreadPoolExecutor | None = None
 
 
 def _get_executor() -> ThreadPoolExecutor:
-    """Get or create the embedding executor pool."""
+    """Get or create the single-worker embedding executor."""
     global _executor
     if _executor is None:
-        # Use 2-4 workers based on config or CPU count
-        max_workers = getattr(settings, 'embedding_executor_workers', 3)
         _executor = ThreadPoolExecutor(
-            max_workers=max_workers,
+            max_workers=1,
             thread_name_prefix="embedding-worker-"
         )
-        logger.info("embedding_executor_created", max_workers=max_workers)
+        logger.info("embedding_executor_created", max_workers=1)
     return _executor
 
 
@@ -66,29 +61,33 @@ def preload_model() -> None:
         logger.error("model_preload_failed", error=str(exc))
 
 
-def _embed_sync(texts: list[str]) -> NDArray[np.float32]:
-    """Generate embeddings synchronously (CPU-bound).
+_BATCH_SIZE = 32  # Small batches so we release the GIL between them
 
-    Uses ``_model_lock`` to prevent concurrent tokenizer access which
-    triggers the Rust/PyO3 "Already borrowed" panic.
-    """
-    with _model_lock:
-        model = _load_model()
-        embeddings: NDArray[np.float32] = model.encode(
-            texts,
-            batch_size=128,
-            convert_to_numpy=True,
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        )
+
+def _embed_batch_sync(texts: list[str]) -> NDArray[np.float32]:
+    """Generate embeddings for a SMALL batch synchronously (≤32 texts)."""
+    model = _load_model()
+    embeddings: NDArray[np.float32] = model.encode(
+        texts,
+        batch_size=_BATCH_SIZE,
+        convert_to_numpy=True,
+        normalize_embeddings=True,
+        show_progress_bar=False,
+    )
     return embeddings
 
 
 async def generate_embeddings(texts: list[str]) -> NDArray[np.float32]:
     """Generate normalized embeddings for a list of text strings.
 
-    Runs the model in a dedicated thread-pool executor to avoid blocking
-    the event loop and allow concurrent embedding requests to queue up.
+    Splits the input into small batches and yields to the event loop
+    between batches.  This prevents the GIL from being held for 10+
+    seconds during tokenisation of large documents, keeping SSE
+    heartbeats and health checks responsive.
+
+    Uses a **single-worker** thread pool so only one batch runs at a
+    time (the tokenizer is not thread-safe anyway), and competing
+    threads don't spin on a lock starving the event loop.
 
     Args:
         texts: List of text chunks to embed.
@@ -103,7 +102,18 @@ async def generate_embeddings(texts: list[str]) -> NDArray[np.float32]:
     start = time.perf_counter()
     loop = asyncio.get_running_loop()
     executor = _get_executor()
-    embeddings = await loop.run_in_executor(executor, _embed_sync, texts)
+
+    # Split into small batches so the GIL is released between them,
+    # allowing the event loop to process SSE keepalives / health checks.
+    parts: list[NDArray[np.float32]] = []
+    for i in range(0, len(texts), _BATCH_SIZE):
+        batch = texts[i : i + _BATCH_SIZE]
+        emb = await loop.run_in_executor(executor, _embed_batch_sync, batch)
+        parts.append(emb)
+        # Yield control so queued coroutines (heartbeat, SSE, HTTP) run.
+        await asyncio.sleep(0)
+
+    embeddings = np.vstack(parts) if len(parts) > 1 else parts[0]
     elapsed = round(time.perf_counter() - start, 3)
 
     logger.info(
@@ -125,7 +135,7 @@ def generate_embeddings_sync(texts: list[str]) -> dict:
         return {"count": 0, "dimension": 0, "embeddings": []}
 
     start = time.perf_counter()
-    embeddings = _embed_sync(texts)
+    embeddings = _embed_batch_sync(texts)
     elapsed = round(time.perf_counter() - start, 3)
 
     logger.info(

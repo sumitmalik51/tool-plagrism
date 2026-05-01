@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import time
+from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
 
@@ -34,10 +35,16 @@ async def extract_text(file_bytes: bytes, filename: str) -> dict:
     Raises:
         ValueError: If the file type is unsupported or extraction fails.
     """
+    max_bytes = getattr(settings, "max_upload_size_mb", 50) * 1024 * 1024
+    if len(file_bytes) > max_bytes:
+        raise ValueError(
+            f"File too large: {len(file_bytes)} bytes exceeds limit of {max_bytes}"
+        )
+
     ext = Path(filename).suffix.lower()
     start = time.perf_counter()
 
-    extractors: dict[str, callable] = {
+    extractors: dict[str, Callable[[bytes], str]] = {
         ".pdf": _extract_from_pdf,
         ".docx": _extract_from_docx,
         ".txt": _extract_from_txt,
@@ -52,12 +59,20 @@ async def extract_text(file_bytes: bytes, filename: str) -> dict:
     logger.info("extracting_text", filename=filename, file_type=ext)
     import asyncio
     loop = asyncio.get_running_loop()
-    text = await loop.run_in_executor(None, extractor, file_bytes)
+    text, fallback_used = await loop.run_in_executor(None, extractor, file_bytes)
 
     if not text.strip():
         raise ValueError("Extracted text is empty — the file may be scanned or corrupt.")
 
     elapsed = round(time.perf_counter() - start, 3)
+
+    warnings_list: list[str] = []
+    if fallback_used:
+        warnings_list.append("fallback_extractor_used")
+
+    quality = "high"
+    if fallback_used:
+        quality = "medium"
 
     logger.info(
         "extraction_complete",
@@ -72,6 +87,9 @@ async def extract_text(file_bytes: bytes, filename: str) -> dict:
         "text": text,
         "char_count": len(text),
         "elapsed_s": elapsed,
+        "extraction_quality": quality,
+        "fallback_used": fallback_used,
+        "warnings": warnings_list,
     }
 
 
@@ -97,14 +115,17 @@ def chunk_text(
     if overlap is None:
         overlap = settings.chunk_overlap
 
+    if overlap >= chunk_size:
+        raise ValueError(f"overlap ({overlap}) must be less than chunk_size ({chunk_size})")
+
     start = time.perf_counter()
     text = text.strip()
 
     if not text:
-        return {"chunks": [], "chunk_count": 0, "chunk_size": chunk_size, "overlap": overlap}
+        return {"chunks": [], "chunk_count": 0, "chunk_size": chunk_size, "overlap": overlap, "elapsed_s": 0.0}
 
     if len(text) <= chunk_size:
-        return {"chunks": [text], "chunk_count": 1, "chunk_size": chunk_size, "overlap": overlap}
+        return {"chunks": [text], "chunk_count": 1, "chunk_size": chunk_size, "overlap": overlap, "elapsed_s": 0.0}
 
     chunks: list[str] = []
     pos = 0
@@ -134,7 +155,7 @@ def chunk_text(
                 pos += 1
             # Safety: revert if we had to skip more than 50 chars
             if pos - scan_start > 50:
-                pos = scan_start
+                pos = end
 
     elapsed = round(time.perf_counter() - start, 3)
 
@@ -159,21 +180,151 @@ def chunk_text(
 # Private helpers
 # ---------------------------------------------------------------------------
 
-def _extract_from_pdf(file_bytes: bytes) -> str:
+def _detect_column_gap(page, y_start_frac: float = 0.15,
+                       y_end_frac: float = 0.85,
+                       min_words: int = 15,
+                       min_side: int = 5) -> float | None:
+    """Return the x-coordinate of a column gap in a y-region of the page.
+
+    Scans x positions from 35 %–65 % of page width and picks the one
+    crossed by the fewest word bounding boxes.  Returns *None* when the
+    region appears to be single-column.
+    """
+    words = page.extract_words(keep_blank_chars=False)
+    if not words or len(words) < 20:
+        return None
+
+    pw = float(page.width)
+    ph = float(page.height)
+
+    body = [w for w in words
+            if ph * y_start_frac < (w["top"] + w["bottom"]) / 2 < ph * y_end_frac]
+    if len(body) < min_words:
+        return None
+
+    best_x: float | None = None
+    min_cross = len(body)
+    for pct in range(35, 66):
+        x = pw * pct / 100
+        cross = sum(1 for w in body if w["x0"] < x < w["x1"])
+        if cross < min_cross:
+            min_cross = cross
+            best_x = x
+
+    if min_cross > max(2, len(body) * 0.02):
+        return None  # too many words span the "gap"
+
+    # Both halves must contain real content
+    left_n = sum(1 for w in body if w["x1"] <= best_x)
+    right_n = sum(1 for w in body if w["x0"] >= best_x)
+    if min(left_n, right_n) < min_side:
+        return None
+
+    return best_x
+
+
+def _find_column_start_y(page, gap_x: float) -> float:
+    """Find the y-coordinate where two-column body text begins.
+
+    Scans bands down the page and checks for a real physical gap between
+    columns (>15 px).  In single-column text the space between words that
+    happen to sit on either side of *gap_x* is just normal inter-word
+    spacing (~5-10 px).
+    """
+    words = page.extract_words(keep_blank_chars=False)
+    ph = float(page.height)
+    step = max(1, int(ph * 0.015))
+    band_h = ph * 0.03
+    required_consecutive = 3
+
+    consecutive = 0
+    first_y: float | None = None
+
+    for y in range(int(ph * 0.15), int(ph * 0.90), step):
+        band = [w for w in words
+                if y < (w["top"] + w["bottom"]) / 2 < y + band_h]
+        left_ws = [w for w in band if w["x1"] <= gap_x]
+        right_ws = [w for w in band if w["x0"] >= gap_x]
+
+        if len(left_ws) >= 3 and len(right_ws) >= 3:
+            rightmost_left = max(w["x1"] for w in left_ws)
+            leftmost_right = min(w["x0"] for w in right_ws)
+            physical_gap = leftmost_right - rightmost_left
+            # Real column gap is typically 15–40 px; normal word spacing ≤12 px
+            if physical_gap > 12:
+                if consecutive == 0:
+                    first_y = y
+                consecutive += 1
+                if consecutive >= required_consecutive:
+                    return float(first_y)
+            else:
+                consecutive = 0
+                first_y = None
+        else:
+            consecutive = 0
+            first_y = None
+
+    return ph * 0.5  # fallback
+
+
+def _extract_page_columns(page, gap_x: float) -> str:
+    """Extract a two-column page by cropping left / right at *gap_x*."""
+    ph = float(page.height)
+    pw = float(page.width)
+
+    left_text = (page.crop((0, 0, gap_x, ph)).extract_text() or "").strip()
+    right_text = (page.crop((gap_x, 0, pw, ph)).extract_text() or "").strip()
+
+    parts: list[str] = []
+    if left_text:
+        parts.append(left_text)
+    if right_text:
+        parts.append(right_text)
+    return "\n".join(parts)
+
+
+def _extract_page_text(page) -> str:
+    """Extract text from one page, handling full or mixed column layouts."""
+    ph = float(page.height)
+    pw = float(page.width)
+
+    # 1. Full-page two-column?
+    gap_x = _detect_column_gap(page)
+    if gap_x is not None:
+        return _extract_page_columns(page, gap_x)
+
+    # 2. Mixed layout: single-column top + two-column bottom.
+    #    Check only the lower portion of the page for a column gap.
+    gap_x = _detect_column_gap(page, y_start_frac=0.50, y_end_frac=0.95,
+                               min_words=10, min_side=3)
+    if gap_x is not None:
+        y_split = _find_column_start_y(page, gap_x)
+        top = (page.crop((0, 0, pw, y_split)).extract_text() or "").strip()
+        bot_l = (page.crop((0, y_split, gap_x, ph)).extract_text() or "").strip()
+        bot_r = (page.crop((gap_x, y_split, pw, ph)).extract_text() or "").strip()
+        parts = [p for p in [top, bot_l, bot_r] if p]
+        if parts:
+            return "\n".join(parts)
+
+    # 3. Single column
+    return page.extract_text() or ""
+
+
+def _extract_from_pdf(file_bytes: bytes) -> tuple[str, bool]:
     # Primary: pdfplumber (much better at preserving spaces)
     try:
         import pdfplumber
         pages: list[str] = []
         with pdfplumber.open(BytesIO(file_bytes)) as pdf:
             for page in pdf.pages:
-                page_text = page.extract_text()
+                page_text = _extract_page_text(page)
                 if page_text:
                     pages.append(page_text)
         text = "\n".join(pages)
         if text.strip():
-            return _fix_pdf_spacing(text)
-    except Exception:
-        logger.warning("pdfplumber_failed_falling_back_to_pypdf2")
+            return _fix_pdf_spacing(text), False
+    except Exception as exc:
+        logger.warning("pdfplumber_failed_falling_back_to_pypdf2", error=str(exc))
 
     # Fallback: PyPDF2
     reader = PdfReader(BytesIO(file_bytes))
@@ -182,34 +333,331 @@ def _extract_from_pdf(file_bytes: bytes) -> str:
         page_text = page.extract_text()
         if page_text:
             pages.append(page_text)
-    return _fix_pdf_spacing("\n".join(pages))
+    return _fix_pdf_spacing("\n".join(pages)), True
+
+
+# Short function words that commonly get stuck to a preceding word in PDFs.
+# Only 2-3 char words to keep false-positive risk near zero.
+_SUFFIX_WORDS = frozenset([
+    "in", "on", "of", "at", "by", "an", "as", "or", "to", "is", "it",
+    "and", "the", "for", "are", "but", "not", "was", "has", "its",
+])
+
+# Match word tokens of 5+ chars (shorter tokens are unlikely merges)
+_SUFFIX_JOIN_RE = re.compile(r'\b([A-Za-z]{5,})\b')
+
+
+def _split_suffix_joins(text: str) -> str:
+    """Split tokens where a known word has a short function word glued to the end.
+
+    E.g. "Layersin" → "Layers in", "Organicand" → "Organic and".
+    Only splits when the prefix (minus suffix) is in the word set.
+    """
+    def _try(m: re.Match) -> str:
+        token = m.group(1)
+        lower = token.lower()
+        # Don't touch tokens that are already known words
+        if lower in _WORD_SET:
+            return token
+        # Try stripping 2-char then 3-char suffixes
+        for slen in (2, 3):
+            if len(lower) <= slen + 2:
+                continue
+            suffix = lower[-slen:]
+            prefix = lower[:-slen]
+            if suffix in _SUFFIX_WORDS and prefix in _WORD_SET:
+                return token[:-slen] + " " + suffix
+        return token
+
+    return _SUFFIX_JOIN_RE.sub(_try, text)
 
 
 def _fix_pdf_spacing(text: str) -> str:
-    """Post-process extracted PDF text to restore missing spaces."""
-    # Insert space between a lowercase letter and an uppercase letter (camelCase joins)
-    text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
+    """Post-process extracted PDF text to restore missing spaces.
+
+    Uses a two-stage approach: safe fixes always run, expensive DP-based
+    splitting only runs when the text shows signs of severe merge artifacts.
+    """
+    # --- Stage 1: safe fixes (always apply) ---
     # Insert space between a letter and an opening paren
     text = re.sub(r'([a-zA-Z])\(', r'\1 (', text)
-    # Insert space between a closing paren/period/comma and a letter (no space after punctuation)
-    text = re.sub(r'([.,;:)])([a-zA-Z])', r'\1 \2', text)
+    # Insert space between a closing paren/period/comma and a letter OR digit
+    text = re.sub(r'([.,;:)])([a-zA-Z0-9])', r'\1 \2', text)
+    # Insert space between a lowercase letter and an uppercase letter
+    # (camelCase joins like "MetalOxideNanocrystals" → "Metal Oxide Nanocrystals").
+    # This is safe even for clean text — legitimate camelCase tokens in
+    # academic PDFs (e.g. "iPhone") are extremely rare.
+    text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
+    # Split tokens where a known word has a short function word stuck to the end
+    # (e.g. "Layersin" → "Layers in", "Organicand" → "Organic and").
+    # Only fires when prefix is a known word and suffix is a very common
+    # short function word — safe because the intersection is tiny.
+    text = _split_suffix_joins(text)
     # Insert space between a digit and a letter (but not inside known patterns like "3D")
     text = re.sub(r'(\d)([a-zA-Z]{2,})', r'\1 \2', text)
+    # Insert space between a letter and a 4-digit year (e.g. "Interfaces2021")
+    text = re.sub(r'([a-zA-Z])(\d{4})\b', r'\1 \2', text)
     # Collapse multiple spaces
     text = re.sub(r' {2,}', ' ', text)
+
+    # --- Stage 2: DP-based splitting for remaining lowercase merges ---
+    # Always run — the _MERGE_RE pattern (12+ lowercase chars) is specific
+    # enough that it rarely matches real words, and the 200-blob cap
+    # prevents CPU spikes.
+    text = _split_merged_words(text)
+
+    # --- Stage 3: expensive capitalized-join splitting (only when severely broken) ---
+    word_count = max(text.count(' '), 1)
+    non_space_chars = len(text.replace(' ', ''))
+    avg_word_len = non_space_chars / word_count
+    if avg_word_len > 8:
+        # Split tokens where a capitalized prefix is joined to a known word
+        text = _split_capitalized_joins(text)
+        # Collapse multiple spaces again
+        text = re.sub(r' {2,}', ' ', text)
     return text
 
 
-def _extract_from_docx(file_bytes: bytes) -> str:
+# Pattern: a capitalized word token of 6+ chars — short words like "Under"
+# are almost never merge artifacts so skip them for performance.
+_CAP_JOIN_RE = re.compile(r'\b([A-Z][a-z]{5,})\b')
+
+
+def _split_capitalized_joins(text: str) -> str:
+    """Split tokens like 'Inthis' -> 'In this', 'Interfaciallayers' -> 'Interfacial layers'."""
+
+    def _try_cap_split(m: re.Match) -> str:
+        word = m.group(1)
+        lower = word.lower()
+
+        # Check if the full word itself is known (don't split real words)
+        if lower in _WORD_SET:
+            return m.group(0)
+
+        # Only try splitting if the word is plausibly two+ words merged
+        # (at least one valid prefix of 2+ chars that is a known word)
+        has_known_prefix = False
+        for i in range(2, min(len(lower), _MAX_WORD_LEN + 1)):
+            if lower[:i] in _WORD_SET:
+                has_known_prefix = True
+                break
+        if not has_known_prefix:
+            return m.group(0)
+
+        # Try all split points: prefix (capitalized) + suffix (lowercase)
+        for i in range(2, len(lower) - 1):
+            prefix = lower[:i]
+            suffix = lower[i:]
+            if prefix in _WORD_SET and suffix in _WORD_SET:
+                return word[:i] + " " + suffix
+
+            if prefix in _WORD_SET:
+                split_suffix = _dp_split(suffix)
+                if split_suffix:
+                    return word[:i] + " " + split_suffix
+
+        # Try DP on the full lowercase blob
+        split_full = _dp_split(lower)
+        if split_full:
+            words = split_full.split()
+            words[0] = words[0].capitalize()
+            return " ".join(words)
+
+        return m.group(0)
+
+    return _CAP_JOIN_RE.sub(_try_cap_split, text)
+
+
+# ---------------------------------------------------------------------------
+# Word list for merge-point detection (Issue 7: load from file, fallback to inline)
+# ---------------------------------------------------------------------------
+_WORD_LIST_PATH = Path(__file__).resolve().parent / "common_words.txt"
+
+
+def _load_word_set() -> frozenset[str]:
+    """Load words from common_words.txt if available, else use inline fallback."""
+    if _WORD_LIST_PATH.is_file():
+        try:
+            words = _WORD_LIST_PATH.read_text(encoding="utf-8").splitlines()
+            words = [w.strip().lower() for w in words if w.strip() and not w.startswith("#")]
+            if len(words) > 100:
+                return frozenset(words)
+        except Exception:
+            pass
+
+    # Inline fallback — general English + academic terms (no duplicates)
+    return frozenset([
+        "of", "in", "on", "at", "by", "an", "as", "or", "so", "if", "to",
+        "no", "do", "up", "we", "he",
+        "the", "and", "for", "are", "but", "not", "you", "all", "can", "had",
+        "her", "was", "one", "our", "out", "has", "his", "how", "its", "may",
+        "new", "now", "old", "see", "way", "who", "did", "get", "let", "say",
+        "she", "too", "use",
+        "with", "have", "from", "this", "that", "been", "into", "also", "both",
+        "some", "than", "them", "then", "were", "when", "will", "each", "made",
+        "more", "most", "much", "must", "only", "over", "such", "take", "very",
+        "back", "even", "give", "just", "like", "long", "make", "many", "well",
+        "what", "your", "used",
+        "about", "after", "being", "could", "every", "first", "found", "great",
+        "other", "their", "there", "these", "think", "those", "three", "under",
+        "water", "where", "which", "while", "world", "would",
+        "should", "through", "between", "because", "before", "during",
+        "without", "including", "equally", "important", "however", "therefore",
+        "resulting", "recently", "relatively", "significantly", "respectively",
+        "respect", "order", "effect", "effects", "report", "show", "shown",
+        "various", "different", "compared", "observed", "obtained", "proposed",
+        "present", "increase", "decrease", "improved", "lower", "higher",
+        "using", "work", "paper", "figure", "table", "note", "type",
+        "interface", "engineering", "active", "layer", "morphology",
+        "organic", "solar", "cells", "cell", "performance", "materials",
+        "material", "optimization", "electron", "transport", "transporting",
+        "device", "devices", "efficiency", "recent", "advances", "inorganic",
+        "hole", "extraction", "bulk", "heterojunction", "photoactive",
+        "respective", "electrodes", "electrode", "review", "summarize",
+        "progress", "based", "high", "power", "conversion", "exceeding",
+        "resulted", "advantages", "synthetic", "versatility", "absorption",
+        "coefficient", "wavelength", "range", "thermal", "stability",
+        "attained", "interfacial", "layers", "emergence", "nonfullerene",
+        "small", "molecule", "acceptors", "acceptor", "facilitating",
+        "concept", "basic", "application", "structure", "properties",
+        "analysis", "results", "system", "study", "method", "model",
+        "data", "process", "energy", "surface", "film", "optical",
+        "characterization", "measurement", "fabrication", "deposition",
+        "temperature", "annealing", "photovoltaic", "cathode", "anode",
+        "polymer", "blend", "donor", "charge", "transfer",
+        "recombination", "mobility", "current", "density", "voltage",
+        "spectrum", "response", "quantum", "coupling", "interaction",
+    ])
+
+
+_WORD_SET = _load_word_set()
+_MAX_WORD_LEN = max((len(w) for w in _WORD_SET), default=0)
+
+# Match whole tokens of 14+ alphabetic characters — likely merge artifacts.
+# Works on word boundaries so we get the full token for DP splitting.
+_MERGE_RE = re.compile(r'\b([a-zA-Z]{14,})\b')
+
+# Cap the number of blobs processed per document to avoid CPU spikes.
+_MAX_BLOB_SPLITS = 200
+
+
+def _split_merged_words(text: str) -> str:
+    """Find long tokens (14+ chars) and try to split them into words."""
+    count = 0
+
+    def _try_split(match: re.Match) -> str:
+        nonlocal count
+        if count >= _MAX_BLOB_SPLITS:
+            return match.group()
+        count += 1
+        token = match.group(1)
+        lower = token.lower()
+        # Skip tokens that are already known words
+        if lower in _WORD_SET:
+            return match.group()
+        result = _dp_split(lower)
+        if result:
+            # Preserve leading capitalisation from the original token
+            if token[0].isupper():
+                words = result.split()
+                words[0] = words[0].capitalize()
+                return " ".join(words)
+            return result
+        return match.group()
+
+    return _MERGE_RE.sub(_try_split, text)
+
+
+def _dp_split(blob: str) -> str | None:
+    """Use DP to find the segmentation that maximizes known-word coverage.
+
+    Returns space-separated words if >=60% of chars are covered.
+    Does NOT break on the first matching word — explores all lengths so that
+    the globally best split is found (Issue 6).
+    """
+    n = len(blob)
+    if n == 0:
+        return None
+
+    NEG_INF = float("-inf")
+
+    # dp[i] = max covered chars for blob[0:i], parent for traceback
+    dp = [NEG_INF] * (n + 1)
+    dp[0] = 0
+    parent: list[tuple[int, bool]] = [(-1, False)] * (n + 1)
+
+    for i in range(n):
+        if dp[i] == NEG_INF:
+            continue
+
+        # Try ALL known words starting at i (no break — pick the best globally)
+        for wlen in range(min(_MAX_WORD_LEN, n - i), 0, -1):
+            candidate = blob[i:i + wlen]
+            if candidate in _WORD_SET:
+                new_cov = dp[i] + wlen
+                if new_cov > dp[i + wlen]:
+                    dp[i + wlen] = new_cov
+                    parent[i + wlen] = (i, True)
+
+        # Also allow consuming one char as unknown
+        if dp[i] > dp[i + 1]:
+            dp[i + 1] = dp[i]
+            parent[i + 1] = (i, False)
+
+    if dp[n] == NEG_INF or dp[n] / n < 0.6:
+        return None
+
+    # Traceback
+    segments: list[str] = []
+    pos = n
+    while pos > 0:
+        start, _ = parent[pos]
+        segments.append(blob[start:pos])
+        pos = start
+    segments.reverse()
+
+    # Merge adjacent unknown fragments
+    merged: list[str] = []
+    for seg in segments:
+        if seg not in _WORD_SET and merged and merged[-1] not in _WORD_SET:
+            merged[-1] += seg
+        else:
+            merged.append(seg)
+
+    if len(merged) <= 1:
+        return None
+
+    # Validate the split quality:
+    # 1. If ALL segments are known words and there are 2+, accept (perfect split)
+    # 2. Otherwise require at least 2 substantive (≥3 chars) known words
+    #    to avoid false splits like "infrastructure" → "in fr a structure"
+    known_count = sum(1 for s in merged if s in _WORD_SET)
+    all_known = all(s in _WORD_SET for s in merged)
+    if all_known and known_count >= 2:
+        pass  # perfect split — accept
+    else:
+        substantive = sum(1 for s in merged if s in _WORD_SET and len(s) >= 3)
+        if substantive < 2:
+            return None
+        # If unknown fragments are longer than 2 chars each on average, bail
+        unknown_segs = [s for s in merged if s not in _WORD_SET]
+        unknown_chars = sum(len(s) for s in unknown_segs)
+        if unknown_segs and unknown_chars / len(unknown_segs) > 2:
+            return None
+
+    return " ".join(merged)
+
+
+def _extract_from_docx(file_bytes: bytes) -> tuple[str, bool]:
     doc = DocxDocument(BytesIO(file_bytes))
-    return "\n".join(para.text for para in doc.paragraphs if para.text.strip())
+    return "\n".join(para.text for para in doc.paragraphs if para.text.strip()), False
 
 
-def _extract_from_txt(file_bytes: bytes) -> str:
-    return file_bytes.decode("utf-8", errors="replace")
+def _extract_from_txt(file_bytes: bytes) -> tuple[str, bool]:
+    return file_bytes.decode("utf-8", errors="replace"), False
 
 
-def _extract_from_pptx(file_bytes: bytes) -> str:
+def _extract_from_pptx(file_bytes: bytes) -> tuple[str, bool]:
     """Extract text from a PowerPoint (.pptx) file."""
     prs = Presentation(BytesIO(file_bytes))
     slides_text: list[str] = []
@@ -229,10 +677,10 @@ def _extract_from_pptx(file_bytes: bytes) -> str:
                             parts.append(text)
         if parts:
             slides_text.append("\n".join(parts))
-    return "\n\n".join(slides_text)
+    return "\n\n".join(slides_text), False
 
 
-def _extract_from_latex(file_bytes: bytes) -> str:
+def _extract_from_latex(file_bytes: bytes) -> tuple[str, bool]:
     """Extract plain text from a LaTeX (.tex) file by stripping commands."""
     raw = file_bytes.decode("utf-8", errors="replace")
 
@@ -249,9 +697,17 @@ def _extract_from_latex(file_bytes: bytes) -> str:
     raw = re.sub(r"\\(ref|eqref|pageref)\{[^}]*\}", "[ref]", raw)
     raw = re.sub(r"\\(cite|citep|citet|parencite|textcite|autocite)(\[[^\]]*\])?\{([^}]*)\}", r"[\3]", raw)
 
-    # Preserve text from formatting commands
-    raw = re.sub(r"\\(textbf|textit|emph|underline|texttt|textrm|textsf|textsc)\{([^}]*)\}", r"\2", raw)
-    raw = re.sub(r"\\(title|author|date|chapter|section|subsection|subsubsection|paragraph|subparagraph)\*?\{([^}]*)\}", r"\2", raw)
+    # Preserve text from formatting commands (loop handles nested braces)
+    _fmt_re = re.compile(r"\\(textbf|textit|emph|underline|texttt|textrm|textsf|textsc)\{([^}]*)\}")
+    prev = None
+    while prev != raw:
+        prev = raw
+        raw = _fmt_re.sub(r"\2", raw)
+    _section_re = re.compile(r"\\(title|author|date|chapter|section|subsection|subsubsection|paragraph|subparagraph)\*?\{([^}]*)\}")
+    prev = None
+    while prev != raw:
+        prev = raw
+        raw = _section_re.sub(r"\2", raw)
     raw = re.sub(r"\\(footnote|footnotetext)\{([^}]*)\}", r" \2", raw)
     raw = re.sub(r"\\caption\{([^}]*)\}", r"\1", raw)
 
@@ -272,7 +728,7 @@ def _extract_from_latex(file_bytes: bytes) -> str:
     raw = re.sub(r"[ \t]+", " ", raw)
     raw = re.sub(r"\n{3,}", "\n\n", raw)
 
-    return raw.strip()
+    return raw.strip(), False
 
 
 def _find_sentence_boundary(text: str, start: int, end: int) -> int:

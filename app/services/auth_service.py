@@ -56,20 +56,44 @@ _JWT_ALGORITHM = "HS256"
 def _get_jwt_secret() -> str:
     """Return the JWT signing secret.
 
-    When PG_JWT_SECRET is not set, auto-generates a runtime secret and logs
-    a warning. Tokens signed with the auto-generated secret will not survive
-    a server restart — users will need to log in again.
+    Production (``PG_DEBUG=false``) refuses to start without ``PG_JWT_SECRET``
+    via ``Settings._validate_production_secrets``, so by the time this is
+    reached in prod the secret is set.
+
+    In dev (``PG_DEBUG=true``) we lazily generate a per-process secret so
+    single-worker `uvicorn --reload` works out of the box. With multiple
+    workers, each process would mint a different secret and tokens would
+    randomly fail validation — so we surface a loud warning and recommend
+    setting ``PG_JWT_SECRET`` explicitly.
     """
     secret = settings.jwt_secret
-    if not secret:
-        if not settings.debug:
-            logger.warning(
-                "jwt_secret_not_configured",
-                hint="Set PG_JWT_SECRET for persistent sessions. "
-                     "Auto-generating a temporary secret — tokens will not survive restart.",
-            )
-        secret = os.environ.setdefault("PG_JWT_SECRET", secrets.token_hex(32))
-    return secret
+    if secret:
+        return secret
+
+    # In production this should never happen (config validator catches it).
+    # Refuse to mint tokens with an ephemeral secret instead of silently
+    # creating one that won't validate across worker processes.
+    if not settings.debug:
+        raise RuntimeError(
+            "PG_JWT_SECRET is not set. Refusing to issue/verify JWTs with an "
+            "ephemeral secret in production. Set PG_JWT_SECRET to a value from "
+            "`openssl rand -base64 32`."
+        )
+
+    # Dev only: cache one secret per process. Warn so users know multi-worker
+    # dev setups need an explicit secret.
+    global _DEV_JWT_SECRET
+    if not _DEV_JWT_SECRET:
+        _DEV_JWT_SECRET = secrets.token_hex(32)
+        logger.warning(
+            "jwt_secret_dev_ephemeral",
+            hint="Generated a per-process JWT secret. Set PG_JWT_SECRET if "
+                 "running multiple workers — tokens will not validate across them.",
+        )
+    return _DEV_JWT_SECRET
+
+
+_DEV_JWT_SECRET: str = ""
 
 
 def create_access_token(user_id: int, email: str, plan_type: str = "free") -> str:
@@ -184,12 +208,13 @@ def signup(name: str, email: str, password: str, referral_code: str | None = Non
     if referral_code and referral_code.strip():
         _process_referral(db, user_id, referral_code.strip())
 
-    # Store verification token
+    # Store verification token (7-day expiry, mirroring password resets).
     _ensure_email_verifications_table(db)
     try:
+        verify_expires = int(time.time()) + 7 * 24 * 3600
         db.execute(
-            "INSERT INTO email_verifications (user_id, token) VALUES (?, ?)",
-            (user_id, verification_token),
+            "INSERT INTO email_verifications (user_id, token, expires_at) VALUES (?, ?, ?)",
+            (user_id, verification_token, verify_expires),
         )
     except Exception as exc:
         logger.warning("email_verification_insert_failed", error=str(exc))
@@ -250,6 +275,97 @@ def login(email: str, password: str) -> dict[str, Any]:
         },
         "token": token,
         "refresh_token": refresh,
+    }
+
+
+def google_oauth_login(email: str, name: str, referral_code: str | None = None) -> dict[str, Any]:
+    """Sign in (or sign up) a user via a verified Google identity.
+
+    Caller MUST have already verified the Google ID token. We trust the
+    ``email`` and ``name`` arguments here.
+
+    Returns the same shape as ``login()`` / ``signup()``.
+    """
+    if not email or "@" not in email:
+        raise AuthError("Google did not return a valid email.")
+
+    email = email.strip().lower()
+    name = (name or email.split("@")[0]).strip()[:100] or "User"
+
+    db = get_db()
+    _ensure_trial_ends_at_column(db)
+    _ensure_referral_tables(db)
+
+    existing = db.fetch_one(
+        "SELECT id, name, email, plan_type, trial_ends_at FROM users WHERE email = ?",
+        (email,),
+    )
+
+    if existing:
+        # Existing user — just issue tokens (no password check needed; Google verified).
+        plan_type, trial_ends_at = _check_trial_expiry(
+            db, existing["id"], existing.get("plan_type", "free"), existing.get("trial_ends_at")
+        )
+        token = create_access_token(existing["id"], existing["email"], plan_type=plan_type)
+        refresh = create_refresh_token(existing["id"], existing["email"])
+        logger.info("user_login_google", user_id=existing["id"], email=email)
+        return {
+            "user": {
+                "id": existing["id"],
+                "name": existing["name"],
+                "email": existing["email"],
+                "plan_type": plan_type,
+                "trial_ends_at": trial_ends_at,
+            },
+            "token": token,
+            "refresh_token": refresh,
+            "is_new_user": False,
+        }
+
+    # New user — create account with a random unguessable password
+    # (they will only ever sign in via Google; password reset still works if they want).
+    random_password = secrets.token_urlsafe(32)
+    hashed = _hash_password(random_password)
+    my_referral_code = secrets.token_urlsafe(8)
+    trial_ends_at = (datetime.now(timezone.utc) + timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    user_id = db.execute(
+        "INSERT INTO users (name, email, password, plan_type, trial_ends_at, referral_code) VALUES (?, ?, ?, ?, ?, ?)",
+        (name, email, hashed, "pro", trial_ends_at, my_referral_code),
+    )
+
+    if referral_code and referral_code.strip():
+        try:
+            _process_referral(db, user_id, referral_code.strip())
+        except Exception as exc:
+            logger.warning("google_signup_referral_failed", error=str(exc))
+
+    # Mark email as verified — Google already verified it for us.
+    _ensure_email_verifications_table(db)
+    try:
+        db.execute(
+            "UPDATE users SET email_verified = 1 WHERE id = ?",
+            (user_id,),
+        )
+    except Exception:
+        pass  # column may not exist on older schemas
+
+    token = create_access_token(user_id, email, plan_type="pro")
+    refresh = create_refresh_token(user_id, email)
+    logger.info("user_created_google", user_id=user_id, email=email)
+
+    return {
+        "user": {
+            "id": user_id,
+            "name": name,
+            "email": email,
+            "plan_type": "pro",
+            "trial_ends_at": trial_ends_at,
+            "referral_code": my_referral_code,
+        },
+        "token": token,
+        "refresh_token": refresh,
+        "is_new_user": True,
     }
 
 
@@ -461,16 +577,27 @@ def _ensure_password_resets_table(db) -> None:
 # ---------------------------------------------------------------------------
 
 def verify_email(token: str) -> bool:
-    """Verify a user's email using a verification token. Returns True on success."""
+    """Verify a user's email using a verification token. Returns True on success.
+
+    Tokens older than their `expires_at` (7 days from issue, see signup) are
+    rejected with the same error message as missing/used tokens to avoid
+    leaking which case was hit.
+    """
     db = get_db()
     _ensure_email_verifications_table(db)
 
     row = db.fetch_one(
-        "SELECT user_id FROM email_verifications WHERE token = ?",
+        "SELECT user_id, expires_at FROM email_verifications WHERE token = ?",
         (token,),
     )
     if not row:
         raise AuthError("Invalid or already used verification link.")
+
+    expires_at = row.get("expires_at")
+    if expires_at is not None and int(expires_at) < int(time.time()):
+        # Clean up so a stale token doesn't sit in the table forever.
+        db.execute("DELETE FROM email_verifications WHERE token = ?", (token,))
+        raise AuthError("Verification link has expired. Please request a new one.")
 
     # Mark user as verified — add email_verified column if needed
     _ensure_email_verified_column(db)
@@ -506,16 +633,22 @@ def resend_verification_token(user_id: int) -> str:
     db.execute("DELETE FROM email_verifications WHERE user_id = ?", (user_id,))
 
     token = secrets.token_urlsafe(32)
+    expires_at = int(time.time()) + 7 * 24 * 3600
     db.execute(
-        "INSERT INTO email_verifications (user_id, token) VALUES (?, ?)",
-        (user_id, token),
+        "INSERT INTO email_verifications (user_id, token, expires_at) VALUES (?, ?, ?)",
+        (user_id, token, expires_at),
     )
     logger.info("verification_token_resent", user_id=user_id)
     return token
 
 
 def _ensure_email_verifications_table(db) -> None:
-    """Create the email_verifications table if it doesn't exist."""
+    """Create the email_verifications table if it doesn't exist.
+
+    Also backfills the `expires_at` column for older deployments — verify_email
+    treats a NULL `expires_at` as "non-expiring (legacy)" so existing tokens
+    keep working until consumed or DELETEd.
+    """
     try:
         if _is_mssql(db):
             db.execute(
@@ -524,16 +657,34 @@ def _ensure_email_verifications_table(db) -> None:
                 "  id INT IDENTITY(1,1) PRIMARY KEY,"
                 "  user_id INT NOT NULL,"
                 "  token NVARCHAR(255) NOT NULL,"
+                "  expires_at INT NULL,"
                 "  created_at DATETIME2 NOT NULL DEFAULT GETUTCDATE())"
             )
+            try:
+                db.execute(
+                    "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('email_verifications') AND name = 'expires_at') "
+                    "ALTER TABLE email_verifications ADD expires_at INT NULL"
+                )
+            except Exception:
+                pass
         else:
             db.execute(
                 "CREATE TABLE IF NOT EXISTS email_verifications ("
                 "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
                 "  user_id INTEGER NOT NULL,"
                 "  token TEXT NOT NULL,"
+                "  expires_at INTEGER,"
                 "  created_at TEXT NOT NULL DEFAULT (datetime('now')))"
             )
+            # Backfill the column for SQLite databases created before the
+            # expiry feature shipped. Errors here are expected when the
+            # column already exists.
+            try:
+                db.execute(
+                    "ALTER TABLE email_verifications ADD COLUMN expires_at INTEGER"
+                )
+            except Exception:
+                pass
     except Exception:
         pass
 

@@ -148,7 +148,7 @@ def test_merge_filters_short_fragments() -> None:
     """Fragments shorter than min thresholds should be excluded."""
     fp_short = FlaggedPassage(text="vs.", similarity_score=1.0, reason="too short")
     fp_ok = FlaggedPassage(
-        text="photovoltaic parameters of flexible and non-flexible solar cells",
+        text="The photovoltaic parameters of flexible solar cells were measured under standard conditions with variable illumination",
         similarity_score=0.85,
         reason="real match",
     )
@@ -198,7 +198,7 @@ def test_merge_filters_citation_metadata() -> None:
 def test_merge_trims_leading_fragment() -> None:
     """Leading partial-word artefacts from chunk splits are trimmed."""
     fp = FlaggedPassage(
-        text="rticle Stability of Non-Flexible vs. Flexible Inverted Bulk-Heterojunction Organic Solar Cells",
+        text="rticle The stability of non-flexible inverted bulk-heterojunction organic solar cells was investigated under thermal stress conditions",
         similarity_score=0.82,
         reason="internal dup",
     )
@@ -207,7 +207,7 @@ def test_merge_trims_leading_fragment() -> None:
     ]
     merged = merge_flagged_passages(outputs)
     assert len(merged) == 1
-    assert merged[0].text.startswith("Stability of Non-Flexible")
+    assert merged[0].text.startswith("The stability of non-flexible")
 
 
 def test_trim_leading_fragment_no_op() -> None:

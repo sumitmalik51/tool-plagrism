@@ -108,14 +108,36 @@ def save_scan(
 
 
 def get_scan(document_id: str) -> dict[str, Any] | None:
-    """Retrieve the latest scan for a document."""
+    """Retrieve the latest scan for a document.
+
+    ``report_json`` is stored as a JSON string in the DB but returned
+    as a parsed dict so the API consumer gets a real object.
+    The document filename is joined from the ``documents`` table.
+    """
     db = get_db()
-    return db.fetch_one(
-        "SELECT id, document_id, user_id, plagiarism_score, confidence_score, "
-        "risk_level, sources_count, flagged_count, report_json, created_at "
-        "FROM scans WHERE document_id = ? ORDER BY created_at DESC",
+    row = db.fetch_one(
+        "SELECT s.id, s.document_id, s.user_id, s.plagiarism_score, "
+        "s.confidence_score, s.risk_level, s.sources_count, s.flagged_count, "
+        "s.report_json, s.created_at, d.filename "
+        "FROM scans s "
+        "LEFT JOIN documents d ON s.document_id = d.document_id "
+        "WHERE s.document_id = ? ORDER BY s.created_at DESC",
         (document_id,),
     )
+    if not row:
+        return None
+
+    # Parse the JSON blob so the API returns a real object, not a string.
+    raw = row.get("report_json")
+    if isinstance(raw, str) and raw.strip():
+        try:
+            row["report_json"] = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            row["report_json"] = {}
+    elif not raw:
+        row["report_json"] = {}
+
+    return row
 
 
 def get_document_revisions(document_id: str, user_id: int) -> list[dict[str, Any]]:
@@ -229,6 +251,96 @@ def get_user_stats(user_id: int) -> dict[str, Any]:
         "total_documents": total_docs,
         "average_score": avg_score,
         "risk_breakdown": risk_breakdown,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Passage dismissals (user verdicts on flagged passages)
+# ═══════════════════════════════════════════════════════════════════════════
+
+DISMISSAL_KINDS = ("quotation", "prior_work", "false_positive")
+
+
+def set_dismissal(
+    user_id: int,
+    document_id: str,
+    passage_key: str,
+    kind: str,
+    note: str | None = None,
+) -> None:
+    """Insert or update a dismissal verdict for a passage.
+
+    Uses delete-then-insert (works for both SQLite and Azure SQL without
+    relying on dialect-specific UPSERT syntax).
+    """
+    if kind not in DISMISSAL_KINDS:
+        raise ValueError(f"invalid dismissal kind: {kind!r}")
+    db = get_db()
+    db.execute(
+        "DELETE FROM passage_dismissals "
+        "WHERE user_id = ? AND document_id = ? AND passage_key = ?",
+        (user_id, document_id, passage_key),
+    )
+    db.execute(
+        "INSERT INTO passage_dismissals (user_id, document_id, passage_key, kind, note) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (user_id, document_id, passage_key, kind, note),
+    )
+
+
+def clear_dismissal(user_id: int, document_id: str, passage_key: str) -> bool:
+    """Remove a single dismissal. Returns True if a row was removed."""
+    db = get_db()
+    existing = db.fetch_one(
+        "SELECT id FROM passage_dismissals "
+        "WHERE user_id = ? AND document_id = ? AND passage_key = ?",
+        (user_id, document_id, passage_key),
+    )
+    if not existing:
+        return False
+    db.execute(
+        "DELETE FROM passage_dismissals "
+        "WHERE user_id = ? AND document_id = ? AND passage_key = ?",
+        (user_id, document_id, passage_key),
+    )
+    return True
+
+
+def clear_all_dismissals(user_id: int, document_id: str) -> int:
+    """Remove every dismissal for a (user, document). Returns rows removed."""
+    db = get_db()
+    rows = db.fetch_all(
+        "SELECT id FROM passage_dismissals WHERE user_id = ? AND document_id = ?",
+        (user_id, document_id),
+    )
+    if not rows:
+        return 0
+    db.execute(
+        "DELETE FROM passage_dismissals WHERE user_id = ? AND document_id = ?",
+        (user_id, document_id),
+    )
+    return len(rows)
+
+
+def get_dismissals(user_id: int, document_id: str) -> dict[str, dict[str, Any]]:
+    """Return all dismissals for a (user, document) keyed by passage_key.
+
+    Each value is ``{"kind": str, "note": str | None, "created_at": str}``.
+    """
+    db = get_db()
+    rows = db.fetch_all(
+        "SELECT passage_key, kind, note, created_at, updated_at "
+        "FROM passage_dismissals WHERE user_id = ? AND document_id = ?",
+        (user_id, document_id),
+    )
+    return {
+        r["passage_key"]: {
+            "kind": r["kind"],
+            "note": r.get("note"),
+            "created_at": str(r.get("created_at") or ""),
+            "updated_at": str(r.get("updated_at") or ""),
+        }
+        for r in rows
     }
 
 

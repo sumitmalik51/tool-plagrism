@@ -236,3 +236,73 @@ async def test_web_search_agent_page_content_used(
 
     assert result.details["status"] == "completed"
     assert result.details.get("pages_fetched", 0) >= 1
+
+
+# ---------------------------------------------------------------------------
+# M3: Negative gate test — same topic, different words must NOT be flagged
+# Mirrors test_academic_agent_rejects_same_topic_different_words to lock in
+# the false-positive fix for the web pipeline.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@patch("app.agents.web_search_agent.fetch_page_text", new_callable=AsyncMock)
+@patch("app.agents.web_search_agent.search_multiple", new_callable=AsyncMock)
+@patch("app.agents.web_search_agent.generate_embeddings", new_callable=AsyncMock)
+async def test_web_search_agent_rejects_same_topic_different_words(
+    mock_embed: AsyncMock, mock_search: AsyncMock, mock_fetch: AsyncMock,
+) -> None:
+    """High embedding similarity alone must NOT promote a candidate.
+
+    The AND-gate requires lexical evidence: at least one IDF-rare 5-gram
+    AND a 8-token verbatim run, OR a fingerprint hit, OR a verbatim-grade
+    embedding (sim>=0.95 AND lcs>=15). A same-topic-but-different-words
+    page must be rejected even when cosine similarity is forced to 1.0.
+    """
+    page_full_text = (
+        "We present a novel transformer attention mechanism that "
+        "outperforms existing baselines on multilingual translation tasks "
+        "across diverse low-resource language pairs."
+    )
+    mock_search.return_value = {
+        "results": [
+            {
+                "url": "https://example.com/paper",
+                "title": "Transformer Attention for NMT",
+                "snippet": page_full_text[:120],
+            },
+        ],
+        "queries_searched": 1,
+    }
+    mock_fetch.return_value = {"https://example.com/paper": page_full_text}
+
+    # Force ALL embeddings to be identical (cosine = 1.0)
+    def _identical_embeddings(texts):
+        n = len(texts) if hasattr(texts, "__len__") else 1
+        base = np.ones((1, 384), dtype=np.float32)
+        base /= np.linalg.norm(base)
+        return np.tile(base, (n, 1))
+    mock_embed.side_effect = _identical_embeddings
+
+    # Same topic (NMT / translation) but completely different wording:
+    # no shared 5-grams, no 8-token verbatim run with the page.
+    chunks = [
+        "Cross-lingual sequence models leverage shared embedding spaces "
+        "to enable knowledge transfer between source and target languages.",
+        "Recent advances in machine translation rely on large-scale "
+        "pretraining over diverse parallel corpora and back-translation.",
+        "Sparse routing approaches partition computation across language "
+        "families, reducing parameter count without sacrificing quality.",
+        "Evaluation on low-resource pairs requires careful metric choice "
+        "since BLEU underestimates fluency for morphologically rich tongues.",
+    ]
+    text = " ".join(chunks)
+
+    agent = WebSearchAgent()
+    result = await agent.run(AgentInput(document_id="doc-neg-web", text=text))
+
+    # The whole point: gate must reject — no flagged passages, zero score.
+    assert result.flagged_passages == []
+    assert result.score == 0.0
+    # Confidence floor enforced (no evidence => 0)
+    assert result.confidence == 0.0
