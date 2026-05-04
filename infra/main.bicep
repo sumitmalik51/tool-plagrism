@@ -97,6 +97,10 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
           value: 'false'
         }
         {
+          name: 'SCM_COMMAND_IDLE_TIMEOUT'
+          value: '1800'
+        }
+        {
           name: 'PG_LOG_LEVEL'
           value: 'INFO'
         }
@@ -168,6 +172,10 @@ resource frontendWebApp 'Microsoft.Web/sites@2024-04-01' = {
         {
           name: 'ENABLE_ORYX_BUILD'
           value: 'false'
+        }
+        {
+          name: 'SCM_COMMAND_IDLE_TIMEOUT'
+          value: '600'
         }
         {
           name: 'NODE_ENV'

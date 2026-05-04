@@ -316,6 +316,12 @@ jobs:
       - name: Ensure backend startup command is set
         if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.app == 'true' || needs.changes.outputs.infra == 'true'
         run: |
+          az webapp config appsettings set \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name ${{ steps.resolve-names.outputs.backendName }} \
+            --settings SCM_COMMAND_IDLE_TIMEOUT=1800 \
+            --output none
+
           az webapp config set \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --name ${{ steps.resolve-names.outputs.backendName }} \
@@ -326,15 +332,36 @@ jobs:
         id: deploy-backend
         if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.app == 'true' || needs.changes.outputs.infra == 'true'
         run: |
-          echo "Uploading deploy.zip ($(du -h deploy.zip | cut -f1))..."
+          set -euo pipefail
+          app_name="${{ steps.resolve-names.outputs.backendName }}"
+          echo "Uploading deploy.zip ($(du -h deploy.zip | cut -f1)) via Kudu ZipDeploy..."
 
-          az webapp deploy \
+          creds_json=$(az webapp deployment list-publishing-credentials \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name ${{ steps.resolve-names.outputs.backendName }} \
-            --src-path deploy.zip \
-            --type zip \
-            --clean true \
-            --async true
+            --name "$app_name" \
+            --query '{user:publishingUserName,pass:publishingPassword}' \
+            --output json)
+          publish_user=$(echo "$creds_json" | jq -r '.user')
+          publish_pass=$(echo "$creds_json" | jq -r '.pass')
+
+          headers_file=$(mktemp)
+          body_file=$(mktemp)
+          http_code=$(curl -sS --retry 3 --retry-delay 5 \
+            -D "$headers_file" \
+            -o "$body_file" \
+            -w "%{http_code}" \
+            -X POST "https://$app_name.scm.azurewebsites.net/api/zipdeploy?isAsync=true" \
+            -u "$publish_user:$publish_pass" \
+            --data-binary @deploy.zip)
+
+          if [ "$http_code" != "200" ] && [ "$http_code" != "202" ]; then
+            echo "Kudu ZipDeploy failed to start (HTTP $http_code)." >&2
+            sed -e 's/[[:cntrl:]]//g' "$body_file" | head -20 >&2
+            exit 1
+          fi
+
+          echo "✅ Backend package accepted by Kudu (HTTP $http_code)."
+          sleep 15
 
           echo "🔄 Restarting app..."
           az webapp restart \
@@ -381,6 +408,7 @@ jobs:
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --name ${{ steps.resolve-names.outputs.frontendName }} \
             --settings \
+              SCM_COMMAND_IDLE_TIMEOUT=600 \
               NODE_ENV=production \
               NEXT_TELEMETRY_DISABLED=1 \
               NEXT_PUBLIC_API_URL=${{ steps.resolve-names.outputs.backendUrl }} \
@@ -398,15 +426,36 @@ jobs:
         id: deploy-frontend
         if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.infra == 'true'
         run: |
-          echo "Uploading frontend-deploy.zip ($(du -h frontend-deploy.zip | cut -f1))..."
+          set -euo pipefail
+          app_name="${{ steps.resolve-names.outputs.frontendName }}"
+          echo "Uploading frontend-deploy.zip ($(du -h frontend-deploy.zip | cut -f1)) via Kudu ZipDeploy..."
 
-          az webapp deploy \
+          creds_json=$(az webapp deployment list-publishing-credentials \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name ${{ steps.resolve-names.outputs.frontendName }} \
-            --src-path frontend-deploy.zip \
-            --type zip \
-            --clean true \
-            --async true
+            --name "$app_name" \
+            --query '{user:publishingUserName,pass:publishingPassword}' \
+            --output json)
+          publish_user=$(echo "$creds_json" | jq -r '.user')
+          publish_pass=$(echo "$creds_json" | jq -r '.pass')
+
+          headers_file=$(mktemp)
+          body_file=$(mktemp)
+          http_code=$(curl -sS --retry 3 --retry-delay 5 \
+            -D "$headers_file" \
+            -o "$body_file" \
+            -w "%{http_code}" \
+            -X POST "https://$app_name.scm.azurewebsites.net/api/zipdeploy?isAsync=true" \
+            -u "$publish_user:$publish_pass" \
+            --data-binary @frontend-deploy.zip)
+
+          if [ "$http_code" != "200" ] && [ "$http_code" != "202" ]; then
+            echo "Kudu ZipDeploy failed to start (HTTP $http_code)." >&2
+            sed -e 's/[[:cntrl:]]//g' "$body_file" | head -20 >&2
+            exit 1
+          fi
+
+          echo "✅ Frontend package accepted by Kudu (HTTP $http_code)."
+          sleep 15
 
           echo "🔄 Restarting frontend app..."
           az webapp restart \
