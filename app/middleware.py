@@ -223,15 +223,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
 
-        # Content Security Policy
-        # NOTE: 'unsafe-inline' is required while we use Tailwind CDN + inline
-        # <script> blocks.  This is a known trade-off.
-        # TODO(prod): Migrate to build-time Tailwind CSS and replace
-        #   'unsafe-inline' with nonce-based CSP for full XSS protection.
+        # Content Security Policy. The FastAPI service no longer serves the old
+        # Tailwind-CDN HTML frontend, so production can run without
+        # 'unsafe-inline'. Debug keeps it for local docs/dev diagnostics.
+        inline_policy = " 'unsafe-inline'" if settings.debug else ""
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://checkout.razorpay.com https://cdn.razorpay.com https://cdn.jsdelivr.net; "
-            "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com https://cdn.jsdelivr.net; "
+            f"script-src 'self'{inline_policy} https://checkout.razorpay.com https://cdn.razorpay.com https://cdn.jsdelivr.net; "
+            f"style-src 'self'{inline_policy} https://fonts.googleapis.com https://cdn.jsdelivr.net; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: https://fastapi.tiangolo.com https://lh3.googleusercontent.com; "
             "connect-src 'self' https://api.razorpay.com https://api.stripe.com https://lumberjack.razorpay.com; "

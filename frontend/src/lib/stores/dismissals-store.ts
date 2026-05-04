@@ -50,9 +50,8 @@ async function syncSet(documentId: string, key: string, kind: DismissalKind): Pr
       passage_key: key,
       kind,
     });
-  } catch (err) {
+  } catch {
     // Network / 404 / 401 — keep the local copy and let the next hydrate reconcile.
-    console.warn("[dismissals] failed to sync set", err);
   }
 }
 
@@ -62,8 +61,8 @@ async function syncClear(documentId: string, key: string): Promise<void> {
     await api.delete(
       `/api/v1/auth/scans/${encodeURIComponent(documentId)}/dismissals/${encodeURIComponent(key)}`,
     );
-  } catch (err) {
-    console.warn("[dismissals] failed to sync clear", err);
+  } catch {
+    // Keep the local copy; the next hydrate reconciles with the server.
   }
 }
 
@@ -71,8 +70,8 @@ async function syncClearAll(documentId: string): Promise<void> {
   if (!isAuthed()) return;
   try {
     await api.delete(`/api/v1/auth/scans/${encodeURIComponent(documentId)}/dismissals`);
-  } catch (err) {
-    console.warn("[dismissals] failed to sync clear-all", err);
+  } catch {
+    // Keep the local copy; the next hydrate reconciles with the server.
   }
 }
 
@@ -158,8 +157,7 @@ export const useDismissalsStore = create<DismissalsState>()(
               hydrated: { ...s.hydrated, [documentId]: "ok" },
             };
           });
-        } catch (err) {
-          console.warn("[dismissals] hydrate failed", err);
+        } catch {
           set((s) => ({ hydrated: { ...s.hydrated, [documentId]: "error" } }));
         }
       },

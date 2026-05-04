@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.37.4.10188",
-      "templateHash": "1843479787314240012"
+      "version": "0.42.1.51946",
+      "templateHash": "118944485478649390"
     }
   },
   "parameters": {
@@ -47,18 +47,74 @@
         "description": "Python version for the Web App runtime"
       }
     },
+    "nodeVersion": {
+      "type": "string",
+      "defaultValue": "22-lts",
+      "allowedValues": [
+        "20-lts",
+        "22-lts"
+      ],
+      "metadata": {
+        "description": "Node.js version for the Next.js frontend Web App runtime"
+      }
+    },
     "bingApiKey": {
       "type": "securestring",
       "defaultValue": "",
       "metadata": {
         "description": "Bing API key for web search tool (optional)"
       }
+    },
+    "apiKeys": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Comma-separated API keys for service-to-service auth"
+      }
+    },
+    "entraIdTenantId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Entra ID (Azure AD) tenant ID for Easy Auth"
+      }
+    },
+    "entraIdClientId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Entra ID client (application) ID for Easy Auth"
+      }
+    },
+    "acsConnectionString": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Azure Communication Services connection string for sending emails"
+      }
+    },
+    "acsSenderEmail": {
+      "type": "string",
+      "defaultValue": "DoNotReply@plagiarismguard.com",
+      "metadata": {
+        "description": "Sender email address from the ACS Email domain"
+      }
+    },
+    "googleClientId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Google OAuth client ID used by both backend token verification and frontend Google sign-in"
+      }
     }
   },
   "variables": {
     "uniqueSuffix": "[uniqueString(resourceGroup().id)]",
     "webAppName": "[format('{0}-{1}', parameters('appName'), variables('uniqueSuffix'))]",
-    "appServicePlanName": "[format('{0}-plan-{1}', parameters('appName'), variables('uniqueSuffix'))]"
+    "frontendWebAppName": "[format('{0}-web-{1}', parameters('appName'), variables('uniqueSuffix'))]",
+    "appServicePlanName": "[format('{0}-plan-{1}', parameters('appName'), variables('uniqueSuffix'))]",
+    "backendUrl": "[format('https://{0}.azurewebsites.net', variables('webAppName'))]",
+    "frontendUrl": "[format('https://{0}.azurewebsites.net', variables('frontendWebAppName'))]"
   },
   "resources": [
     {
@@ -99,14 +155,6 @@
               "value": "false"
             },
             {
-              "name": "WEBSITE_RUN_FROM_PACKAGE",
-              "value": "1"
-            },
-            {
-              "name": "PYTHONPATH",
-              "value": "/home/site/wwwroot/.python_packages/lib/site-packages"
-            },
-            {
               "name": "PG_LOG_LEVEL",
               "value": "INFO"
             },
@@ -117,12 +165,132 @@
             {
               "name": "PG_UPLOAD_DIR",
               "value": "/home/uploads"
+            },
+            {
+              "name": "PG_API_KEYS_RAW",
+              "value": "[parameters('apiKeys')]"
+            },
+            {
+              "name": "PG_APP_BASE_URL",
+              "value": "[variables('frontendUrl')]"
+            },
+            {
+              "name": "PG_CORS_EXTRA_ORIGINS",
+              "value": "[variables('frontendUrl')]"
+            },
+            {
+              "name": "PG_GOOGLE_CLIENT_ID",
+              "value": "[parameters('googleClientId')]"
+            },
+            {
+              "name": "WEBSITES_CONTAINER_START_TIME_LIMIT",
+              "value": "1800"
+            },
+            {
+              "name": "PG_ACS_CONNECTION_STRING",
+              "value": "[parameters('acsConnectionString')]"
+            },
+            {
+              "name": "PG_ACS_SENDER_EMAIL",
+              "value": "[parameters('acsSenderEmail')]"
             }
           ]
         }
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2024-04-01",
+      "name": "[variables('frontendWebAppName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+        "httpsOnly": true,
+        "siteConfig": {
+          "linuxFxVersion": "[format('NODE|{0}', parameters('nodeVersion'))]",
+          "alwaysOn": true,
+          "ftpsState": "Disabled",
+          "minTlsVersion": "1.2",
+          "http20Enabled": true,
+          "appCommandLine": "node server.js",
+          "appSettings": [
+            {
+              "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
+              "value": "false"
+            },
+            {
+              "name": "ENABLE_ORYX_BUILD",
+              "value": "false"
+            },
+            {
+              "name": "NODE_ENV",
+              "value": "production"
+            },
+            {
+              "name": "NEXT_TELEMETRY_DISABLED",
+              "value": "1"
+            },
+            {
+              "name": "NEXT_PUBLIC_API_URL",
+              "value": "[variables('backendUrl')]"
+            },
+            {
+              "name": "NEXT_PUBLIC_SITE_URL",
+              "value": "[variables('frontendUrl')]"
+            },
+            {
+              "name": "NEXT_PUBLIC_GOOGLE_CLIENT_ID",
+              "value": "[parameters('googleClientId')]"
+            },
+            {
+              "name": "WEBSITES_CONTAINER_START_TIME_LIMIT",
+              "value": "600"
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]"
+      ]
+    },
+    {
+      "condition": "[and(not(empty(parameters('entraIdTenantId'))), not(empty(parameters('entraIdClientId'))))]",
+      "type": "Microsoft.Web/sites/config",
+      "apiVersion": "2024-04-01",
+      "name": "[format('{0}/{1}', variables('webAppName'), 'authsettingsV2')]",
+      "properties": {
+        "globalValidation": {
+          "requireAuthentication": true,
+          "unauthenticatedClientAction": "RedirectToLoginPage",
+          "excludedPaths": [
+            "/health",
+            "/openai-foundry.json",
+            "/api/v1/*"
+          ]
+        },
+        "identityProviders": {
+          "azureActiveDirectory": {
+            "enabled": true,
+            "registration": {
+              "clientId": "[parameters('entraIdClientId')]",
+              "openIdIssuer": "[format('https://sts.windows.net/{0}/v2.0', parameters('entraIdTenantId'))]"
+            },
+            "validation": {
+              "allowedAudiences": [
+                "[format('api://{0}', parameters('entraIdClientId'))]"
+              ]
+            }
+          }
+        },
+        "platform": {
+          "enabled": true
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('webAppName'))]"
       ]
     }
   ],
@@ -133,7 +301,15 @@
     },
     "webAppUrl": {
       "type": "string",
-      "value": "[format('https://{0}', reference(resourceId('Microsoft.Web/sites', variables('webAppName')), '2024-04-01').defaultHostName)]"
+      "value": "[variables('backendUrl')]"
+    },
+    "frontendWebAppName": {
+      "type": "string",
+      "value": "[variables('frontendWebAppName')]"
+    },
+    "frontendWebAppUrl": {
+      "type": "string",
+      "value": "[variables('frontendUrl')]"
     },
     "appServicePlanName": {
       "type": "string",

@@ -344,6 +344,44 @@ class TestVerifyAddonPaymentEndpoint:
         )
         assert row["status"] == "failed"
 
+    def test_valid_signature_rejects_wrong_owner(self, user_token, _configure_razorpay):
+        owner_uid, _ = user_token
+        other = signup("Other Credits", "other-credits@test.com", "secret123")
+        other_token = other["token"]
+        secret = _configure_razorpay
+
+        db = get_db()
+        db.execute(
+            "INSERT INTO rw_credits (user_id, credits_remaining, credits_purchased, "
+            "razorpay_order_id, status) VALUES (?, 0, 100, 'order_wrong_owner', 'created')",
+            (owner_uid,),
+        )
+
+        order_id = "order_wrong_owner"
+        payment_id = "pay_wrong_owner"
+        message = f"{order_id}|{payment_id}"
+        sig = hmac.new(secret.encode(), message.encode(), hashlib.sha256).hexdigest()
+
+        resp = client.post(
+            "/api/v1/auth/verify-addon-payment",
+            headers={
+                "Authorization": f"Bearer {other_token}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "razorpay_order_id": order_id,
+                "razorpay_payment_id": payment_id,
+                "razorpay_signature": sig,
+            },
+        )
+
+        assert resp.status_code == 400
+        row = db.fetch_one(
+            "SELECT status, credits_remaining FROM rw_credits WHERE razorpay_order_id = 'order_wrong_owner'",
+        )
+        assert row["status"] == "created"
+        assert row["credits_remaining"] == 0
+
     def test_idempotent_double_verify(self, user_token, _configure_razorpay):
         """Verifying same payment twice should not double credits."""
         uid, token = user_token

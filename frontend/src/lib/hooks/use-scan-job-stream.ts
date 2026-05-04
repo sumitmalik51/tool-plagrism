@@ -26,14 +26,7 @@ export default function useScanJobStream() {
 
     const connect = () => {
       if (closed) return;
-      // eslint-disable-next-line no-console
-      console.log("[scan-jobs] SSE connect", url);
       es = new EventSource(url);
-
-      es.onopen = () => {
-        // eslint-disable-next-line no-console
-        console.log("[scan-jobs] SSE open");
-      };
 
       es.onmessage = (e) => {
         try {
@@ -42,8 +35,6 @@ export default function useScanJobStream() {
             message: string;
             percent: number;
           };
-          // eslint-disable-next-line no-console
-          console.log("[scan-jobs] event", data);
           if (data.stage === "done") {
             void refreshActive();
             closed = true;
@@ -68,15 +59,12 @@ export default function useScanJobStream() {
               percent: Math.max(0, Math.min(100, data.percent || 0)),
             },
           });
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.warn("[scan-jobs] bad SSE payload", err);
+        } catch {
+          // Ignore malformed progress events and wait for the next update.
         }
       };
 
       es.onerror = () => {
-        // eslint-disable-next-line no-console
-        console.warn("[scan-jobs] SSE error — will retry in 2s");
         es?.close();
         if (closed) return;
         void refreshActive();

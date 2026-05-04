@@ -10,7 +10,6 @@ from typing import Any, AsyncIterator
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -98,6 +97,7 @@ _allowed_origins = list(dict.fromkeys(_allowed_origins))
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -247,60 +247,24 @@ async def get_openapi_foundry() -> JSONResponse:
     return JSONResponse(content={"error": "spec not found", "searched": tried}, status_code=404)
 
 
-# --- Static files & UI -------------------------------------------------------
+# --- Static assets -----------------------------------------------------------
+# The V1 HTML/JS/CSS frontend was retired; the Next.js app in `frontend/`
+# now owns all UI. We still mount /static because external manifests
+# (Word add-in, Google Workspace add-on, OG cards) reference
+# /static/favicon.svg and /static/og-image.svg by absolute URL.
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
-# Map URL path -> (filename, optional media type). Drives both the route
-# registration loop below AND any future page-listing UI. Adding a page is a
-# one-line edit instead of an 8-line handler block.
-_STATIC_PAGES: list[tuple[str, str, str | None]] = [
-    ("/",                "landing.html",         None),
-    ("/app",             "index.html",           None),
-    ("/login",           "login.html",           None),
-    ("/signup",          "signup.html",          None),
-    ("/admin",           "admin.html",           None),
-    ("/history",         "history.html",         None),
-    ("/api-docs",        "api-docs.html",        None),
-    ("/batch",           "batch.html",           None),
-    ("/highlight",       "highlight.html",       None),
-    ("/compare",         "compare.html",         None),
-    ("/research-writer", "research-writer.html", None),
-    ("/pricing",         "pricing.html",         None),
-    ("/terms",           "terms.html",           None),
-    ("/privacy",         "privacy.html",         None),
-    ("/about",           "about.html",           None),
-    ("/forgot-password", "forgot-password.html", None),
-    ("/verify-email",    "verify-email.html",    None),
-    ("/robots.txt",      "robots.txt",           "text/plain"),
-    ("/sitemap.xml",     "sitemap.xml",          "application/xml"),
-]
-
-
-def _make_static_handler(filename: str, media_type: str | None):
-    """Build a closure that serves a single file. Closure captures by value
-    via default args so all 19 routes don't end up serving the last filename
-    in the loop (Python late-binding gotcha)."""
-    target = STATIC_DIR / filename
-
-    if media_type:
-        async def _handler(_filename: str = filename, _mt: str = media_type) -> FileResponse:
-            return FileResponse(target, media_type=_mt)
-    else:
-        async def _handler(_filename: str = filename) -> FileResponse:
-            return FileResponse(target)
-
-    _handler.__name__ = f"serve_{filename.replace('.', '_').replace('-', '_')}"
-    _handler.__doc__ = f"Serve static page {filename}."
-    return _handler
-
-
-for _path, _file, _mt in _STATIC_PAGES:
-    app.add_api_route(
-        _path,
-        _make_static_handler(_file, _mt),
-        methods=["GET"],
-        include_in_schema=False,
+@app.get("/", include_in_schema=False)
+async def root() -> JSONResponse:
+    """Service info for the API-only backend. UI lives in the Next.js frontend."""
+    return JSONResponse(
+        content={
+            "service": settings.app_name,
+            "version": settings.app_version,
+            "docs": "/docs" if settings.debug else None,
+            "health": "/health",
+        }
     )
 
 

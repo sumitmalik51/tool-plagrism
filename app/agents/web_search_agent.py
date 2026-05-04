@@ -165,13 +165,18 @@ class WebSearchAgent(BaseAgent):
 
         web_results = search_result.get("results", [])
         if not web_results:
+            timed_out = bool(search_result.get("timed_out"))
             return AgentOutput(
                 agent_name=self.name,
                 score=0.0,
-                confidence=0.3,
+                confidence=0.0 if timed_out else 0.3,
                 flagged_passages=[],
                 details={
-                    "status": "no_matches",
+                    "status": "timed_out" if timed_out else "no_matches",
+                    **({
+                        "agent_failed": True,
+                        "error": "Web search timed out before returning results.",
+                    } if timed_out else {}),
                     "queries_searched": len(queries),
                 },
             )

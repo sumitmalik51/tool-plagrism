@@ -16,10 +16,38 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://plagiarismguard.com"),
   title: "PlagiarismGuard — AI-Powered Academic Plagiarism Detection",
   description:
     "Free AI-powered plagiarism checker for students, researchers & academics. Detect similarity against 250M+ scholarly sources, check grammar, analyze readability, and rewrite with AI.",
+  alternates: { canonical: "/" },
   icons: { icon: "/favicon.svg" },
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: "PlagiarismGuard",
+    title: "PlagiarismGuard — AI-Powered Academic Plagiarism Detection",
+    description:
+      "Detect plagiarism, AI-like text, paraphrases, grammar issues, and citation gaps with academic-grade reports.",
+    images: [{ url: "/favicon.svg", alt: "PlagiarismGuard" }],
+  },
+  twitter: {
+    card: "summary",
+    title: "PlagiarismGuard — Academic Plagiarism Detection",
+    description: "AI-powered originality checking and writing intelligence for researchers and students.",
+    images: ["/favicon.svg"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-snippet": -1,
+      "max-image-preview": "large",
+      "max-video-preview": -1,
+    },
+  },
 };
 
 export default function RootLayout({

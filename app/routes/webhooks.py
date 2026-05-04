@@ -7,6 +7,7 @@ import hmac
 import json
 import secrets
 from typing import Any
+import asyncio
 
 import httpx
 from fastapi import APIRouter, Header, HTTPException
@@ -85,6 +86,22 @@ async def route_list_webhooks(authorization: str = Header(default="")):
     ]}
 
 
+@router.get("/deliveries")
+async def route_list_webhook_deliveries(authorization: str = Header(default=""), limit: int = 25):
+    """List recent webhook delivery attempts for the authenticated user."""
+    user_id = _get_user_id(authorization)
+    limit = max(1, min(int(limit or 25), 100))
+    db = get_db()
+    rows = db.fetch_all(
+        "SELECT d.id, d.webhook_id, w.url, d.event, d.status, d.attempts, "
+        "d.response_code, d.last_error, d.created_at, d.delivered_at "
+        "FROM webhook_deliveries d JOIN webhook_subscriptions w ON d.webhook_id = w.id "
+        "WHERE d.user_id = ? ORDER BY d.created_at DESC",
+        (user_id,),
+    )
+    return {"deliveries": [dict(r) for r in rows[:limit]]}
+
+
 @router.delete("/{webhook_id}")
 async def route_delete_webhook(webhook_id: int, authorization: str = Header(default="")):
     """Deactivate a webhook."""
@@ -97,6 +114,127 @@ async def route_delete_webhook(webhook_id: int, authorization: str = Header(defa
     return {"status": "deleted"}
 
 
+@router.post("/deliveries/{delivery_id}/replay")
+async def route_replay_webhook_delivery(delivery_id: int, authorization: str = Header(default="")):
+    """Replay a previously recorded webhook delivery."""
+    user_id = _get_user_id(authorization)
+    db = get_db()
+    row = db.fetch_one(
+        "SELECT d.id, d.webhook_id, d.user_id, d.event, d.payload_json, "
+        "w.url, w.secret, w.is_active "
+        "FROM webhook_deliveries d JOIN webhook_subscriptions w ON d.webhook_id = w.id "
+        "WHERE d.id = ?",
+        (delivery_id,),
+    )
+    if not row or int(row["user_id"]) != user_id:
+        raise HTTPException(status_code=404, detail="Webhook delivery not found.")
+    if not row.get("is_active"):
+        raise HTTPException(status_code=400, detail="Webhook is inactive.")
+
+    payload = json.loads(row["payload_json"])
+    status = await _deliver_webhook(
+        delivery_id=int(row["id"]),
+        url=row["url"],
+        secret=row["secret"],
+        event=row["event"],
+        payload=payload,
+        max_attempts=1,
+    )
+    return {"status": status}
+
+
+def _create_delivery(user_id: int, webhook_id: int, event: str, payload: dict[str, Any]) -> int:
+    db = get_db()
+    return db.execute(
+        "INSERT INTO webhook_deliveries (webhook_id, user_id, event, payload_json, status) "
+        "VALUES (?, ?, ?, ?, 'pending')",
+        (webhook_id, user_id, event, json.dumps(payload, separators=(",", ":"))),
+    )
+
+
+def _record_delivery_attempt(
+    delivery_id: int,
+    *,
+    status: str,
+    attempts: int,
+    response_code: int | None = None,
+    response_body: str | None = None,
+    last_error: str | None = None,
+) -> None:
+    db = get_db()
+    delivered_clause = ", delivered_at = CURRENT_TIMESTAMP" if status == "delivered" else ""
+    db.execute(
+        "UPDATE webhook_deliveries SET status = ?, attempts = ?, response_code = ?, "
+        f"response_body = ?, last_error = ?{delivered_clause} WHERE id = ?",
+        (status, attempts, response_code, (response_body or "")[:1000], (last_error or "")[:1000], delivery_id),
+    )
+
+
+async def _deliver_webhook(
+    *,
+    delivery_id: int,
+    url: str,
+    secret: str,
+    event: str,
+    payload: dict[str, Any],
+    max_attempts: int = 3,
+) -> str:
+    body_bytes = json.dumps(payload, separators=(",", ":")).encode()
+    signature = hmac.new(secret.encode(), body_bytes, hashlib.sha256).hexdigest()
+    last_status = "failed"
+
+    for attempt in range(1, max_attempts + 1):
+        if attempt > 1:
+            await asyncio.sleep(min(2 ** (attempt - 2), 4))
+
+        try:
+            # Re-check at fire time to defend against DNS rebinding
+            if _is_private_url(url):
+                _record_delivery_attempt(
+                    delivery_id,
+                    status="blocked",
+                    attempts=attempt,
+                    last_error="Webhook URL resolved to a private/internal address.",
+                )
+                logger.warning("webhook_blocked_private_ip", url=url)
+                return "blocked"
+
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(
+                    url,
+                    content=body_bytes,
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-PlagiarismGuard-Signature": f"sha256={signature}",
+                        "X-PlagiarismGuard-Event": event,
+                    },
+                )
+                ok = 200 <= resp.status_code < 300
+                last_status = "delivered" if ok else "failed"
+                _record_delivery_attempt(
+                    delivery_id,
+                    status=last_status,
+                    attempts=attempt,
+                    response_code=resp.status_code,
+                    response_body=resp.text,
+                    last_error=None if ok else f"HTTP {resp.status_code}",
+                )
+                logger.info("webhook_delivered", url=url, status=resp.status_code, attempt=attempt)
+                if ok:
+                    return "delivered"
+        except Exception as exc:
+            last_status = "failed"
+            _record_delivery_attempt(
+                delivery_id,
+                status="failed",
+                attempts=attempt,
+                last_error=str(exc)[:1000],
+            )
+            logger.warning("webhook_delivery_failed", url=url, error=str(exc)[:100], attempt=attempt)
+
+    return last_status
+
+
 async def fire_webhooks(user_id: int, event: str, payload: dict[str, Any]) -> None:
     """Send webhook notifications for a user's active subscriptions.
 
@@ -104,7 +242,7 @@ async def fire_webhooks(user_id: int, event: str, payload: dict[str, Any]) -> No
     """
     db = get_db()
     subs = db.fetch_all(
-        "SELECT url, secret, events FROM webhook_subscriptions "
+        "SELECT id, url, secret, events FROM webhook_subscriptions "
         "WHERE user_id = ? AND is_active = 1",
         (user_id,),
     )
@@ -115,26 +253,11 @@ async def fire_webhooks(user_id: int, event: str, payload: dict[str, Any]) -> No
         events = sub["events"].split(",") if sub.get("events") else []
         if event not in events and "*" not in events:
             continue
-
-        body_bytes = json.dumps(payload).encode()
-        signature = hmac.new(sub["secret"].encode(), body_bytes, hashlib.sha256).hexdigest()
-
-        try:
-            # Re-check at fire time to defend against DNS rebinding
-            if _is_private_url(sub["url"]):
-                logger.warning("webhook_blocked_private_ip", url=sub["url"])
-                continue
-
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(
-                    sub["url"],
-                    content=body_bytes,
-                    headers={
-                        "Content-Type": "application/json",
-                        "X-PlagiarismGuard-Signature": f"sha256={signature}",
-                        "X-PlagiarismGuard-Event": event,
-                    },
-                )
-                logger.info("webhook_delivered", url=sub["url"], status=resp.status_code)
-        except Exception as exc:
-            logger.warning("webhook_delivery_failed", url=sub["url"], error=str(exc)[:100])
+        delivery_id = _create_delivery(user_id, int(sub["id"]), event, payload)
+        await _deliver_webhook(
+            delivery_id=delivery_id,
+            url=sub["url"],
+            secret=sub["secret"],
+            event=event,
+            payload=payload,
+        )

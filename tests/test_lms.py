@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import AsyncMock, patch, MagicMock
 import sys
 
 import pytest
@@ -142,13 +142,17 @@ class TestLTILaunch:
             mock_db.return_value = mock_instance
 
             # Mock the JWKS fetch and JWT decode
-            with patch("httpx.get") as mock_httpx, \
+            with patch("httpx.AsyncClient") as mock_httpx_client, \
                  patch("jwt.decode", return_value=payload_data) as mock_jwt_decode:
                 mock_resp = MagicMock()
                 mock_resp.status_code = 200
                 mock_resp.json.return_value = {"keys": [{"kid": "test-kid", "kty": "RSA"}]}
                 mock_resp.raise_for_status.return_value = None
-                mock_httpx.return_value = mock_resp
+                mock_client = AsyncMock()
+                mock_client.get = AsyncMock(return_value=mock_resp)
+                mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+                mock_client.__aexit__ = AsyncMock(return_value=False)
+                mock_httpx_client.return_value = mock_client
 
                 # Patch RSAAlgorithm within the lms module's jwt import
                 import jwt as jwt_mod

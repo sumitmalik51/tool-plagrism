@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from unittest.mock import patch, MagicMock
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from fastapi import HTTPException
+from starlette.requests import Request
 
 from app.main import app
 
@@ -53,22 +56,25 @@ class TestWordQuotaAnalyzeAgent:
 
     def test_analyze_agent_rejects_when_quota_exceeded(self) -> None:
         """Should return 429 when monthly word quota is exceeded."""
-        with patch("app.routes.analyze.limiter") as mock_limiter:
-            mock_limiter.check_word_quota.return_value = {
-                "allowed": False,
-                "used": 5000,
-                "limit": 5000,
-                "remaining": 0,
-            }
-            with patch("app.routes.analyze.getattr", return_value=1):
-                # Mock request.state.user_id
-                resp = client.post(
-                    "/api/v1/analyze-agent",
-                    json={"text": _make_text(100)},
-                )
-                # Either 429 (quota exceeded) or might not have user_id in test
-                # The important thing is the check is in place
-                assert resp.status_code in (200, 429)
+        from app.dependencies.rate_limit import enforce_word_quota
+
+        request = Request({"type": "http", "headers": [], "client": ("127.0.0.1", 1234)})
+        request.state.user_id = 1
+        request.state.plan_type = "free"
+
+        with patch("app.dependencies.rate_limit.get_user_by_id", return_value={"plan_type": "free"}):
+            with patch("app.dependencies.rate_limit.limiter") as mock_limiter:
+                mock_limiter.check_word_quota.return_value = {
+                    "allowed": False,
+                    "used": 5000,
+                    "limit": 5000,
+                    "remaining": 0,
+                }
+                with patch("app.services.auth_service.get_word_topup_balance", return_value=0):
+                    with pytest.raises(HTTPException) as exc:
+                        enforce_word_quota(request, word_count=100, what="text")
+
+        assert exc.value.status_code == 429
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +86,7 @@ class TestWordQuotaAnalyzeFile:
         """A small text file should be accepted for analysis."""
         content = b"This is a test document with some words for plagiarism analysis."
 
-        with patch("app.routes.analyze.limiter") as mock_limiter:
+        with patch("app.dependencies.rate_limit.limiter") as mock_limiter:
             mock_limiter.check_word_quota.return_value = {
                 "allowed": True, "used": 50, "limit": 5000, "remaining": 4950
             }
@@ -144,3 +150,33 @@ class TestPlanToTier:
         assert "used" in result
         assert "limit" in result
         assert "remaining" in result
+
+    def test_word_topup_covers_only_base_quota_deficit(self) -> None:
+        """Purchased scan words should cover the deficit after base quota is spent."""
+        from app.config import settings
+        from app.dependencies.rate_limit import enforce_word_quota
+        from app.services.auth_service import add_word_topup, get_word_topup_balance
+        from app.services.database import get_db
+
+        email = f"quota-{uuid4().hex}@example.com"
+        db = get_db()
+        user_id = db.execute(
+            "INSERT INTO users (name, email, password, plan_type) VALUES (?, ?, ?, 'free')",
+            ("Quota User", email, "hash"),
+        )
+        free_limit = int(settings.word_quota_free)
+        db.execute(
+            "INSERT INTO usage_logs (user_id, tool_type, word_count) VALUES (?, 'scan', ?)",
+            (user_id, free_limit - 100),
+        )
+        add_word_topup(user_id, words=1000, order_id=f"order_{uuid4().hex}", payment_id="pay_test")
+
+        request = Request({"type": "http", "headers": [], "client": ("127.0.0.1", 1234)})
+        request.state.user_id = user_id
+        request.state.plan_type = "free"
+
+        result = enforce_word_quota(request, word_count=250, what="test")
+
+        assert result["allowed"] is True
+        assert result["topup_used"] == 150
+        assert get_word_topup_balance(user_id) == 850

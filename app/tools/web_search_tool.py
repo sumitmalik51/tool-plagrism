@@ -177,10 +177,12 @@ async def search_multiple(queries: list[str], count_per_query: int = 3, language
 
     tasks = [search_web(q, count=count_per_query, language=language) for q in queries]
     # Bounded timeout: don't let web searches take more than 30s total
+    timed_out = False
     try:
         raw_results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=30.0)
     except asyncio.TimeoutError:
         logger.warning("search_multiple_timed_out", query_count=len(queries))
+        timed_out = True
         raw_results = []
 
     seen_urls: set[str] = set()
@@ -206,6 +208,7 @@ async def search_multiple(queries: list[str], count_per_query: int = 3, language
         "queries_searched": len(queries),
         "total_results": len(all_results),
         "results": all_results,
+        "timed_out": timed_out,
         "elapsed_s": elapsed,
     }
 

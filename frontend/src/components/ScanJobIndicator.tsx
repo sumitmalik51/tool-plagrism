@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Loader2, X } from "lucide-react";
 import { useScanJobsStore } from "@/lib/stores/scan-jobs-store";

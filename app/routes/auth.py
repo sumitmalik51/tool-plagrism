@@ -10,7 +10,7 @@ import structlog
 
 from pydantic import BaseModel, Field
 
-from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Body, Cookie, Header, HTTPException, Request, Response
 
 from app.config import settings
 from app.services.auth_service import (
@@ -21,6 +21,7 @@ from app.services.auth_service import (
     update_user_plan,
     verify_access_token,
     create_access_token,
+    create_refresh_token,
     verify_refresh_token,
     create_password_reset_token,
     reset_password,
@@ -31,6 +32,7 @@ from app.services.auth_service import (
     get_rw_credits,
     deduct_rw_credit,
     add_rw_credits,
+    get_word_topup_balance,
     google_oauth_login,
 )
 from app.services.api_key_service import (
@@ -57,6 +59,115 @@ from app.services.rate_limiter import PLAN_TO_TIER, UserTier, limiter
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+_REFRESH_COOKIE_NAME = "pg_refresh_token"
+
+
+def _cookie_secure(request: Request) -> bool:
+    """Use Secure cookies on HTTPS while preserving local HTTP development."""
+    forwarded_proto = request.headers.get("X-Forwarded-Proto", "")
+    return request.url.scheme == "https" or forwarded_proto == "https"
+
+
+def _set_refresh_cookie(response: Response, request: Request, refresh_token: str) -> None:
+    response.set_cookie(
+        key=_REFRESH_COOKIE_NAME,
+        value=refresh_token,
+        max_age=settings.jwt_refresh_expiry_seconds,
+        httponly=True,
+        secure=_cookie_secure(request),
+        samesite="lax",
+        path="/api/v1/auth",
+    )
+
+
+def _clear_refresh_cookie(response: Response, request: Request) -> None:
+    response.delete_cookie(
+        key=_REFRESH_COOKIE_NAME,
+        httponly=True,
+        secure=_cookie_secure(request),
+        samesite="lax",
+        path="/api/v1/auth",
+    )
+
+
+def _auth_payload(result: dict, response: Response, request: Request) -> dict:
+    """Move refresh token into an HttpOnly cookie and return public auth body."""
+    refresh = result.pop("refresh_token", None)
+    if refresh:
+        _set_refresh_cookie(response, request, refresh)
+    return result
+
+
+def _base_plan(plan_type: str) -> str:
+    annual_map = {"pro_annual": "pro", "premium_annual": "premium"}
+    base = annual_map.get(plan_type, plan_type)
+    if base not in {"free", "pro", "premium"}:
+        raise AuthError("Invalid plan type.")
+    return base
+
+
+def _row_dict(cursor) -> dict | None:
+    row = cursor.fetchone()
+    if row is None:
+        return None
+    columns = [desc[0] for desc in cursor.description]
+    return dict(zip(columns, row))
+
+
+def _upgrade_user_plan_cursor(cursor, user_id: int, plan_type: str) -> None:
+    base = _base_plan(plan_type)
+    is_paid = 1 if base != "free" else 0
+    cursor.execute(
+        "UPDATE users SET plan_type = ?, is_paid = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (base, is_paid, user_id),
+    )
+
+
+def _mark_payment_paid_and_upgrade(
+    *,
+    order_id: str,
+    payment_id: str,
+    plan: str | None = None,
+    user_id: int | None = None,
+    signature: str | None = None,
+) -> tuple[int, str]:
+    """Atomically mark a Razorpay order paid and upgrade the owning user.
+
+    The payment row is the source of truth for ownership and intended plan;
+    caller-supplied ``user_id``/``plan`` are only validation guards.
+    """
+    from app.services.database import get_db
+
+    db = get_db()
+    with db.transaction() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "SELECT user_id, plan_name, status FROM payments WHERE razorpay_order_id = ?",
+                (order_id,),
+            )
+            payment = _row_dict(cursor)
+            if not payment:
+                raise AuthError("Payment order was not found. Please contact support.")
+
+            owner_id = int(payment["user_id"])
+            stored_plan = str(payment["plan_name"])
+            if user_id is not None and owner_id != user_id:
+                raise AuthError("Payment order does not belong to this user.")
+            if plan is not None and _base_plan(stored_plan) != _base_plan(plan):
+                raise AuthError("Payment plan does not match the order.")
+
+            cursor.execute(
+                "UPDATE payments SET razorpay_payment_id = ?, razorpay_signature = COALESCE(?, razorpay_signature), "
+                "status = 'paid', updated_at = CURRENT_TIMESTAMP WHERE razorpay_order_id = ? AND status != 'paid'",
+                (payment_id, signature, order_id),
+            )
+            _upgrade_user_plan_cursor(cursor, owner_id, stored_plan)
+        finally:
+            cursor.close()
+
+    return owner_id, _base_plan(stored_plan)
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +284,7 @@ class ResetPasswordRequest(BaseModel):
 
 
 class RefreshTokenRequest(BaseModel):
-    refresh_token: str = Field(..., min_length=1)
+    refresh_token: str | None = Field(default=None, min_length=1)
 
 
 class UserResponse(BaseModel):
@@ -194,7 +305,7 @@ class AuthResponse(BaseModel):
 
 
 @router.post("/signup", response_model=AuthResponse, status_code=201)
-async def route_signup(body: SignupRequest, request: Request):
+async def route_signup(body: SignupRequest, request: Request, response: Response):
     """Register a new account and send a verification email."""
     _auth_limiter.check(_client_ip(request))
     try:
@@ -205,7 +316,7 @@ async def route_signup(body: SignupRequest, request: Request):
             send_verification_email(body.email, v_token)
         # Send welcome onboarding email
         send_welcome_email(body.email, body.name)
-        return result
+        return _auth_payload(result, response, request)
     except AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
@@ -214,7 +325,7 @@ async def route_signup(body: SignupRequest, request: Request):
 
 
 @router.post("/login", response_model=AuthResponse)
-async def route_login(body: LoginRequest, request: Request, bg: BackgroundTasks):
+async def route_login(body: LoginRequest, request: Request, response: Response, bg: BackgroundTasks):
     """Authenticate with email + password and receive a JWT."""
     _auth_limiter.check(_client_ip(request))
     try:
@@ -223,7 +334,7 @@ async def route_login(body: LoginRequest, request: Request, bg: BackgroundTasks)
         user = result.get("user", {})
         if user.get("plan_type") == "free":
             bg.add_task(_check_trial_emails, user)
-        return result
+        return _auth_payload(result, response, request)
     except AuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
     except Exception as exc:
@@ -232,20 +343,42 @@ async def route_login(body: LoginRequest, request: Request, bg: BackgroundTasks)
 
 
 @router.post("/refresh")
-async def route_refresh_token(body: RefreshTokenRequest):
+async def route_refresh_token(
+    request: Request,
+    response: Response,
+    body: RefreshTokenRequest | None = Body(default=None),
+    refresh_cookie: str | None = Cookie(default=None, alias=_REFRESH_COOKIE_NAME),
+):
     """Exchange a valid refresh token for a new access token."""
-    payload = verify_refresh_token(body.refresh_token)
+    refresh_token = (body.refresh_token if body else None) or refresh_cookie
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="Missing refresh token.")
+
+    payload = verify_refresh_token(refresh_token)
     if not payload:
+        _clear_refresh_cookie(response, request)
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token.")
     user_id = int(payload["sub"])
-    email = payload.get("email", "")
-    plan_type = payload.get("plan_type", "free")
+    user = get_user_by_id(user_id)
+    if not user:
+        _clear_refresh_cookie(response, request)
+        raise HTTPException(status_code=401, detail="Invalid refresh token subject.")
+    email = user.get("email") or payload.get("email", "")
+    plan_type = user.get("plan_type", "free")
     new_token = create_access_token(user_id, email, plan_type=plan_type)
+    _set_refresh_cookie(response, request, create_refresh_token(user_id, email))
     return {"token": new_token}
 
 
+@router.post("/logout")
+async def route_logout(request: Request, response: Response):
+    """Clear the browser refresh-token cookie."""
+    _clear_refresh_cookie(response, request)
+    return {"success": True}
+
+
 @router.post("/google", response_model=AuthResponse)
-async def route_google_login(body: GoogleLoginRequest, request: Request):
+async def route_google_login(body: GoogleLoginRequest, request: Request, response: Response):
     """Sign in (or sign up) with a Google ID token from Google Identity Services.
 
     The frontend obtains a credential JWT via the GIS button; we verify it
@@ -291,7 +424,7 @@ async def route_google_login(body: GoogleLoginRequest, request: Request):
         result = google_oauth_login(email=email, name=name, referral_code=body.referral_code)
         # Drop is_new_user from response (kept internal); AuthResponse only has user+token
         result.pop("is_new_user", None)
-        return result
+        return _auth_payload(result, response, request)
     except AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
@@ -679,6 +812,14 @@ async def route_usage(authorization: str = Header(default="")):
 
     # Word quota (monthly)
     word_quota = limiter.check_word_quota(user_id, tier)
+    topup_remaining = get_word_topup_balance(user_id)
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    if now.month == 12:
+        next_reset = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:
+        next_reset = now.replace(month=now.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    base_remaining = word_quota["remaining"] if word_quota["remaining"] >= 0 else "unlimited"
 
     return {
         "plan_type": plan,
@@ -688,7 +829,13 @@ async def route_usage(authorization: str = Header(default="")):
         "word_quota": {
             "used": word_quota["used"],
             "limit": word_quota["limit"] or "unlimited",
-            "remaining": word_quota["remaining"] if word_quota["remaining"] >= 0 else "unlimited",
+            "base_limit": word_quota["limit"] or "unlimited",
+            "base_remaining": base_remaining,
+            "topup_remaining": topup_remaining,
+            "remaining": (
+                "unlimited" if word_quota["remaining"] < 0 else word_quota["remaining"] + topup_remaining
+            ),
+            "resets_at": next_reset.isoformat().replace("+00:00", "Z"),
         },
     }
 
@@ -968,7 +1115,7 @@ async def route_create_order(
         )
     except Exception as exc:
         logger.error("payment_record_insert_failed", error=str(exc), order_id=order["id"])
-        # Order was created at Razorpay — still return it so user can pay
+        raise HTTPException(status_code=500, detail="Payment order could not be recorded. Please retry.")
 
     logger.info("razorpay_order_created", order_id=order["id"], user_id=user_id, plan=body.plan)
 
@@ -1020,19 +1167,14 @@ async def route_verify_payment(
             logger.error("payment_status_update_failed", error=str(exc))
         raise HTTPException(status_code=400, detail="Payment verification failed. Invalid signature.")
 
-    # Signature valid — update payment record and upgrade plan
     try:
-        db.execute(
-            "UPDATE payments SET razorpay_payment_id = ?, razorpay_signature = ?, "
-            "status = ? WHERE razorpay_order_id = ?",
-            (body.razorpay_payment_id, body.razorpay_signature, "paid", body.razorpay_order_id),
+        upgraded_user_id, upgraded_plan = _mark_payment_paid_and_upgrade(
+            order_id=body.razorpay_order_id,
+            payment_id=body.razorpay_payment_id,
+            signature=body.razorpay_signature,
+            user_id=user_id,
+            plan=body.plan,
         )
-    except Exception as exc:
-        logger.error("payment_record_update_failed", error=str(exc), order_id=body.razorpay_order_id)
-
-    # Upgrade the user's plan
-    try:
-        update_user_plan(user_id, body.plan)
     except AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
@@ -1043,14 +1185,14 @@ async def route_verify_payment(
         "payment_verified_plan_upgraded",
         order_id=body.razorpay_order_id,
         payment_id=body.razorpay_payment_id,
-        user_id=user_id,
-        plan=body.plan,
+        user_id=upgraded_user_id,
+        plan=upgraded_plan,
     )
 
     return {
         "success": True,
-        "plan_type": body.plan,
-        "message": f"Payment successful! Plan upgraded to {body.plan}.",
+        "plan_type": upgraded_plan,
+        "message": f"Payment successful! Plan upgraded to {upgraded_plan}.",
     }
 
 
@@ -1131,42 +1273,66 @@ async def route_razorpay_webhook(request: Request):
         # Handle add-on credit pack purchases
         if addon == "rw_credit_pack" and user_id_str:
             try:
-                db.execute(
+                updated = db.execute(
                     "UPDATE rw_credits SET razorpay_payment_id = ?, "
                     "credits_remaining = credits_purchased, status = 'paid', "
                     "updated_at = CURRENT_TIMESTAMP "
-                    "WHERE razorpay_order_id = ? AND status != 'paid'",
-                    (payment_id, order_id),
+                    "WHERE razorpay_order_id = ? AND user_id = ? AND status != 'paid'",
+                    (payment_id, order_id, int(user_id_str)),
                 )
+                if updated == 0:
+                    logger.warning("webhook_addon_order_not_updated", user_id=user_id_str, order_id=order_id)
                 logger.info("webhook_addon_credits_activated", user_id=user_id_str, order_id=order_id)
             except Exception as exc:
                 logger.error("webhook_addon_activate_failed", error=str(exc), order_id=order_id)
-        else:
-            # Regular plan upgrade — update payments table
+        elif addon == "word_topup" and user_id_str:
             try:
-                db.execute(
-                    "UPDATE payments SET razorpay_payment_id = ?, status = ? "
-                    "WHERE razorpay_order_id = ? AND status != ?",
-                    (payment_id, "paid", order_id, "paid"),
+                updated = db.execute(
+                    "UPDATE word_topups SET razorpay_payment_id = ?, "
+                    "words_remaining = words_purchased, status = 'paid', "
+                    "updated_at = CURRENT_TIMESTAMP "
+                    "WHERE razorpay_order_id = ? AND user_id = ? AND status != 'paid'",
+                    (payment_id, order_id, int(user_id_str)),
                 )
+                if updated == 0:
+                    logger.warning("webhook_word_topup_order_not_updated", user_id=user_id_str, order_id=order_id)
+                logger.info("webhook_word_topup_activated", user_id=user_id_str, order_id=order_id)
             except Exception as exc:
-                logger.error("webhook_payment_update_failed", error=str(exc), order_id=order_id)
-
-            # Upgrade the user's plan (only if we have the info from order notes)
-            if user_id_str and plan:
-                try:
-                    uid = int(user_id_str)
-                    update_user_plan(uid, plan)
-                    logger.info("webhook_plan_upgraded", user_id=uid, plan=plan, order_id=order_id)
-                except (ValueError, AuthError) as exc:
-                    logger.error("webhook_plan_upgrade_failed", error=str(exc), user_id=user_id_str)
+                logger.error("webhook_word_topup_activate_failed", error=str(exc), order_id=order_id)
+        else:
+            try:
+                uid = int(user_id_str) if user_id_str else None
+                upgraded_user_id, upgraded_plan = _mark_payment_paid_and_upgrade(
+                    order_id=order_id,
+                    payment_id=payment_id,
+                    user_id=uid,
+                    plan=plan or None,
+                )
+                logger.info(
+                    "webhook_plan_upgraded",
+                    user_id=upgraded_user_id,
+                    plan=upgraded_plan,
+                    order_id=order_id,
+                )
+            except (ValueError, AuthError) as exc:
+                logger.error("webhook_plan_upgrade_failed", error=str(exc), user_id=user_id_str)
 
     elif event == "payment.failed":
         try:
             db.execute(
                 "UPDATE payments SET razorpay_payment_id = ?, status = ? "
-                "WHERE razorpay_order_id = ?",
+                "WHERE razorpay_order_id = ? AND status != 'paid'",
                 (payment_id, "failed", order_id),
+            )
+            db.execute(
+                "UPDATE rw_credits SET razorpay_payment_id = ?, status = 'failed' "
+                "WHERE razorpay_order_id = ? AND status != 'paid'",
+                (payment_id, order_id),
+            )
+            db.execute(
+                "UPDATE word_topups SET razorpay_payment_id = ?, status = 'failed' "
+                "WHERE razorpay_order_id = ? AND status != 'paid'",
+                (payment_id, order_id),
             )
         except Exception as exc:
             logger.error("webhook_payment_fail_update_failed", error=str(exc), order_id=order_id)
@@ -1233,6 +1399,7 @@ async def route_create_addon_order(
         )
     except Exception as exc:
         logger.error("addon_record_insert_failed", error=str(exc), order_id=order["id"])
+        raise HTTPException(status_code=500, detail="Credit order could not be recorded. Please retry.")
 
     logger.info("addon_order_created", order_id=order["id"], user_id=user_id, credits=settings.rw_credit_pack_size)
 
@@ -1276,8 +1443,8 @@ async def route_verify_addon_payment(
         logger.warning("addon_signature_mismatch", order_id=body.razorpay_order_id, user_id=user_id)
         try:
             db.execute(
-                "UPDATE rw_credits SET status = 'failed' WHERE razorpay_order_id = ?",
-                (body.razorpay_order_id,),
+                "UPDATE rw_credits SET status = 'failed' WHERE razorpay_order_id = ? AND user_id = ?",
+                (body.razorpay_order_id, user_id),
             )
         except Exception as exc:
             logger.error("addon_status_update_failed", error=str(exc))
@@ -1285,13 +1452,30 @@ async def route_verify_addon_payment(
 
     # Signature valid — activate credits
     try:
-        db.execute(
-            "UPDATE rw_credits SET razorpay_payment_id = ?, "
-            "credits_remaining = credits_purchased, status = 'paid', "
-            "updated_at = CURRENT_TIMESTAMP "
-            "WHERE razorpay_order_id = ? AND status != 'paid'",
-            (body.razorpay_payment_id, body.razorpay_order_id),
-        )
+        with db.transaction() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    "SELECT user_id, status FROM rw_credits WHERE razorpay_order_id = ?",
+                    (body.razorpay_order_id,),
+                )
+                credit_order = _row_dict(cursor)
+                if not credit_order:
+                    raise AuthError("Credit order was not found. Please contact support.")
+                if int(credit_order["user_id"]) != user_id:
+                    raise AuthError("Credit order does not belong to this user.")
+
+                cursor.execute(
+                    "UPDATE rw_credits SET razorpay_payment_id = ?, "
+                    "credits_remaining = credits_purchased, status = 'paid', "
+                    "updated_at = CURRENT_TIMESTAMP "
+                    "WHERE razorpay_order_id = ? AND user_id = ? AND status != 'paid'",
+                    (body.razorpay_payment_id, body.razorpay_order_id, user_id),
+                )
+            finally:
+                cursor.close()
+    except AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         logger.error("addon_credit_activate_failed", error=str(exc), order_id=body.razorpay_order_id)
         raise HTTPException(status_code=500, detail="Payment recorded but credit activation failed. Contact support.")
@@ -1321,6 +1505,149 @@ async def route_get_rw_credits(
     user_id = _get_user_id(authorization)
     total = get_rw_credits(user_id)
     return {"credits": total}
+
+
+# ---------------------------------------------------------------------------
+# Scan word quota top-up (one-time purchase)
+# ---------------------------------------------------------------------------
+
+WORD_TOPUP_ID = "words_100k"
+
+
+@router.post("/create-word-topup-order")
+async def route_create_word_topup_order(
+    authorization: str = Header(default=""),
+):
+    """Create a Razorpay order for extra scan word quota."""
+    user_id = _get_user_id(authorization)
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    try:
+        client = _get_razorpay_client()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("razorpay_client_init_failed", error=str(exc))
+        raise HTTPException(status_code=503, detail="Payment gateway unavailable.")
+
+    try:
+        order = client.order.create({
+            "amount": settings.word_topup_pack_amount,
+            "currency": "INR",
+            "receipt": f"user_{user_id}_word_topup",
+            "notes": {
+                "user_id": str(user_id),
+                "addon": "word_topup",
+                "topup_id": WORD_TOPUP_ID,
+                "words": str(settings.word_topup_pack_words),
+                "user_email": user.get("email", ""),
+            },
+        })
+    except Exception as exc:
+        logger.error("razorpay_word_topup_order_failed", error=str(exc), user_id=user_id)
+        raise HTTPException(status_code=502, detail="Failed to create payment order.")
+
+    from app.services.database import get_db
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO word_topups "
+            "(user_id, words_remaining, words_purchased, razorpay_order_id, status) "
+            "VALUES (?, 0, ?, ?, 'created')",
+            (user_id, settings.word_topup_pack_words, order["id"]),
+        )
+    except Exception as exc:
+        logger.error("word_topup_record_insert_failed", error=str(exc), order_id=order["id"])
+        raise HTTPException(status_code=500, detail="Word top-up order could not be recorded. Please retry.")
+
+    return {
+        "order_id": order["id"],
+        "amount": settings.word_topup_pack_amount,
+        "currency": "INR",
+        "razorpay_key": settings.razorpay_key_id,
+        "addon": "word_topup",
+        "topup_id": WORD_TOPUP_ID,
+        "words": settings.word_topup_pack_words,
+        "user_name": user.get("name", ""),
+        "user_email": user.get("email", ""),
+    }
+
+
+@router.post("/verify-word-topup-payment")
+async def route_verify_word_topup_payment(
+    body: VerifyAddonPaymentRequest,
+    authorization: str = Header(default=""),
+):
+    """Verify Razorpay payment for a scan word top-up pack."""
+    user_id = _get_user_id(authorization)
+    message = f"{body.razorpay_order_id}|{body.razorpay_payment_id}"
+    expected_signature = hmac.new(
+        settings.razorpay_key_secret.encode("utf-8"),
+        message.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    from app.services.database import get_db
+    db = get_db()
+
+    if not hmac.compare_digest(expected_signature, body.razorpay_signature):
+        try:
+            db.execute(
+                "UPDATE word_topups SET status = 'failed' WHERE razorpay_order_id = ? AND user_id = ?",
+                (body.razorpay_order_id, user_id),
+            )
+        except Exception as exc:
+            logger.error("word_topup_status_update_failed", error=str(exc))
+        raise HTTPException(status_code=400, detail="Payment verification failed. Invalid signature.")
+
+    try:
+        with db.transaction() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    "SELECT user_id, status FROM word_topups WHERE razorpay_order_id = ?",
+                    (body.razorpay_order_id,),
+                )
+                topup_order = _row_dict(cursor)
+                if not topup_order:
+                    raise AuthError("Word top-up order was not found. Please contact support.")
+                if int(topup_order["user_id"]) != user_id:
+                    raise AuthError("Word top-up order does not belong to this user.")
+
+                cursor.execute(
+                    "UPDATE word_topups SET razorpay_payment_id = ?, "
+                    "words_remaining = words_purchased, status = 'paid', "
+                    "updated_at = CURRENT_TIMESTAMP "
+                    "WHERE razorpay_order_id = ? AND user_id = ? AND status != 'paid'",
+                    (body.razorpay_payment_id, body.razorpay_order_id, user_id),
+                )
+            finally:
+                cursor.close()
+    except AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.error("word_topup_activate_failed", error=str(exc), order_id=body.razorpay_order_id)
+        raise HTTPException(status_code=500, detail="Payment recorded but word top-up activation failed. Contact support.")
+
+    total = get_word_topup_balance(user_id)
+    return {
+        "success": True,
+        "addon": "word_topup",
+        "words_added": settings.word_topup_pack_words,
+        "topup_remaining": total,
+        "message": f"{settings.word_topup_pack_words:,} scan words added.",
+    }
+
+
+@router.get("/word-topups")
+async def route_get_word_topups(
+    authorization: str = Header(default=""),
+):
+    """Return the user's remaining purchased scan words."""
+    user_id = _get_user_id(authorization)
+    return {"topup_remaining": get_word_topup_balance(user_id)}
 
 
 # Keep legacy endpoints for backwards compatibility

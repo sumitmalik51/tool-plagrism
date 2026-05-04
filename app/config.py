@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     passage_display_length: int = 500  # Chars to display in flagged passages
     flagged_passages_limit: int = 50  # Max passages to return in response
     page_content_length: int = 2000  # Max chars of fetched page to analyze
+    document_text_storage_chars: int = 200000  # Max chars of extracted text stored in DB history
+    report_original_text_chars: int = 200000  # Max chars returned in report.original_text
+    max_scan_chunks_free: int = 120  # Representative chunk cap for free/anonymous scans
+    max_scan_chunks_pro: int = 300  # Representative chunk cap for Pro scans
+    max_scan_chunks_premium: int = 600  # Representative chunk cap for Premium scans
+    max_compare_chunks: int = 300  # Per-document cap for cross-document similarity matrices
+    batch_analysis_concurrency: int = 2  # Keep concurrent batch scans bounded
 
     # Risk classification thresholds (plagiarism_score 0-100)
     risk_threshold_high: float = 60.0
@@ -122,6 +129,10 @@ class Settings(BaseSettings):
     rw_credit_cost_expand: int = 1         # Credits per expand
     rw_credit_cost_improve: int = 1        # Credits per improve
     rw_credit_cost_caption: int = 1        # Credits per caption
+
+    # Scan word quota top-up (one-time add-on)
+    word_topup_pack_words: int = 100000    # Extra scan words per pack
+    word_topup_pack_amount: int = 199_00   # Price in paise (₹199)
 
     # Razorpay payment gateway
     razorpay_key_id: str = ""       # Set PG_RAZORPAY_KEY_ID

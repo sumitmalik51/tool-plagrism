@@ -4,19 +4,20 @@ from __future__ import annotations
 
 import json
 import uuid
+import hashlib
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.config import settings
-from app.dependencies.rate_limit import enforce_scan_limit, record_scan
+from app.dependencies.rate_limit import enforce_scan_limit, enforce_word_quota, record_scan, stored_text_excerpt
 from app.models.schemas import PlagiarismReport
 from app.services import progress as scan_progress
 from app.services.ingestion import ingest_file
 from app.services.orchestrator import run_pipeline
 from app.services.persistence import save_document, save_scan
-from app.services.rate_limiter import PLAN_TO_TIER, UserTier, limiter
+from app.services.rate_limiter import UserTier
 from app.services.report_generator import report_to_json
 from app.utils.logger import get_logger
 
@@ -99,23 +100,7 @@ async def analyze_document(file: UploadFile, request: Request, document_id: str 
 
     # --- Enforce word quota (after ingestion so we count actual extracted text) -
     word_count = len(ingestion_result["text"].split())
-    request.state.scan_word_count = word_count
-    if user_id:
-        tier = PLAN_TO_TIER.get(plan_type, UserTier.FREE)
-        wq = limiter.check_word_quota(user_id, tier, word_count=word_count)
-        if not wq["allowed"]:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail={
-                    "error": "word_quota_exceeded",
-                    "message": f"Monthly word limit reached ({wq['limit']:,} words). "
-                               f"Used {wq['used']:,}, this document has {word_count:,} words.",
-                    "used": wq["used"],
-                    "limit": wq["limit"],
-                    "remaining": wq["remaining"],
-                    "upgrade_url": "/pricing",
-                },
-            )
+    enforce_word_quota(request, word_count, "document")
 
     # --- Save document to DB --------------------------------------------------
     try:
@@ -125,7 +110,7 @@ async def analyze_document(file: UploadFile, request: Request, document_id: str 
             filename=ingestion_result["filename"],
             file_type=ingestion_result["file_type"],
             char_count=ingestion_result["char_count"],
-            text_content=ingestion_result["text"][:50000],  # cap stored text
+            text_content=stored_text_excerpt(ingestion_result["text"]),
         )
     except Exception as exc:
         logger.warning("document_save_failed", error=str(exc))
@@ -190,23 +175,7 @@ async def analyze_text(
 
     # --- Enforce word quota ----------------------------------------------------
     word_count = len(body.text.split())
-    request.state.scan_word_count = word_count
-    if user_id:
-        tier = PLAN_TO_TIER.get(plan_type, UserTier.FREE)
-        wq = limiter.check_word_quota(user_id, tier, word_count=word_count)
-        if not wq["allowed"]:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail={
-                    "error": "word_quota_exceeded",
-                    "message": f"Monthly word limit reached ({wq['limit']:,} words). "
-                               f"Used {wq['used']:,}, this text has {word_count:,} words.",
-                    "used": wq["used"],
-                    "limit": wq["limit"],
-                    "remaining": wq["remaining"],
-                    "upgrade_url": "/pricing",
-                },
-            )
+    enforce_word_quota(request, word_count, "text")
 
     logger.info(
         "analyze_agent_started",
@@ -222,7 +191,7 @@ async def analyze_text(
             filename=None,
             file_type="text",
             char_count=len(body.text),
-            text_content=body.text[:50000],
+            text_content=stored_text_excerpt(body.text),
         )
     except Exception as exc:
         logger.warning("document_save_failed", error=str(exc))
@@ -699,6 +668,100 @@ async def export_pdf_report(document_id: str, request: Request):
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=plagiarismguard-report-{document_id[:12]}.pdf"},
     )
+
+
+# ---------------------------------------------------------------------------
+# Report Trust Pack / verification certificate
+# ---------------------------------------------------------------------------
+
+def _certificate_payload(row: dict) -> dict:
+    base_url = str(settings.app_base_url or "https://plagiarismguard.com").rstrip("/")
+    return {
+        "verification_id": row["verification_id"],
+        "document_id": row["document_id"],
+        "report_hash": row["report_hash"],
+        "score": row["score"],
+        "risk_level": row["risk_level"],
+        "issued_at": str(row["issued_at"]),
+        "verification_url": f"{base_url}/api/v1/verify-report/{row['verification_id']}",
+        "certificate": "PlagiarismGuard Originality Report Certificate",
+    }
+
+
+@router.post("/report-certificate/{document_id}", summary="Create a verifiable report certificate")
+async def create_report_certificate(document_id: str, request: Request) -> JSONResponse:
+    """Create or return a stable verification certificate for a scan report."""
+    from app.services.database import get_db
+
+    user_id = getattr(request.state, "user_id", None)
+    if user_id is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+
+    db = get_db()
+    scan = db.fetch_one(
+        "SELECT document_id, user_id, report_json, plagiarism_score, risk_level, created_at "
+        "FROM scans WHERE document_id = ? AND user_id = ?",
+        (document_id, user_id),
+    )
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found.")
+
+    existing = db.fetch_one(
+        "SELECT * FROM report_certificates WHERE document_id = ? AND user_id = ?",
+        (document_id, user_id),
+    )
+    if existing:
+        return JSONResponse(_certificate_payload(dict(existing)))
+
+    canonical = json.dumps(json.loads(scan.get("report_json") or "{}"), sort_keys=True, separators=(",", ":"))
+    report_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    verification_id = hashlib.sha256(
+        f"{document_id}|{user_id}|{report_hash}|{scan.get('created_at', '')}".encode("utf-8")
+    ).hexdigest()[:32]
+
+    try:
+        db.execute(
+            "INSERT INTO report_certificates "
+            "(verification_id, document_id, user_id, report_hash, score, risk_level) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                verification_id,
+                document_id,
+                user_id,
+                report_hash,
+                scan.get("plagiarism_score") or 0,
+                scan.get("risk_level") or "LOW",
+            ),
+        )
+    except Exception:
+        # Idempotency for concurrent clicks.
+        pass
+
+    cert = db.fetch_one("SELECT * FROM report_certificates WHERE verification_id = ?", (verification_id,))
+    if not cert:
+        raise HTTPException(status_code=500, detail="Certificate could not be created.")
+    return JSONResponse(_certificate_payload(dict(cert)))
+
+
+@router.get("/verify-report/{verification_id}", summary="Verify a report certificate")
+async def verify_report_certificate(verification_id: str) -> JSONResponse:
+    """Public endpoint that verifies a report certificate by ID."""
+    from app.services.database import get_db
+
+    if not verification_id or len(verification_id) > 64:
+        raise HTTPException(status_code=400, detail="Invalid verification ID.")
+
+    db = get_db()
+    row = db.fetch_one(
+        "SELECT verification_id, document_id, report_hash, score, risk_level, issued_at "
+        "FROM report_certificates WHERE verification_id = ?",
+        (verification_id,),
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Certificate not found.")
+    payload = _certificate_payload(dict(row))
+    payload["valid"] = True
+    return JSONResponse(payload)
 
 
 # ---------------------------------------------------------------------------

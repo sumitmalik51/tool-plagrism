@@ -13,14 +13,13 @@ from typing import Any
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel, Field
 
-from app.dependencies.rate_limit import enforce_scan_limit, record_scan
+from app.dependencies.rate_limit import enforce_scan_limit, enforce_word_quota, record_scan, stored_text_excerpt
 from app.routes.analyze import AnalyzeTextRequest, _persist_scan
 from app.services import progress as scan_progress
 from app.services.ingestion import ingest_file
 from app.services.job_manager import Job, get_manager
 from app.services.orchestrator import run_pipeline
 from app.services.persistence import save_document
-from app.services.rate_limiter import PLAN_TO_TIER, UserTier, limiter
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -38,28 +37,6 @@ def _resolve_plan(user_id: int | None) -> str:
     from app.services.auth_service import get_user_by_id
     user = get_user_by_id(user_id)
     return (user or {}).get("plan_type", "free") if user else "free"
-
-
-def _check_word_quota(user_id: int | None, plan_type: str, word_count: int, what: str) -> None:
-    if not user_id:
-        return
-    tier = PLAN_TO_TIER.get(plan_type, UserTier.FREE)
-    wq = limiter.check_word_quota(user_id, tier, word_count=word_count)
-    if not wq["allowed"]:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={
-                "error": "word_quota_exceeded",
-                "message": (
-                    f"Monthly word limit reached ({wq['limit']:,} words). "
-                    f"Used {wq['used']:,}, this {what} has {word_count:,} words."
-                ),
-                "used": wq["used"],
-                "limit": wq["limit"],
-                "remaining": wq["remaining"],
-                "upgrade_url": "/pricing",
-            },
-        )
 
 
 def _serialize_job(job: Job, *, include_result: bool = True) -> dict[str, Any]:
@@ -102,8 +79,7 @@ async def submit_text_job(body: AnalyzeTextRequest, request: Request) -> dict[st
     plan_type = _resolve_plan(user_id)
 
     word_count = len(body.text.split())
-    request.state.scan_word_count = word_count
-    _check_word_quota(user_id, plan_type, word_count, "text")
+    enforce_word_quota(request, word_count, "text")
 
     # Prime the progress tracker so the SSE endpoint has something immediately.
     tracker = scan_progress.get_or_create(document_id)
@@ -116,7 +92,7 @@ async def submit_text_job(body: AnalyzeTextRequest, request: Request) -> dict[st
             filename=None,
             file_type="text",
             char_count=len(body.text),
-            text_content=body.text[:50000],
+            text_content=stored_text_excerpt(body.text),
         )
     except Exception as exc:
         logger.warning("document_save_failed", error=str(exc))
@@ -187,8 +163,7 @@ async def submit_file_job(
         raise HTTPException(status_code=422, detail=str(exc))
 
     word_count = len(ingestion_result["text"].split())
-    request.state.scan_word_count = word_count
-    _check_word_quota(user_id, plan_type, word_count, "document")
+    enforce_word_quota(request, word_count, "document")
 
     try:
         save_document(
@@ -197,7 +172,7 @@ async def submit_file_job(
             filename=ingestion_result["filename"],
             file_type=ingestion_result["file_type"],
             char_count=ingestion_result["char_count"],
-            text_content=ingestion_result["text"][:50000],
+            text_content=stored_text_excerpt(ingestion_result["text"]),
         )
     except Exception as exc:
         logger.warning("document_save_failed", error=str(exc))

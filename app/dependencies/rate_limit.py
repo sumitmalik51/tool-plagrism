@@ -23,6 +23,7 @@ from app.services.rate_limiter import (
     UserTier,
     limiter,
 )
+from app.config import settings
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -148,6 +149,111 @@ def record_scan(request: Request) -> int:
     """Legacy shim — records a scan usage with word count."""
     wc = getattr(request.state, "scan_word_count", 0)
     return record_usage(request, tool_type="scan", word_count=wc)
+
+
+def get_request_plan_type(request: Request) -> str:
+    """Return the current caller's plan type, resolving from JWT/DB if needed."""
+    user_id: int | None = getattr(request.state, "user_id", None)
+    token_plan: str | None = getattr(request.state, "plan_type", None)
+    if user_id is None:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            from app.services.auth_service import verify_access_token
+            token = auth_header.removeprefix("Bearer ").strip()
+            payload = verify_access_token(token)
+            if payload:
+                user_id = int(payload["sub"])
+                request.state.user_id = user_id
+                token_plan = payload.get("plan_type") or token_plan
+
+    if user_id is not None:
+        user = get_user_by_id(user_id)
+        if user:
+            plan = user.get("plan_type", "free")
+            request.state.plan_type = plan
+            return str(plan)
+
+    if token_plan:
+        return str(token_plan)
+
+    return "free"
+
+
+def get_request_tier(request: Request) -> UserTier:
+    """Return the current caller's subscription tier."""
+    tier = getattr(request.state, "rate_limit_tier", None)
+    if isinstance(tier, UserTier):
+        return tier
+    return PLAN_TO_TIER.get(get_request_plan_type(request), UserTier.FREE)
+
+
+def enforce_word_quota(request: Request, word_count: int, what: str = "text") -> dict:
+    """Raise 429 if the current authenticated user lacks monthly word quota.
+
+    Anonymous callers remain governed by daily IP limits; registered users are
+    checked against their tier's monthly word quota.  The word count is stashed
+    on ``request.state`` so ``record_scan`` can persist it.
+    """
+    request.state.scan_word_count = max(int(word_count or 0), 0)
+
+    user_id: int | None = getattr(request.state, "user_id", None)
+    if user_id is None:
+        _resolve_identity(request)
+        user_id = getattr(request.state, "user_id", None)
+
+    if user_id is None:
+        return {"allowed": True, "used": 0, "limit": 0, "remaining": -1}
+
+    tier = get_request_tier(request)
+    quota = limiter.check_word_quota(user_id, tier, word_count=word_count)
+    if quota["allowed"]:
+        try:
+            from app.services.auth_service import get_word_topup_balance
+            quota["topup_remaining"] = get_word_topup_balance(user_id)
+        except Exception:
+            quota["topup_remaining"] = 0
+        return quota
+
+    # Base monthly quota is exhausted or insufficient.  Purchased scan word
+    # top-ups cover only the deficit beyond the base monthly allowance, so a
+    # user with 1,000 base words remaining and a 2,500-word document spends
+    # 1,500 purchased words.
+    try:
+        from app.services.auth_service import deduct_word_topup, get_word_topup_balance
+        deficit = max(int(word_count or 0) - int(quota.get("remaining", 0) or 0), 0)
+        topup_balance = get_word_topup_balance(user_id)
+        if deficit > 0 and topup_balance >= deficit and deduct_word_topup(user_id, deficit):
+            quota["allowed"] = True
+            quota["topup_used"] = deficit
+            quota["topup_remaining"] = topup_balance - deficit
+            return quota
+        quota["topup_remaining"] = topup_balance
+    except Exception as exc:
+        logger.warning("word_topup_check_failed", user_id=user_id, error=str(exc)[:120])
+
+    raise HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail={
+            "error": "word_quota_exceeded",
+            "message": (
+                f"Monthly word limit reached ({quota['limit']:,} words). "
+                f"Used {quota['used']:,}, this {what} has {word_count:,} words."
+            ),
+            "used": quota["used"],
+            "limit": quota["limit"],
+            "remaining": quota["remaining"],
+            "topup_remaining": quota.get("topup_remaining", 0),
+            "upgrade_url": "/pricing",
+        },
+    )
+
+
+def stored_text_excerpt(text: str) -> str:
+    """Return the bounded document text stored in DB history."""
+    limit = max(settings.document_text_storage_chars, 0)
+    if limit == 0:
+        return text
+    return text[:limit]
 
 
 def enforce_rw_limit(tool_type: str):

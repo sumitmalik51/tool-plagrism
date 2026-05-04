@@ -7,7 +7,6 @@ import type { User, LoginRequest, SignupRequest } from "@/lib/types";
 interface AuthState {
   user: User | null;
   token: string | null;
-  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
 
@@ -23,22 +22,19 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   token: null,
-  refreshToken: null,
   isAuthenticated: false,
   isLoading: true,
 
   login: async (credentials) => {
     const { data } = await api.post("/api/v1/auth/login", credentials);
-    const { user, token, refresh_token } = data;
+    const { user, token } = data;
 
     localStorage.setItem("pg_token", token);
-    if (refresh_token) localStorage.setItem("pg_refresh_token", refresh_token);
     localStorage.setItem("pg_user", JSON.stringify(user));
 
     set({
       user,
       token,
-      refreshToken: refresh_token || null,
       isAuthenticated: true,
       isLoading: false,
     });
@@ -46,16 +42,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signup: async (signupData) => {
     const { data } = await api.post("/api/v1/auth/signup", signupData);
-    const { user, token, refresh_token } = data;
+    const { user, token } = data;
 
     localStorage.setItem("pg_token", token);
-    if (refresh_token) localStorage.setItem("pg_refresh_token", refresh_token);
     localStorage.setItem("pg_user", JSON.stringify(user));
 
     set({
       user,
       token,
-      refreshToken: refresh_token || null,
       isAuthenticated: true,
       isLoading: false,
     });
@@ -66,29 +60,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       credential,
       referral_code: referralCode,
     });
-    const { user, token, refresh_token } = data;
+    const { user, token } = data;
 
     localStorage.setItem("pg_token", token);
-    if (refresh_token) localStorage.setItem("pg_refresh_token", refresh_token);
     localStorage.setItem("pg_user", JSON.stringify(user));
 
     set({
       user,
       token,
-      refreshToken: refresh_token || null,
       isAuthenticated: true,
       isLoading: false,
     });
   },
 
   logout: () => {
+    void api.post("/api/v1/auth/logout").catch(() => undefined);
     localStorage.removeItem("pg_token");
-    localStorage.removeItem("pg_refresh_token");
     localStorage.removeItem("pg_user");
     set({
       user: null,
       token: null,
-      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
     });
@@ -101,7 +92,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     const token = localStorage.getItem("pg_token");
-    const refreshToken = localStorage.getItem("pg_refresh_token");
     const userStr = localStorage.getItem("pg_user");
 
     if (token && userStr) {
@@ -110,7 +100,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({
           user,
           token,
-          refreshToken,
           isAuthenticated: true,
           isLoading: false,
         });

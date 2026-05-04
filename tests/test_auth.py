@@ -75,13 +75,15 @@ class TestAuthEnabled:
     def test_root_stays_public(self) -> None:
         with _override_api_keys([self.API_KEY]):
             resp = _client.get("/")
+            # Root is now an API service-info JSON endpoint, must not require auth
             assert resp.status_code == 200
+            assert resp.json().get("service")
 
-    def test_static_stays_public(self) -> None:
+    def test_static_assets_stay_public(self) -> None:
         with _override_api_keys([self.API_KEY]):
-            resp = _client.get("/static/index.html")
-            # Static file may return 200 or 404, but NOT 401
-            assert resp.status_code != 401
+            resp = _client.get("/static/favicon.svg")
+            # External manifests (Word add-in, OG cards) reach this without auth
+            assert resp.status_code == 200
 
     def test_api_rejected_without_key(self) -> None:
         with _override_api_keys([self.API_KEY]):

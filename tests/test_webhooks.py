@@ -151,15 +151,17 @@ class TestDeleteWebhook:
 
 class TestFireWebhooks:
     @pytest.mark.asyncio
+    @patch("app.routes.webhooks._is_private_url", return_value=False)
     @patch("app.routes.webhooks.httpx.AsyncClient")
     @patch("app.routes.webhooks.get_db")
-    async def test_fire_webhooks_sends_signed_payload(self, mock_db, mock_client_cls) -> None:
+    async def test_fire_webhooks_sends_signed_payload(self, mock_db, mock_client_cls, mock_private) -> None:
         from app.routes.webhooks import fire_webhooks
 
         mock_instance = MagicMock()
         mock_instance.fetch_all.return_value = [
-            {"url": "https://example.com/hook", "secret": "abc123", "events": "scan.complete"},
+            {"id": 1, "url": "https://example.com/hook", "secret": "abc123", "events": "scan.complete"},
         ]
+        mock_instance.execute.return_value = 77
         mock_db.return_value = mock_instance
 
         mock_resp = MagicMock()
@@ -178,3 +180,52 @@ class TestFireWebhooks:
         headers = call_kwargs.kwargs.get("headers", {}) if call_kwargs.kwargs else call_kwargs[1].get("headers", {})
         assert "X-PlagiarismGuard-Signature" in headers
         assert headers["X-PlagiarismGuard-Signature"].startswith("sha256=")
+
+    @patch("app.routes.webhooks.get_db")
+    @patch("app.routes.webhooks.verify_access_token", return_value=_FAKE_USER_PAYLOAD)
+    def test_list_webhook_deliveries_returns_audit_rows(self, mock_verify, mock_db) -> None:
+        mock_instance = MagicMock()
+        mock_instance.fetch_all.return_value = [
+            {
+                "id": 10,
+                "webhook_id": 1,
+                "url": "https://example.com/hook",
+                "event": "scan.complete",
+                "status": "delivered",
+                "attempts": 1,
+                "response_code": 200,
+                "last_error": None,
+                "created_at": "2024-01-01",
+                "delivered_at": "2024-01-01",
+            }
+        ]
+        mock_db.return_value = mock_instance
+
+        resp = client.get(f"{WEBHOOKS_PREFIX}/deliveries", headers=_auth_header())
+
+        assert resp.status_code == 200
+        assert resp.json()["deliveries"][0]["status"] == "delivered"
+
+    @patch("app.routes.webhooks._deliver_webhook", new_callable=AsyncMock)
+    @patch("app.routes.webhooks.get_db")
+    @patch("app.routes.webhooks.verify_access_token", return_value=_FAKE_USER_PAYLOAD)
+    def test_replay_webhook_delivery(self, mock_verify, mock_db, mock_deliver) -> None:
+        mock_instance = MagicMock()
+        mock_instance.fetch_one.return_value = {
+            "id": 10,
+            "webhook_id": 1,
+            "user_id": 42,
+            "event": "scan.complete",
+            "payload_json": '{"score":25}',
+            "url": "https://example.com/hook",
+            "secret": "abc123",
+            "is_active": 1,
+        }
+        mock_db.return_value = mock_instance
+        mock_deliver.return_value = "delivered"
+
+        resp = client.post(f"{WEBHOOKS_PREFIX}/deliveries/10/replay", headers=_auth_header())
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "delivered"
+        mock_deliver.assert_awaited_once()

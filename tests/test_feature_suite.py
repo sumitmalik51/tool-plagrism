@@ -313,30 +313,6 @@ class TestEnhancedPDF:
         assert len(r.content) > 2000
 
 
-# ---------------------------------------------------------------------------
-# Page routes
-# ---------------------------------------------------------------------------
-
-class TestPageRoutes:
-    def test_compare_page(self):
-        r = client.get("/compare")
-        assert r.status_code == 200
-        assert b"Compare Scans" in r.content
-
-    def test_highlight_page(self):
-        r = client.get("/highlight")
-        assert r.status_code == 200
-        assert b"Suggestions" in r.content
-        assert b"Citations" in r.content
-
-    def test_highlight_has_theme_toggle(self):
-        r = client.get("/highlight")
-        assert b"themeToggle" in r.content
-
-    def test_batch_has_theme_toggle(self):
-        r = client.get("/batch")
-        assert b"themeToggle" in r.content
-
-    def test_history_has_compare_link(self):
-        r = client.get("/history")
-        assert b"/compare" in r.content
+# V1 page-route tests (/compare, /highlight, /batch, /history HTML) were
+# retired with the static frontend. The Next.js app in `frontend/` covers
+# these views; backend keeps only the JSON APIs they consume.

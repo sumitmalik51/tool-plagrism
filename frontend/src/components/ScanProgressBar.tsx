@@ -25,18 +25,23 @@ const STAGE_DEFAULTS: Record<string, string> = {
 export default function ScanProgressBar({ showWhenIdle = false }: Props) {
   const active = useScanJobsStore((s) => s.active);
   const [elapsed, setElapsed] = useState(0);
+  const activeJobId = active?.job_id;
+  const activeStatus = active?.status;
+  const activeStartedAt = active?.started_at;
 
   useEffect(() => {
-    if (!active || active.status === "completed" || active.status === "failed") {
-      setElapsed(0);
+    if (!activeJobId || activeStatus === "completed" || activeStatus === "failed") {
       return;
     }
-    const start = active.started_at ? active.started_at * 1000 : Date.now();
+    const start = activeStartedAt ? activeStartedAt * 1000 : Date.now();
     const tick = () => setElapsed(Math.max(0, Date.now() - start));
-    tick();
+    const firstTick = window.setTimeout(tick, 0);
     const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, [active?.job_id, active?.status, active?.started_at]);
+    return () => {
+      window.clearTimeout(firstTick);
+      window.clearInterval(id);
+    };
+  }, [activeJobId, activeStatus, activeStartedAt]);
 
   if (!active && !showWhenIdle) return null;
   if (!active) return null;
@@ -90,17 +95,42 @@ export default function ScanProgressBar({ showWhenIdle = false }: Props) {
                 : `${Math.round(pct)}% · ${elapsedLabel}`}
             </span>
           </div>
-          <div className="h-2 bg-bg/60 rounded-full overflow-hidden border border-border">
+          <div className="relative h-2.5 bg-bg/60 rounded-full overflow-hidden border border-border">
+            {/* Filled portion */}
             <div
-              className={`h-full transition-all duration-500 ease-out ${
+              className={`relative h-full rounded-full transition-[width] duration-700 ease-out ${
                 isFailed
                   ? "bg-danger"
                   : isDone
                     ? "bg-success"
-                    : "bg-gradient-to-r from-accent/70 to-accent"
+                    : "bg-gradient-to-r from-accent-l via-accent to-accent"
               }`}
               style={{ width: `${pct}%` }}
-            />
+            >
+              {/* Moving stripes — gives the "filling" texture while in-flight */}
+              {!isFailed && !isDone && (
+                <div className="absolute inset-0 progress-stripes rounded-full" />
+              )}
+              {/* Glowing leading edge */}
+              {!isFailed && !isDone && (
+                <div
+                  className="absolute right-0 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-accent-l progress-glow"
+                  style={{ boxShadow: "0 0 12px 2px rgb(var(--accent-rgb) / 0.7)" }}
+                />
+              )}
+            </div>
+            {/* Indeterminate sheen — sweeps across regardless of % */}
+            {!isFailed && !isDone && (
+              <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-full">
+                <div
+                  className="progress-indeterminate h-full w-1/4"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%)",
+                  }}
+                />
+              </div>
+            )}
           </div>
           {!isFailed && !isDone && (
             <p className="text-xs text-muted mt-2">

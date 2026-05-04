@@ -134,6 +134,9 @@ class TestStripeWebhook:
         mock_stripe.return_value = mock_stripe_mod
 
         mock_instance = MagicMock()
+        tx_conn = mock_instance.transaction.return_value.__enter__.return_value
+        cursor = tx_conn.cursor.return_value
+        cursor.fetchone.return_value = None
         mock_db.return_value = mock_instance
 
         with patch("app.routes.stripe_payments.settings") as s:
@@ -148,11 +151,12 @@ class TestStripeWebhook:
             assert resp.status_code == 200
             assert resp.json()["status"] == "ok"
 
-            # Verify DB was called (UPDATE users + INSERT payments)
-            assert mock_instance.execute.call_count == 2
-            update_call = mock_instance.execute.call_args_list[0]
+            # Verify DB was called inside one transaction (UPDATE users + SELECT + INSERT payments)
+            assert mock_instance.transaction.called
+            assert cursor.execute.call_count == 3
+            update_call = cursor.execute.call_args_list[0]
             assert "UPDATE users SET plan" in update_call[0][0]
-            insert_call = mock_instance.execute.call_args_list[1]
+            insert_call = cursor.execute.call_args_list[2]
             assert "INSERT INTO payments" in insert_call[0][0]
 
     @patch("app.routes.stripe_payments.get_db")
