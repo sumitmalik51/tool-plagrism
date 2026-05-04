@@ -78,9 +78,12 @@ class AggregationAgent(BaseAgent):
         )
 
         # --- Detect failed agents ---------------------------------------------
+        failed_statuses = {"timed_out", "failed", "error"}
         failed_agents = [
             o.agent_name for o in agent_outputs
             if o.details.get("agent_failed")
+            or o.details.get("status") in failed_statuses
+            or "error" in o.details
         ]
 
         return AgentOutput(

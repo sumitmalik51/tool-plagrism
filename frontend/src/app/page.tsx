@@ -550,7 +550,7 @@ export default function LandingPage() {
                 ["Built-in rewriter (7 modes)", true, false],
                 ["Web content scanning", true, true],
                 ["Free tier", true, true],
-              ].map(([feature, us, others], i) => (
+              ].map(([feature, , others], i) => (
                 <tr key={i} className="border-b border-border/40 last:border-0 hover:bg-bg/30 transition-colors">
                   <td className="px-6 py-3.5 text-txt/90 text-[13px]">{feature as string}</td>
                   <td className="px-6 py-3.5 text-center">

@@ -19,7 +19,7 @@ from app.agents.report_agent import ReportAgent
 from app.agents.semantic_agent import SemanticAgent
 from app.agents.web_search_agent import WebSearchAgent
 from app.models.schemas import AgentInput, AgentOutput, PlagiarismReport
-from app.tools.content_extractor_tool import chunk_text
+from app.tools.content_extractor_tool import chunk_text, sample_chunks_evenly
 from app.tools.citation_stripper import prepare_text_for_scanning
 from app.tools.language_detector import detect_language
 from app.config import settings
@@ -56,6 +56,15 @@ def _adaptive_query_count(text_length: int, plan_type: str = "free") -> tuple[in
         base_scholar = max(base_scholar, settings.web_search_max_queries_premium)
 
     return base_web, base_scholar
+
+
+def _max_chunks_for_plan(plan_type: str) -> int:
+    """Return the representative chunk cap for the caller's plan."""
+    if plan_type == "premium":
+        return settings.max_scan_chunks_premium
+    if plan_type == "pro":
+        return settings.max_scan_chunks_pro
+    return settings.max_scan_chunks_free
 
 
 async def run_pipeline(
@@ -125,8 +134,24 @@ async def run_pipeline(
     tracker.emit("chunking", "Splitting document into chunks...", 15)
     chunk_result = chunk_text(scan_text, chunk_size=settings.chunk_size, overlap=settings.chunk_overlap)
     chunks = chunk_result["chunks"]
+    original_chunk_count = len(chunks)
+    chunk_limit = _max_chunks_for_plan(plan_type)
+    analysis_warnings: list[str] = []
+    if original_chunk_count > chunk_limit:
+        chunks = sample_chunks_evenly(chunks, chunk_limit)
+        scan_text = "\n\n".join(chunks)
+        analysis_warnings.append(
+            f"Document produced {original_chunk_count} chunks; analysed an evenly sampled "
+            f"set of {len(chunks)} chunks for this plan to keep processing bounded."
+        )
 
-    logger.info("chunks_prepared", document_id=document_id, chunk_count=len(chunks))
+    logger.info(
+        "chunks_prepared",
+        document_id=document_id,
+        chunk_count=len(chunks),
+        original_chunk_count=original_chunk_count,
+        chunk_limit=chunk_limit,
+    )
 
     # --- 1b. Scale search coverage based on document size ---------------------
     web_q, scholar_q = _adaptive_query_count(len(scan_text), plan_type=plan_type)
@@ -177,9 +202,13 @@ async def run_pipeline(
             result = AgentOutput(
                 agent_name=agent.name,
                 score=0.0,
-                confidence=0.1,
+                confidence=0.0,
                 flagged_passages=[],
-                details={"status": "timed_out"},
+                details={
+                    "status": "timed_out",
+                    "agent_failed": True,
+                    "error": "Agent timed out before completing analysis.",
+                },
             )
         agents_done += 1
         pct = 20 + (agents_done * 15)  # 35, 50, 65, 80
@@ -239,9 +268,13 @@ async def run_pipeline(
             agent_outputs.append(AgentOutput(
                 agent_name=agent.name,
                 score=0.0,
-                confidence=0.1,
+                confidence=0.0,
                 flagged_passages=[],
-                details={"status": "timed_out"},
+                details={
+                    "status": "timed_out",
+                    "agent_failed": True,
+                    "error": "Global analysis timeout reached before this agent completed.",
+                },
             ))
     finally:
         _heartbeat_running = False
@@ -274,6 +307,18 @@ async def run_pipeline(
     report.language = lang_info.get("language", "en")
     report.language_name = lang_info.get("language_name", "English")
     report.citation_metadata = citation_meta
+    report.analysis_warnings.extend(analysis_warnings)
+    report.analysis_scope = {
+        "original_chunk_count": original_chunk_count,
+        "analyzed_chunk_count": len(chunks),
+        "chunk_limit": chunk_limit,
+        "sampled": original_chunk_count > len(chunks),
+    }
+    if len(report.original_text) > settings.report_original_text_chars > 0:
+        report.original_text = report.original_text[:settings.report_original_text_chars]
+        report.analysis_warnings.append(
+            "Report text preview was truncated for response size; scoring used the bounded analysis scope above."
+        )
 
     # --- 5. Filter excluded domains -------------------------------------------
     if excluded_domains:

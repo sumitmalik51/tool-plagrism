@@ -249,29 +249,43 @@ async def stripe_webhook(request: Request):
         customer_id = data.get("customer")
 
         if user_id:
-            db.execute(
-                "UPDATE users SET plan_type = ?, stripe_customer_id = ? WHERE id = ?",
-                (tier, customer_id, int(user_id)),
-            )
-            # Record the payment so _check_trial_expiry won't downgrade paying users
+            uid = int(user_id)
             try:
-                amount = data.get("amount_total", 0)
-                currency = data.get("currency", "usd")
+                amount = int(data.get("amount_total", 0) or 0)
+                currency = data.get("currency", "usd") or "usd"
                 stripe_session_id = data.get("id", "")
-                db.execute(
-                    "INSERT INTO payments (user_id, razorpay_order_id, plan_name, amount, currency, status) "
-                    "VALUES (?, ?, ?, ?, ?, ?)",
-                    (int(user_id), stripe_session_id, tier, amount, currency, "paid"),
-                )
+                is_paid = 1 if tier != "free" else 0
+                with db.transaction() as conn:
+                    cursor = conn.cursor()
+                    try:
+                        cursor.execute(
+                            "UPDATE users SET plan_type = ?, is_paid = ?, stripe_customer_id = ?, "
+                            "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                            (tier, is_paid, customer_id, uid),
+                        )
+                        cursor.execute(
+                            "SELECT id FROM payments WHERE razorpay_order_id = ?",
+                            (stripe_session_id,),
+                        )
+                        exists = cursor.fetchone()
+                        if not exists:
+                            cursor.execute(
+                                "INSERT INTO payments (user_id, razorpay_order_id, plan_name, amount, currency, status) "
+                                "VALUES (?, ?, ?, ?, ?, ?)",
+                                (uid, stripe_session_id, tier, amount, currency, "paid"),
+                            )
+                    finally:
+                        cursor.close()
+                logger.info("stripe_upgrade", user_id=user_id, tier=tier)
             except Exception as pay_err:
                 logger.error("stripe_payment_record_failed", user_id=user_id, error=str(pay_err))
-            logger.info("stripe_upgrade", user_id=user_id, tier=tier)
+                raise HTTPException(status_code=500, detail="Stripe webhook processing failed")
 
     elif event_type == "customer.subscription.deleted":
         customer_id = data.get("customer")
         if customer_id:
             db.execute(
-                "UPDATE users SET plan_type = 'free' WHERE stripe_customer_id = ?",
+                "UPDATE users SET plan_type = 'free', is_paid = 0, updated_at = CURRENT_TIMESTAMP WHERE stripe_customer_id = ?",
                 (customer_id,),
             )
             logger.info("stripe_downgrade", customer_id=customer_id)

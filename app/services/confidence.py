@@ -126,4 +126,9 @@ def generate_explanation(
 
 def _is_errored(output: AgentOutput) -> bool:
     """Return True if the agent output represents an error/fallback."""
-    return output.confidence == 0.0 and "error" in output.details
+    status = output.details.get("status")
+    return bool(
+        output.details.get("agent_failed")
+        or status in {"timed_out", "failed", "error"}
+        or (output.confidence == 0.0 and "error" in output.details)
+    )

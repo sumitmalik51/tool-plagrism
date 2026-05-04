@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Sparkles, Star, Zap } from "lucide-react";
+import { Check, Coins, Sparkles, Star, Users, Zap } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useToastStore } from "@/lib/stores/toast-store";
@@ -55,7 +55,7 @@ const PLANS = [
     icon: <Star className="w-5 h-5" />,
     popular: true,
     features: [
-      "25 scans per day",
+      "Unlimited scans within quota",
       "200,000 words / month",
       "All Free features, plus:",
       "Batch analysis (5 files)",
@@ -181,6 +181,55 @@ export default function PricingPage() {
       rzp.open();
     } catch {
       toast.add("error", "Failed to create order.");
+    } finally {
+      setLoadingPlan(null);
+    }
+  };
+
+  const buyWordTopup = async () => {
+    if (!isAuthenticated) {
+      router.push("/login?redirect=/pricing");
+      return;
+    }
+
+    setLoadingPlan("word_topup");
+    try {
+      const res = await api.post("/api/v1/auth/create-word-topup-order");
+      const { order_id, amount, razorpay_key, user_name, user_email, words } = res.data;
+
+      await loadRazorpayScript();
+
+      const options = {
+        key: razorpay_key,
+        amount,
+        currency: "INR",
+        name: "PlagiarismGuard",
+        description: `${Number(words).toLocaleString()} extra scan words`,
+        order_id,
+        prefill: { name: user_name, email: user_email },
+        theme: { color: "#6c5ce7" },
+        handler: async (response: {
+          razorpay_order_id: string;
+          razorpay_payment_id: string;
+          razorpay_signature: string;
+        }) => {
+          try {
+            const verify = await api.post("/api/v1/auth/verify-word-topup-payment", response);
+            toast.add("success", verify.data.message || "Word top-up added.");
+            fetchUser();
+          } catch {
+            toast.add("error", "Top-up verification failed.");
+          }
+        },
+        modal: {
+          ondismiss: () => setLoadingPlan(null),
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch {
+      toast.add("error", "Failed to create top-up order.");
     } finally {
       setLoadingPlan(null);
     }
@@ -332,6 +381,43 @@ export default function PricingPage() {
           })}
         </div>
 
+        {/* Quota top-up */}
+        <div className="mt-10 grid md:grid-cols-2 gap-6">
+          <div className="bg-surface border border-accent/30 rounded-2xl p-6">
+            <div className="flex items-center gap-2 mb-2 text-accent-l">
+              <Coins className="w-5 h-5" />
+              <h3 className="text-lg font-bold text-txt">Quota Top-up</h3>
+            </div>
+            <p className="text-sm text-muted mb-4">
+              Add 100,000 extra scan words when a monthly quota runs out. Top-ups are used only after plan quota.
+            </p>
+            <div className="flex items-end gap-2 mb-5">
+              <span className="text-3xl font-bold">₹199</span>
+              <span className="text-sm text-muted mb-1">one-time</span>
+            </div>
+            <Button className="w-full" loading={loadingPlan === "word_topup"} onClick={buyWordTopup}>
+              Buy 100K Words
+            </Button>
+          </div>
+
+          <div className="bg-surface border border-border rounded-2xl p-6">
+            <div className="flex items-center gap-2 mb-2 text-ok">
+              <Users className="w-5 h-5" />
+              <h3 className="text-lg font-bold text-txt">Institution / Team Workspace</h3>
+            </div>
+            <Badge variant="warning" className="mb-3">Coming soon</Badge>
+            <p className="text-sm text-muted mb-4">
+              Shared workspace, seats, team quota pool, admin reports, SSO, and LMS rollout are opening for early partners.
+            </p>
+            <a
+              href="mailto:sales@plagiarismguard.com?subject=Immediate%20Team%20Workspace%20Access"
+              className="inline-flex w-full justify-center px-4 py-2 rounded-xl bg-surface2 border border-border text-sm font-semibold hover:border-accent/50 transition-colors"
+            >
+              Reach out for immediate access
+            </a>
+          </div>
+        </div>
+
         {/* Full feature comparison */}
         <div className="mt-20">
           <h2 className="text-2xl font-bold text-center mb-2">
@@ -352,7 +438,7 @@ export default function PricingPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {[
-                  { f: "Scans per day", free: "3", pro: "25", prem: "Unlimited" },
+                  { f: "Scans per day", free: "3", pro: "Unlimited within quota", prem: "Unlimited within quota" },
                   { f: "Word quota / month", free: "5,000", pro: "200,000", prem: "500,000" },
                   { f: "Max file size", free: "5 MB", pro: "50 MB", prem: "100 MB" },
                   { f: "5 detection agents", free: "✓", pro: "✓", prem: "✓" },
@@ -411,7 +497,7 @@ export default function PricingPage() {
             {[
               {
                 q: "What happens if I hit my word quota?",
-                a: "Scans are paused until your quota resets at the start of the next month, or you can buy a top-up credit pack or upgrade your plan instantly.",
+                a: "Scans pause until your quota resets at the start of the next month, unless you buy a 100K-word top-up or upgrade your plan instantly.",
               },
               {
                 q: "Can I cancel any time?",
@@ -427,7 +513,7 @@ export default function PricingPage() {
               },
               {
                 q: "What's the difference between Pro and Premium?",
-                a: "Pro is sized for individual writers (200K words, 25 scans/day). Premium adds unlimited scans, deeper web search, repository check, webhooks, and more API keys for power users.",
+                a: "Pro is sized for individual writers (200K words/month with unlimited scans inside that quota). Premium raises the quota to 500K words/month and adds deeper web search, repository check, webhooks, and more API keys for power users.",
               },
               {
                 q: "Refund policy?",

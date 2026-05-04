@@ -49,6 +49,11 @@ class Database(ABC):
         """Fetch all matching rows as a list of dicts."""
 
     @abstractmethod
+    @contextmanager
+    def transaction(self) -> Generator[Any, None, None]:
+        """Yield a DB connection inside a transaction."""
+
+    @abstractmethod
     def init_schema(self) -> None:
         """Create tables if they don't exist."""
 
@@ -94,6 +99,16 @@ class SQLiteDatabase(Database):
     def fetch_all(self, sql: str, params: tuple = ()) -> list[dict[str, Any]]:
         rows = self._conn().execute(sql, params).fetchall()
         return [dict(r) for r in rows]
+
+    @contextmanager
+    def transaction(self) -> Generator[Any, None, None]:
+        conn = self._conn()
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
     def init_schema(self) -> None:
         conn = self._conn()
@@ -220,15 +235,34 @@ class AzureSQLDatabase(Database):
             conn = self._conn()
             cursor = conn.cursor()
             try:
+                is_insert = sql.strip().upper().startswith("INSERT")
+                if is_insert:
+                    # `SCOPE_IDENTITY()` must be evaluated in the same SQL Server
+                    # batch/scope as the INSERT. Calling it in a separate statement
+                    # after commit returns NULL, which made Azure SQL signups issue
+                    # access/refresh tokens for user_id=0.
+                    statement = f"{sql.rstrip().rstrip(';')}; SELECT CAST(SCOPE_IDENTITY() AS int) AS inserted_id"
+                    if params:
+                        cursor.execute(statement, params)
+                    else:
+                        cursor.execute(statement)
+                    inserted_id = 0
+                    while True:
+                        if cursor.description:
+                            row = cursor.fetchone()
+                            if row and row[0] is not None:
+                                inserted_id = int(row[0])
+                            break
+                        if not cursor.nextset():
+                            break
+                    conn.commit()
+                    return inserted_id
+
                 if params:
                     cursor.execute(sql, params)
                 else:
                     cursor.execute(sql)
                 conn.commit()
-                if sql.strip().upper().startswith("INSERT"):
-                    cursor.execute("SELECT SCOPE_IDENTITY()")
-                    row = cursor.fetchone()
-                    return int(row[0]) if row and row[0] else 0
                 return cursor.rowcount
             except Exception as exc:
                 try:
@@ -298,6 +332,19 @@ class AzureSQLDatabase(Database):
                     pass
         return []  # unreachable
 
+    @contextmanager
+    def transaction(self) -> Generator[Any, None, None]:
+        conn = self._conn()
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            raise
+
     def init_schema(self) -> None:
         conn = self._conn()
         cursor = conn.cursor()
@@ -333,6 +380,8 @@ CREATE TABLE IF NOT EXISTS users (
     plan_type   TEXT          NOT NULL DEFAULT 'free',
     trial_ends_at TEXT        NULL,
     stripe_customer_id TEXT   NULL,
+    referral_code TEXT        NULL,
+    bonus_scans INTEGER       NOT NULL DEFAULT 0,
     created_at  TEXT          NOT NULL DEFAULT (datetime('now')),
     updated_at  TEXT          NOT NULL DEFAULT (datetime('now'))
 );
@@ -438,6 +487,23 @@ CREATE TABLE IF NOT EXISTS webhook_subscriptions (
 );
 CREATE INDEX IF NOT EXISTS idx_webhooks_user ON webhook_subscriptions(user_id);
 
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    webhook_id     INTEGER       NOT NULL REFERENCES webhook_subscriptions(id),
+    user_id        INTEGER       NOT NULL REFERENCES users(id),
+    event          TEXT          NOT NULL,
+    payload_json   TEXT          NOT NULL,
+    status         TEXT          NOT NULL DEFAULT 'pending',
+    attempts       INTEGER       NOT NULL DEFAULT 0,
+    response_code  INTEGER       NULL,
+    response_body  TEXT          NULL,
+    last_error     TEXT          NULL,
+    created_at     TEXT          NOT NULL DEFAULT (datetime('now')),
+    delivered_at   TEXT          NULL
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_webhook ON webhook_deliveries(webhook_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_user ON webhook_deliveries(user_id);
+
 CREATE TABLE IF NOT EXISTS teams (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT          NOT NULL,
@@ -530,6 +596,31 @@ CREATE TABLE IF NOT EXISTS rw_credits (
 );
 CREATE INDEX IF NOT EXISTS idx_rw_credits_user ON rw_credits(user_id);
 
+CREATE TABLE IF NOT EXISTS word_topups (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id             INTEGER       NOT NULL,
+    words_remaining     INTEGER       NOT NULL DEFAULT 0,
+    words_purchased     INTEGER       NOT NULL DEFAULT 0,
+    razorpay_order_id   TEXT          NULL,
+    razorpay_payment_id TEXT          NULL,
+    status              TEXT          NOT NULL DEFAULT 'created',
+    created_at          TEXT          NOT NULL DEFAULT (datetime('now')),
+    updated_at          TEXT          NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_word_topups_user ON word_topups(user_id);
+
+CREATE TABLE IF NOT EXISTS report_certificates (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    verification_id TEXT          NOT NULL UNIQUE,
+    document_id     TEXT          NOT NULL,
+    user_id         INTEGER       NOT NULL,
+    report_hash     TEXT          NOT NULL,
+    score           REAL          NOT NULL DEFAULT 0,
+    risk_level      TEXT          NOT NULL DEFAULT 'LOW',
+    issued_at       TEXT          NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_report_certs_doc_user ON report_certificates(document_id, user_id);
+
 CREATE TABLE IF NOT EXISTS passage_dismissals (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id      INTEGER NOT NULL,
@@ -555,6 +646,8 @@ CREATE TABLE users (
     is_paid     BIT               NOT NULL DEFAULT 0,
     plan_type   NVARCHAR(20)      NOT NULL DEFAULT 'free',
     trial_ends_at DATETIME2       NULL,
+    referral_code NVARCHAR(50)    NULL,
+    bonus_scans INT               NOT NULL DEFAULT 0,
     created_at  DATETIME2         NOT NULL DEFAULT GETUTCDATE(),
     updated_at  DATETIME2         NOT NULL DEFAULT GETUTCDATE()
 );
@@ -701,6 +794,28 @@ CREATE TABLE webhook_subscriptions (
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_webhooks_user')
 CREATE INDEX idx_webhooks_user ON webhook_subscriptions(user_id);
 ---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'webhook_deliveries')
+CREATE TABLE webhook_deliveries (
+    id             INT IDENTITY(1,1) PRIMARY KEY,
+    webhook_id     INT               NOT NULL REFERENCES webhook_subscriptions(id),
+    user_id        INT               NOT NULL REFERENCES users(id),
+    event          NVARCHAR(100)     NOT NULL,
+    payload_json   NVARCHAR(MAX)     NOT NULL,
+    status         NVARCHAR(20)      NOT NULL DEFAULT 'pending',
+    attempts       INT               NOT NULL DEFAULT 0,
+    response_code  INT               NULL,
+    response_body  NVARCHAR(1000)    NULL,
+    last_error     NVARCHAR(1000)    NULL,
+    created_at     DATETIME2         NOT NULL DEFAULT GETUTCDATE(),
+    delivered_at   DATETIME2         NULL
+);
+---
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_webhook_deliveries_webhook')
+CREATE INDEX idx_webhook_deliveries_webhook ON webhook_deliveries(webhook_id);
+---
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_webhook_deliveries_user')
+CREATE INDEX idx_webhook_deliveries_user ON webhook_deliveries(user_id);
+---
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'teams')
 CREATE TABLE teams (
     id          INT IDENTITY(1,1) PRIMARY KEY,
@@ -808,6 +923,37 @@ CREATE TABLE rw_credits (
 ---
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_rw_credits_user')
 CREATE INDEX idx_rw_credits_user ON rw_credits(user_id);
+---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'word_topups')
+CREATE TABLE word_topups (
+    id                  INT IDENTITY(1,1) PRIMARY KEY,
+    user_id             INT               NOT NULL REFERENCES users(id),
+    words_remaining     INT               NOT NULL DEFAULT 0,
+    words_purchased     INT               NOT NULL DEFAULT 0,
+    razorpay_order_id   NVARCHAR(100)     NULL,
+    razorpay_payment_id NVARCHAR(100)     NULL,
+    status              NVARCHAR(20)      NOT NULL DEFAULT 'created',
+    created_at          DATETIME2         NOT NULL DEFAULT GETUTCDATE(),
+    updated_at          DATETIME2         NOT NULL DEFAULT GETUTCDATE()
+);
+---
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_word_topups_user')
+CREATE INDEX idx_word_topups_user ON word_topups(user_id);
+---
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'report_certificates')
+CREATE TABLE report_certificates (
+    id              INT IDENTITY(1,1) PRIMARY KEY,
+    verification_id NVARCHAR(64)      NOT NULL UNIQUE,
+    document_id     NVARCHAR(255)     NOT NULL,
+    user_id         INT               NOT NULL REFERENCES users(id),
+    report_hash     NVARCHAR(128)     NOT NULL,
+    score           FLOAT             NOT NULL DEFAULT 0,
+    risk_level      NVARCHAR(20)      NOT NULL DEFAULT 'LOW',
+    issued_at       DATETIME2         NOT NULL DEFAULT GETUTCDATE()
+);
+---
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_report_certs_doc_user')
+CREATE INDEX idx_report_certs_doc_user ON report_certificates(document_id, user_id);
 ---
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'passage_dismissals')
 CREATE TABLE passage_dismissals (

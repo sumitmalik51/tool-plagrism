@@ -23,7 +23,6 @@ export interface SignupRequest {
 export interface AuthResponse {
   user: User;
   token: string;
-  refresh_token?: string;
 }
 
 export interface UsageResponse {
@@ -33,8 +32,12 @@ export interface UsageResponse {
   limit: number | string;
   word_quota: {
     used: number;
-    limit: number;
-    remaining: number;
+    limit: number | string;
+    base_limit?: number | string;
+    base_remaining?: number | string;
+    topup_remaining?: number;
+    remaining: number | string;
+    resets_at?: string;
   };
 }
 
@@ -48,6 +51,15 @@ export interface AnalysisResult {
   ai_score?: number;
   grammar_score?: number;
   readability_score?: number;
+  partial_result?: boolean;
+  agents_failed?: string[];
+  analysis_warnings?: string[];
+  analysis_scope?: {
+    original_chunks?: number;
+    analyzed_chunks?: number;
+    chunk_limit?: number;
+    [key: string]: unknown;
+  };
   empty_reason?: "no_matches" | "weak_only" | "no_corpus" | null;
 }
 

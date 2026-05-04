@@ -176,6 +176,27 @@ def chunk_text(
     }
 
 
+def sample_chunks_evenly(chunks: list[str], max_chunks: int) -> list[str]:
+    """Return at most ``max_chunks`` chunks spread across the document.
+
+    This keeps very large documents bounded without only analysing the start
+    of the file.  Order is preserved so downstream passage display remains
+    coherent.
+    """
+    if max_chunks <= 0 or len(chunks) <= max_chunks:
+        return chunks
+
+    if max_chunks == 1:
+        return [chunks[0]]
+
+    last = len(chunks) - 1
+    selected_indices = {
+        round(i * last / (max_chunks - 1))
+        for i in range(max_chunks)
+    }
+    return [chunks[i] for i in sorted(selected_indices)]
+
+
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------

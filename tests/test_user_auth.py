@@ -221,13 +221,5 @@ class TestMeRoute:
         assert res.status_code == 401
 
 
-class TestAuthPages:
-    def test_login_page_served(self):
-        res = client.get("/login")
-        assert res.status_code == 200
-        assert "Sign In" in res.text
-
-    def test_signup_page_served(self):
-        res = client.get("/signup")
-        assert res.status_code == 200
-        assert "Create your free account" in res.text
+# V1 auth pages (/login, /signup HTML) were retired — the Next.js frontend
+# now owns those routes. Backend tests cover the JSON auth API only.

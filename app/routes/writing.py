@@ -13,7 +13,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, stat
 from pydantic import BaseModel, Field
 
 from app.config import settings
-from app.dependencies.rate_limit import enforce_usage_limit, record_usage
+from app.dependencies.rate_limit import (
+    enforce_usage_limit,
+    enforce_word_quota,
+    get_request_plan_type,
+    record_usage,
+)
 from app.services.rate_limiter import PLAN_TO_TIER, UserTier
 from app.tools.citation_tool import (
     generate_citations_from_sources,
@@ -130,11 +135,7 @@ async def improvement_suggestions_endpoint(
         "suggestions": suggestions,
     }
 
-
 # ═══════════════════════════════════════════════════════════════════════════
-# Scan Comparison (diff two documents)
-# ═══════════════════════════════════════════════════════════════════════════
-
 class ScanComparisonRequest(BaseModel):
     """Compare two scans side-by-side."""
     document_id_a: str = Field(..., description="First scan document ID")
@@ -287,11 +288,14 @@ class CitationAllStylesRequest(BaseModel):
     "/citations/generate",
     status_code=status.HTTP_200_OK,
     summary="Generate formatted citations from sources",
+    dependencies=[Depends(enforce_usage_limit)],
 )
-async def generate_citations_endpoint(request: CitationRequest) -> dict:
+async def generate_citations_endpoint(request: CitationRequest, http_request: Request = None) -> dict:
     """Generate properly formatted citations for detected sources."""
     source_dicts = [s.model_dump() for s in request.sources]
     result = generate_citations_from_sources(source_dicts, style=request.style)
+    if http_request:
+        record_usage(http_request, tool_type="citation")
     return result
 
 
@@ -299,13 +303,16 @@ async def generate_citations_endpoint(request: CitationRequest) -> dict:
     "/citations/all-styles",
     status_code=status.HTTP_200_OK,
     summary="Generate citations in all styles (APA, MLA, Chicago, IEEE)",
+    dependencies=[Depends(enforce_usage_limit)],
 )
-async def generate_all_styles_endpoint(request: CitationAllStylesRequest) -> dict:
+async def generate_all_styles_endpoint(request: CitationAllStylesRequest, http_request: Request = None) -> dict:
     """Generate citations in all four styles at once."""
     source_dicts = [s.model_dump() for s in request.sources]
     results = {}
     for style in ALL_STYLES:
         results[style] = generate_citations_from_sources(source_dicts, style=style)
+    if http_request:
+        record_usage(http_request, tool_type="citation")
     return {"styles": results}
 
 
@@ -327,9 +334,12 @@ class ReadabilityRequest(BaseModel):
 async def readability_endpoint(request: ReadabilityRequest, http_request: Request = None) -> dict:
     """Compute readability scores, text statistics, and reading time."""
     logger.info("readability_requested", text_length=len(request.text))
+    word_count = len(request.text.split())
+    if http_request:
+        enforce_word_quota(http_request, word_count, "readability analysis")
     result = analyze_readability(request.text)
     if http_request:
-        record_usage(http_request, tool_type="readability")
+        record_usage(http_request, tool_type="readability", word_count=word_count)
     return result
 
 
@@ -351,10 +361,13 @@ class GrammarRequest(BaseModel):
 async def grammar_check_endpoint(request: GrammarRequest, http_request: Request = None) -> dict:
     """Analyze text for grammar errors, style issues, and suggest fixes."""
     logger.info("grammar_check_requested", text_length=len(request.text))
+    word_count = len(request.text.split())
+    if http_request:
+        enforce_word_quota(http_request, word_count, "grammar check")
     try:
         result = await check_grammar(request.text)
         if http_request:
-            record_usage(http_request, tool_type="grammar")
+            record_usage(http_request, tool_type="grammar", word_count=word_count)
         return result
     except RuntimeError as exc:
         raise HTTPException(
@@ -384,14 +397,8 @@ async def analyze_batch_endpoint(
     """
     # --- Tier gate: require Pro or Premium ------------------------------------
     user_id: int | None = getattr(request.state, "user_id", None)
-    tier = UserTier.ANONYMOUS
-    if user_id:
-        plan_type = getattr(request.state, "plan_type", None)
-        if not plan_type:
-            from app.services.auth_service import get_user_by_id
-            user = get_user_by_id(user_id)
-            plan_type = user.get("plan_type", "free") if user else "free"
-        tier = PLAN_TO_TIER.get(plan_type, UserTier.FREE)
+    plan_type = get_request_plan_type(request)
+    tier = PLAN_TO_TIER.get(plan_type, UserTier.FREE) if user_id else UserTier.ANONYMOUS
 
     if tier not in (UserTier.PRO, UserTier.PREMIUM):
         raise HTTPException(
@@ -417,30 +424,42 @@ async def analyze_batch_endpoint(
             detail=f"Maximum {max_files} files per batch on your plan.",
         )
 
-    results: list[dict] = []
     errors: list[dict] = []
+    ingestions: list[dict] = []
 
-    async def _process_file(file: UploadFile) -> dict | None:
-        """Process a single file, returning result dict or appending to errors."""
+    for file in files:
         if file.filename is None:
             errors.append({"filename": "unknown", "error": "Filename required"})
-            return None
+            continue
         try:
             file_bytes = await file.read()
-            ingestion = await ingest_file(file.filename, file_bytes)
+            ingestion = await ingest_file(file.filename, file_bytes, plan_type=plan_type)
+            ingestions.append(ingestion)
+        except Exception as exc:
+            errors.append({"filename": file.filename, "error": str(exc)})
+            logger.warning("batch_file_ingest_error", filename=file.filename, error=str(exc))
 
+    total_word_count = sum(len(item["text"].split()) for item in ingestions)
+    if ingestions:
+        enforce_word_quota(request, total_word_count, "batch")
+
+    async def _process_file(ingestion: dict) -> dict | None:
+        """Process a single file, returning result dict or appending to errors."""
+        filename = ingestion.get("filename") or "unknown"
+        try:
             report = await run_pipeline(
                 document_id=ingestion["document_id"],
                 text=ingestion["text"],
+                plan_type=plan_type,
             )
 
             logger.info(
                 "batch_file_complete",
-                filename=file.filename,
+                filename=filename,
                 score=report.plagiarism_score,
             )
             return {
-                "filename": file.filename,
+                "filename": filename,
                 "document_id": report.document_id,
                 "plagiarism_score": report.plagiarism_score,
                 "confidence_score": report.confidence_score,
@@ -450,30 +469,34 @@ async def analyze_batch_endpoint(
             }
         except Exception as exc:
             errors.append({
-                "filename": file.filename,
+                "filename": filename,
                 "error": str(exc),
             })
             logger.warning(
                 "batch_file_error",
-                filename=file.filename,
+                filename=filename,
                 error=str(exc),
             )
             return None
 
     import asyncio
-    sem = asyncio.Semaphore(3)
+    sem = asyncio.Semaphore(settings.batch_analysis_concurrency)
 
-    async def _throttled(f):
+    async def _throttled(item):
         async with sem:
-            return await _process_file(f)
+            return await _process_file(item)
 
-    outcomes = await asyncio.gather(*[_throttled(f) for f in files])
+    outcomes = await asyncio.gather(*[_throttled(item) for item in ingestions])
     results = [r for r in outcomes if r is not None]
+
+    if results:
+        record_usage(request, tool_type="batch_analysis", word_count=total_word_count)
 
     return {
         "total_files": len(files),
         "completed": len(results),
         "failed": len(errors),
+        "total_word_count": total_word_count,
         "results": results,
         "errors": errors,
     }
@@ -492,8 +515,9 @@ class QuickCheckRequest(BaseModel):
     "/quick-check",
     status_code=status.HTTP_200_OK,
     summary="Quick plagiarism check for real-time writing assistance",
+    dependencies=[Depends(enforce_usage_limit)],
 )
-async def quick_check_endpoint(body: QuickCheckRequest) -> dict:
+async def quick_check_endpoint(body: QuickCheckRequest, http_request: Request = None) -> dict:
     """Perform a lightweight plagiarism check suitable for real-time feedback.
 
     Takes the last ~paragraph of text, searches the web for matches,
@@ -505,10 +529,15 @@ async def quick_check_endpoint(body: QuickCheckRequest) -> dict:
 
     start = _time.perf_counter()
     text = body.text.strip()
+    word_count = len(text.split())
+    if http_request:
+        enforce_word_quota(http_request, word_count, "quick check")
 
     # Extract meaningful sentences for search queries
     sentences = [s.strip() for s in _re.split(r'[.!?]+', text) if len(s.strip()) > 30]
     if not sentences:
+        if http_request:
+            record_usage(http_request, tool_type="quick_check", word_count=word_count)
         return {"warnings": [], "sentence_count": 0, "elapsed_s": 0.0}
 
     # Take up to 3 most recent substantial sentences as search queries
@@ -552,6 +581,9 @@ async def quick_check_endpoint(body: QuickCheckRequest) -> dict:
 
     elapsed = round(_time.perf_counter() - start, 3)
 
+    if http_request:
+        record_usage(http_request, tool_type="quick_check", word_count=word_count)
+
     return {
         "warnings": unique_warnings[:5],
         "warning_count": len(unique_warnings),
@@ -577,8 +609,9 @@ class SourceCitationRequest(BaseModel):
     "/citations/for-source",
     status_code=status.HTTP_200_OK,
     summary="Generate citations in all styles for a single source",
+    dependencies=[Depends(enforce_usage_limit)],
 )
-async def citation_for_source_endpoint(body: SourceCitationRequest) -> dict:
+async def citation_for_source_endpoint(body: SourceCitationRequest, http_request: Request = None) -> dict:
     """Generate APA, MLA, Chicago, and IEEE citations for a single source.
 
     Useful for the auto-citation insertion feature in the report view.
@@ -594,4 +627,6 @@ async def citation_for_source_endpoint(body: SourceCitationRequest) -> dict:
         if citations:
             result[style] = citations[0]["citation"]
 
+    if http_request:
+        record_usage(http_request, tool_type="citation")
     return {"citations": result, "source": {"url": body.url, "title": body.title}}

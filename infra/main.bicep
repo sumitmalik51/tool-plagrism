@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // PlagiarismGuard — Azure Infrastructure
-// Deploys: App Service Plan (Linux B1) + Web App (Python 3.13)
+// Deploys: App Service Plan (Linux) + backend Web App (Python) + frontend Web App (Node/Next.js)
 // ---------------------------------------------------------------------------
 
 targetScope = 'resourceGroup'
@@ -17,6 +17,10 @@ param skuName string = 'B1'
 
 @description('Python version for the Web App runtime')
 param pythonVersion string = '3.13'
+
+@description('Node.js version for the Next.js frontend Web App runtime')
+@allowed(['20-lts', '22-lts'])
+param nodeVersion string = '22-lts'
 
 @description('Bing API key for web search tool (optional)')
 @secure()
@@ -39,12 +43,18 @@ param acsConnectionString string = ''
 @description('Sender email address from the ACS Email domain')
 param acsSenderEmail string = 'DoNotReply@plagiarismguard.com'
 
+@description('Google OAuth client ID used by both backend token verification and frontend Google sign-in')
+param googleClientId string = ''
+
 // ---------------------------------------------------------------------------
 // Naming
 // ---------------------------------------------------------------------------
 var uniqueSuffix = uniqueString(resourceGroup().id)
 var webAppName = '${appName}-${uniqueSuffix}'
+var frontendWebAppName = '${appName}-web-${uniqueSuffix}'
 var appServicePlanName = '${appName}-plan-${uniqueSuffix}'
+var backendUrl = 'https://${webAppName}.azurewebsites.net'
+var frontendUrl = 'https://${frontendWebAppName}.azurewebsites.net'
 
 // ---------------------------------------------------------------------------
 // App Service Plan — Linux
@@ -103,6 +113,18 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
           value: apiKeys
         }
         {
+          name: 'PG_APP_BASE_URL'
+          value: frontendUrl
+        }
+        {
+          name: 'PG_CORS_EXTRA_ORIGINS'
+          value: frontendUrl
+        }
+        {
+          name: 'PG_GOOGLE_CLIENT_ID'
+          value: googleClientId
+        }
+        {
           name: 'WEBSITES_CONTAINER_START_TIME_LIMIT'
           value: '1800'
         }
@@ -114,6 +136,62 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
         {
           name: 'PG_ACS_SENDER_EMAIL'
           value: acsSenderEmail
+        }
+      ]
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Frontend Web App — Next.js standalone on Node/Linux
+// The GitHub Actions workflow builds `frontend/.next/standalone` and deploys
+// a minimal Node server package, so App Service does not run Oryx builds.
+// ---------------------------------------------------------------------------
+resource frontendWebApp 'Microsoft.Web/sites@2024-04-01' = {
+  name: frontendWebAppName
+  location: location
+  properties: {
+    serverFarmId: appServicePlan.id
+    httpsOnly: true
+    siteConfig: {
+      linuxFxVersion: 'NODE|${nodeVersion}'
+      alwaysOn: true
+      ftpsState: 'Disabled'
+      minTlsVersion: '1.2'
+      http20Enabled: true
+      appCommandLine: 'node server.js'
+      appSettings: [
+        {
+          name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'
+          value: 'false'
+        }
+        {
+          name: 'ENABLE_ORYX_BUILD'
+          value: 'false'
+        }
+        {
+          name: 'NODE_ENV'
+          value: 'production'
+        }
+        {
+          name: 'NEXT_TELEMETRY_DISABLED'
+          value: '1'
+        }
+        {
+          name: 'NEXT_PUBLIC_API_URL'
+          value: backendUrl
+        }
+        {
+          name: 'NEXT_PUBLIC_SITE_URL'
+          value: frontendUrl
+        }
+        {
+          name: 'NEXT_PUBLIC_GOOGLE_CLIENT_ID'
+          value: googleClientId
+        }
+        {
+          name: 'WEBSITES_CONTAINER_START_TIME_LIMIT'
+          value: '600'
         }
       ]
     }
@@ -161,5 +239,7 @@ resource authSettings 'Microsoft.Web/sites/config@2024-04-01' = if (!empty(entra
 // Outputs
 // ---------------------------------------------------------------------------
 output webAppName string = webApp.name
-output webAppUrl string = 'https://${webApp.properties.defaultHostName}'
+output webAppUrl string = backendUrl
+output frontendWebAppName string = frontendWebApp.name
+output frontendWebAppUrl string = frontendUrl
 output appServicePlanName string = appServicePlan.name

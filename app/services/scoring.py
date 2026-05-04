@@ -51,7 +51,7 @@ def compute_weighted_score(agent_outputs: list[AgentOutput]) -> float:
         w = get_agent_weight(output.agent_name)
         if w <= 0:
             continue
-        is_error = output.confidence == 0.0 and "error" in output.details
+        is_error = _is_errored(output)
         if not is_error:
             healthy.append((output, w))
 
@@ -73,6 +73,16 @@ def compute_weighted_score(agent_outputs: list[AgentOutput]) -> float:
         total_weight=round(total_weight, 4),
     )
     return score
+
+
+def _is_errored(output: AgentOutput) -> bool:
+    """Return True when an agent did not produce a usable result."""
+    status = output.details.get("status")
+    return bool(
+        output.details.get("agent_failed")
+        or status in {"timed_out", "failed", "error"}
+        or (output.confidence == 0.0 and "error" in output.details)
+    )
 
 
 # ---------------------------------------------------------------------------

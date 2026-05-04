@@ -4,6 +4,12 @@ import pytest
 from app.tools.content_extractor_tool import _extract_from_latex
 
 
+def _latex_text(source: str) -> str:
+    text, truncated = _extract_from_latex(source.encode("utf-8"))
+    assert truncated is False
+    return text
+
+
 class TestLatexExtraction:
     """Tests for LaTeX file text extraction."""
 
@@ -23,7 +29,7 @@ We used a novel approach based on \textbf{deep learning} and \textit{transfer le
 
 \end{document}
 """
-        result = _extract_from_latex(latex.encode("utf-8"))
+        result = _latex_text(latex)
         assert "introduction to the paper" in result.lower()
         assert "deep learning" in result
         assert "transfer learning" in result
@@ -36,7 +42,7 @@ We used a novel approach based on \textbf{deep learning} and \textit{transfer le
 Previous work \cite{Smith2020} has shown that results vary \citep{Doe2021}.
 \end{document}
 """
-        result = _extract_from_latex(latex.encode("utf-8"))
+        result = _latex_text(latex)
         assert "Smith2020" in result
         assert "Doe2021" in result
 
@@ -48,7 +54,7 @@ Complex equation:
 $$\int_0^1 x^2 dx = \frac{1}{3}$$
 \end{document}
 """
-        result = _extract_from_latex(latex.encode("utf-8"))
+        result = _latex_text(latex)
         assert "E = mc^2" in result
         assert "[equation]" in result
 
@@ -60,7 +66,7 @@ Visible text here.
 Another line. % inline comment
 \end{document}
 """
-        result = _extract_from_latex(latex.encode("utf-8"))
+        result = _latex_text(latex)
         assert "Visible text here" in result
         assert "This is a comment" not in result
 
@@ -70,7 +76,7 @@ Another line. % inline comment
 \textbf{Bold text} and \textit{italic text} and \emph{emphasized}.
 \end{document}
 """
-        result = _extract_from_latex(latex.encode("utf-8"))
+        result = _latex_text(latex)
         assert "Bold text" in result
         assert "italic text" in result
         assert "emphasized" in result
@@ -82,7 +88,7 @@ Another line. % inline comment
 \begin{document}
 \end{document}
 """
-        result = _extract_from_latex(latex.encode("utf-8"))
+        result = _latex_text(latex)
         # Should be mostly empty after stripping commands
         assert len(result.strip()) < 10
 
@@ -95,7 +101,7 @@ Some background information.
 Related work details.
 \end{document}
 """
-        result = _extract_from_latex(latex.encode("utf-8"))
+        result = _latex_text(latex)
         assert "Background" in result
         assert "Related Work" in result
         assert "Some background" in result

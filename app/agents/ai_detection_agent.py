@@ -59,6 +59,8 @@ class AIDetectionAgent(BaseAgent):
             flagged_passages=flagged,
             details={
                 "status": "completed",
+                "advisory": True,
+                "note": "AI-generated text detection is a probabilistic signal, not definitive proof.",
                 "indicators": result.get("indicators", {}),
                 "elapsed_s": result.get("elapsed_s", 0.0),
             },

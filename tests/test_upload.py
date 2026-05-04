@@ -15,9 +15,9 @@ def test_health_check() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] in ("healthy", "degraded")
+    assert data["status"] == "healthy"
     assert "version" in data
-    assert "response_time_ms" in data
+    assert "response_time_ms" not in data
 
 
 def test_upload_txt_file() -> None:

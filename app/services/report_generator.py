@@ -93,6 +93,15 @@ def build_report(
         flagged_passages=aggregation_output.flagged_passages,
         agent_results=agent_outputs,
         explanation=full_explanation,
+        partial_result=bool(aggregation_output.details.get("partial_result", False)),
+        agents_failed=aggregation_output.details.get("agents_failed", []),
+        analysis_warnings=(
+            [
+                "Some analysis agents failed or timed out; treat this report as partial."
+            ]
+            if aggregation_output.details.get("partial_result")
+            else []
+        ),
         empty_reason=empty_reason,  # type: ignore[arg-type]
     )
 

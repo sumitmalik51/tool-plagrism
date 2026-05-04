@@ -249,6 +249,13 @@ export default function AnalyzerPage() {
     setText(SAMPLE_TEXT);
   };
 
+  const quotaLimit = typeof usage?.word_quota.limit === "number" ? usage.word_quota.limit : 0;
+  const quotaUsed = usage?.word_quota.used ?? 0;
+  const quotaRemaining = typeof usage?.word_quota.remaining === "number" ? usage.word_quota.remaining : -1;
+  const topupRemaining = usage?.word_quota.topup_remaining ?? 0;
+  const quotaPct = quotaLimit > 0 ? quotaUsed / quotaLimit : 0;
+  const quotaTone = quotaPct >= 1 ? "danger" : quotaPct > 0.9 ? "danger" : quotaPct > 0.7 ? "warning" : "default";
+
   return (
     <div className="max-w-5xl mx-auto">
       {/* Header */}
@@ -298,24 +305,23 @@ export default function AnalyzerPage() {
                 {usage.word_quota.used.toLocaleString()}
               </span>
               {" / "}
-              {typeof usage.word_quota.limit === "number" && usage.word_quota.limit > 0
-                ? `${usage.word_quota.limit.toLocaleString()} words`
+              {quotaLimit > 0
+                ? `${quotaLimit.toLocaleString()} words`
                 : "unlimited"}
             </span>
-            {typeof usage.word_quota.limit === "number" &&
-              usage.word_quota.limit > 0 && (
+            {quotaLimit > 0 && (
                 <div className="ml-2 w-24 h-1.5 bg-border rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all"
                     style={{
                       width: `${Math.min(
-                        (usage.word_quota.used / usage.word_quota.limit) * 100,
+                        quotaPct * 100,
                         100
                       )}%`,
                       backgroundColor:
-                        usage.word_quota.used / usage.word_quota.limit > 0.9
+                        quotaPct > 0.9
                           ? "var(--danger)"
-                          : usage.word_quota.used / usage.word_quota.limit > 0.7
+                          : quotaPct > 0.7
                             ? "var(--warn)"
                             : "var(--accent)",
                     }}
@@ -323,6 +329,18 @@ export default function AnalyzerPage() {
                 </div>
               )}
           </div>
+
+          {quotaLimit > 0 && quotaPct > 0.7 && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <AlertCircle className="w-3.5 h-3.5 text-warn" />
+              <Badge variant={quotaTone === "danger" ? "danger" : "warning"}>
+                {quotaRemaining === 0 ? "Quota exhausted" : `${quotaRemaining.toLocaleString()} words left`}
+              </Badge>
+              {topupRemaining > 0 && (
+                <span className="text-muted">+ {topupRemaining.toLocaleString()} top-up words</span>
+              )}
+            </div>
+          )}
 
           <div className="flex items-center gap-1.5 text-muted">
             <Clock className="w-3.5 h-3.5" />
@@ -333,10 +351,10 @@ export default function AnalyzerPage() {
           </div>
 
           <Link
-            href="/dashboard/settings"
+            href={quotaLimit > 0 && quotaPct > 0.9 ? "/pricing" : "/dashboard/settings"}
             className="ml-auto text-xs text-accent-l hover:text-accent transition-colors"
           >
-            Settings →
+            {quotaLimit > 0 && quotaPct > 0.9 ? "Upgrade / top-up →" : "Settings →"}
           </Link>
         </div>
       )}

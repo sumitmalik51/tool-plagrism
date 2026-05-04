@@ -472,6 +472,65 @@ def add_rw_credits(user_id: int, amount: int, order_id: str, payment_id: str | N
 
 
 # ---------------------------------------------------------------------------
+# Scan word top-up helpers
+# ---------------------------------------------------------------------------
+
+def get_word_topup_balance(user_id: int) -> int:
+    """Return the total remaining purchased scan words for a user."""
+    db = get_db()
+    row = db.fetch_one(
+        "SELECT COALESCE(SUM(words_remaining), 0) AS total "
+        "FROM word_topups WHERE user_id = ? AND status = 'paid'",
+        (user_id,),
+    )
+    return row["total"] if row else 0
+
+
+def deduct_word_topup(user_id: int, words: int) -> bool:
+    """Deduct *words* from the user's purchased word top-ups using FIFO."""
+    if words <= 0:
+        return True
+
+    db = get_db()
+    rows = db.fetch_all(
+        "SELECT id, words_remaining FROM word_topups "
+        "WHERE user_id = ? AND status = 'paid' AND words_remaining > 0 "
+        "ORDER BY created_at ASC",
+        (user_id,),
+    )
+
+    remaining_to_deduct = int(words)
+    for row in rows:
+        if remaining_to_deduct <= 0:
+            break
+        can_take = min(int(row["words_remaining"]), remaining_to_deduct)
+        db.execute(
+            "UPDATE word_topups SET words_remaining = words_remaining - ?, "
+            "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (can_take, row["id"]),
+        )
+        remaining_to_deduct -= can_take
+
+    if remaining_to_deduct <= 0:
+        logger.info("word_topup_deducted", user_id=user_id, words=words)
+        return True
+    return False
+
+
+def add_word_topup(user_id: int, words: int, order_id: str, payment_id: str | None = None) -> int:
+    """Insert a paid word top-up pack and return the user's new balance."""
+    db = get_db()
+    db.execute(
+        "INSERT INTO word_topups "
+        "(user_id, words_remaining, words_purchased, razorpay_order_id, razorpay_payment_id, status) "
+        "VALUES (?, ?, ?, ?, ?, 'paid')",
+        (user_id, words, words, order_id, payment_id),
+    )
+    logger.info("word_topup_added", user_id=user_id, words=words, order_id=order_id)
+    return get_word_topup_balance(user_id)
+
+
+# ---------------------------------------------------------------------------
 # Password reset helpers
 # ---------------------------------------------------------------------------
 

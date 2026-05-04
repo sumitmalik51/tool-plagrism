@@ -4,6 +4,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const api = axios.create({
   baseURL: API_URL,
+  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
     "X-Requested-With": "XMLHttpRequest",
@@ -71,14 +72,14 @@ api.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const refreshToken = localStorage.getItem("pg_refresh_token");
-      if (!refreshToken) {
-        throw new Error("No refresh token");
-      }
-
-      const { data } = await axios.post(`${API_URL}/api/v1/auth/refresh`, {
-        refresh_token: refreshToken,
-      });
+      const { data } = await axios.post(
+        `${API_URL}/api/v1/auth/refresh`,
+        {},
+        {
+          withCredentials: true,
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+        }
+      );
 
       const newToken = data.token;
       localStorage.setItem("pg_token", newToken);
@@ -90,7 +91,6 @@ api.interceptors.response.use(
       processQueue(refreshError, null);
       // Clear auth and redirect to login
       localStorage.removeItem("pg_token");
-      localStorage.removeItem("pg_refresh_token");
       localStorage.removeItem("pg_user");
       if (typeof window !== "undefined") {
         window.location.href = "/login";

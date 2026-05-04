@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   Info,
   X,
+  Copy,
 } from "lucide-react";
 import api from "@/lib/api";
 import { useToastStore } from "@/lib/stores/toast-store";
@@ -41,9 +42,18 @@ interface ResultsProps {
   result: AnalysisResult;
 }
 
+interface ReportCertificate {
+  verification_id: string;
+  report_hash: string;
+  issued_at: string;
+  verification_url: string;
+}
+
 export default function Results({ result }: ResultsProps) {
   const toast = useToastStore();
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
+  const [certificate, setCertificate] = useState<ReportCertificate | null>(null);
+  const [certificateLoading, setCertificateLoading] = useState(false);
 
   const dismissedForDoc = useDismissalsStore(
     (s) => s.dismissed[result.document_id],
@@ -83,6 +93,25 @@ export default function Results({ result }: ResultsProps) {
     } catch {
       toast.add("error", "Failed to download report.");
     }
+  };
+
+  const createCertificate = async () => {
+    setCertificateLoading(true);
+    try {
+      const res = await api.post(`/api/v1/report-certificate/${result.document_id}`);
+      setCertificate(res.data);
+      toast.add("success", "Verification certificate created.");
+    } catch {
+      toast.add("error", "Could not create certificate. Sign in and try again.");
+    } finally {
+      setCertificateLoading(false);
+    }
+  };
+
+  const copyCertificateUrl = () => {
+    if (!certificate?.verification_url) return;
+    navigator.clipboard.writeText(certificate.verification_url);
+    toast.add("success", "Verification URL copied.");
   };
 
   const allPassages = useMemo(
@@ -152,6 +181,37 @@ export default function Results({ result }: ResultsProps) {
 
   return (
     <div className="space-y-6">
+      {(result.partial_result || (result.analysis_warnings?.length ?? 0) > 0) && (
+        <Card className="border-warn/40 bg-warn/5">
+          <div className="flex gap-3">
+            <AlertTriangle className="w-5 h-5 text-warn shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-semibold text-warn mb-1">Partial analysis completed</h3>
+              <p className="text-sm text-muted">
+                We generated the report from available agent results. Treat the score as directional and rerun later if strict completeness is required.
+              </p>
+              {result.analysis_warnings && result.analysis_warnings.length > 0 && (
+                <ul className="mt-2 list-disc list-inside text-xs text-muted space-y-1">
+                  {result.analysis_warnings.map((warning, i) => (
+                    <li key={i}>{warning}</li>
+                  ))}
+                </ul>
+              )}
+              {result.agents_failed && result.agents_failed.length > 0 && (
+                <p className="mt-2 text-xs text-muted">
+                  Failed agents: {result.agents_failed.join(", ")}
+                </p>
+              )}
+              {result.analysis_scope?.analyzed_chunks !== undefined && result.analysis_scope?.original_chunks !== undefined && (
+                <p className="mt-1 text-xs text-muted">
+                  Scope: analyzed {result.analysis_scope.analyzed_chunks} of {result.analysis_scope.original_chunks} chunks.
+                </p>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Score cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <ScoreCard
@@ -210,6 +270,14 @@ export default function Results({ result }: ResultsProps) {
           <Download className="w-4 h-4" />
           Download PDF
         </button>
+        <button
+          onClick={createCertificate}
+          disabled={certificateLoading}
+          className="flex items-center gap-2 px-4 py-2 bg-surface2 hover:bg-border disabled:opacity-60 text-txt rounded-xl text-sm font-medium transition-colors border border-border"
+        >
+          <ShieldCheck className="w-4 h-4" />
+          {certificateLoading ? "Creating…" : "Create verification certificate"}
+        </button>
         <AdjustedScorePill
           original={result.plagiarism_score ?? 0}
           adjusted={adjusted}
@@ -217,6 +285,37 @@ export default function Results({ result }: ResultsProps) {
           onReset={() => clearAll(result.document_id)}
         />
       </div>
+
+      {certificate && (
+        <Card className="border-ok/30 bg-ok/5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-ok mb-1">Report Trust Certificate</h3>
+              <p className="text-xs text-muted mb-2">
+                Verification ID: <span className="font-mono text-txt">{certificate.verification_id}</span>
+              </p>
+              <p className="text-xs text-muted break-all">
+                SHA-256 report hash: <span className="font-mono text-txt">{certificate.report_hash}</span>
+              </p>
+              <a
+                href={certificate.verification_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 mt-2 text-xs text-accent-l hover:text-accent"
+              >
+                Open public verification <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+            <button
+              onClick={copyCertificateUrl}
+              className="shrink-0 flex items-center gap-1 px-3 py-1.5 bg-surface border border-border rounded-lg text-xs hover:bg-surface2"
+            >
+              <Copy className="w-3 h-3" />
+              Copy URL
+            </button>
+          </div>
+        </Card>
+      )}
 
       {/* Possible matching sources */}
       {result.detected_sources && result.detected_sources.length > 0 && (

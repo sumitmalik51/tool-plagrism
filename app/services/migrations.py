@@ -175,6 +175,57 @@ MIGRATIONS: list[tuple[int, str, str]] = [
             ON passage_dismissals(user_id, document_id);
         """,
     ),
+    (
+        9,
+        "Add top-ups, webhook deliveries, and report certificates",
+        """
+        CREATE TABLE IF NOT EXISTS word_topups (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id             INTEGER NOT NULL,
+            words_remaining     INTEGER NOT NULL DEFAULT 0,
+            words_purchased     INTEGER NOT NULL DEFAULT 0,
+            razorpay_order_id   TEXT NULL,
+            razorpay_payment_id TEXT NULL,
+            status              TEXT NOT NULL DEFAULT 'created',
+            created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        ---
+        CREATE INDEX IF NOT EXISTS idx_word_topups_user ON word_topups(user_id);
+        ---
+        CREATE TABLE IF NOT EXISTS webhook_deliveries (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            webhook_id     INTEGER NOT NULL REFERENCES webhook_subscriptions(id),
+            user_id        INTEGER NOT NULL,
+            event          TEXT NOT NULL,
+            payload_json   TEXT NOT NULL,
+            status         TEXT NOT NULL DEFAULT 'pending',
+            attempts       INTEGER NOT NULL DEFAULT 0,
+            response_code  INTEGER NULL,
+            response_body  TEXT NULL,
+            last_error     TEXT NULL,
+            created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+            delivered_at   TEXT NULL
+        );
+        ---
+        CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_webhook ON webhook_deliveries(webhook_id);
+        ---
+        CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_user ON webhook_deliveries(user_id);
+        ---
+        CREATE TABLE IF NOT EXISTS report_certificates (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            verification_id TEXT NOT NULL UNIQUE,
+            document_id     TEXT NOT NULL,
+            user_id         INTEGER NOT NULL,
+            report_hash     TEXT NOT NULL,
+            score           REAL NOT NULL DEFAULT 0,
+            risk_level      TEXT NOT NULL DEFAULT 'LOW',
+            issued_at       TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        ---
+        CREATE INDEX IF NOT EXISTS idx_report_certs_doc_user ON report_certificates(document_id, user_id);
+        """,
+    ),
 ]
 
 # MSSQL variants — same version numbers, different syntax
@@ -342,6 +393,64 @@ MIGRATIONS_MSSQL: list[tuple[int, str, str]] = [
         ---
         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_dismissals_user_doc')
         CREATE INDEX idx_dismissals_user_doc ON passage_dismissals(user_id, document_id);
+        """,
+    ),
+    (
+        9,
+        "Add top-ups, webhook deliveries, and report certificates",
+        """
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'word_topups')
+        CREATE TABLE word_topups (
+            id                  INT IDENTITY(1,1) PRIMARY KEY,
+            user_id             INT NOT NULL REFERENCES users(id),
+            words_remaining     INT NOT NULL DEFAULT 0,
+            words_purchased     INT NOT NULL DEFAULT 0,
+            razorpay_order_id   NVARCHAR(100) NULL,
+            razorpay_payment_id NVARCHAR(100) NULL,
+            status              NVARCHAR(20) NOT NULL DEFAULT 'created',
+            created_at          DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+            updated_at          DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+        );
+        ---
+        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_word_topups_user')
+        CREATE INDEX idx_word_topups_user ON word_topups(user_id);
+        ---
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'webhook_deliveries')
+        CREATE TABLE webhook_deliveries (
+            id             INT IDENTITY(1,1) PRIMARY KEY,
+            webhook_id     INT NOT NULL REFERENCES webhook_subscriptions(id),
+            user_id        INT NOT NULL REFERENCES users(id),
+            event          NVARCHAR(100) NOT NULL,
+            payload_json   NVARCHAR(MAX) NOT NULL,
+            status         NVARCHAR(20) NOT NULL DEFAULT 'pending',
+            attempts       INT NOT NULL DEFAULT 0,
+            response_code  INT NULL,
+            response_body  NVARCHAR(1000) NULL,
+            last_error     NVARCHAR(1000) NULL,
+            created_at     DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+            delivered_at   DATETIME2 NULL
+        );
+        ---
+        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_webhook_deliveries_webhook')
+        CREATE INDEX idx_webhook_deliveries_webhook ON webhook_deliveries(webhook_id);
+        ---
+        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_webhook_deliveries_user')
+        CREATE INDEX idx_webhook_deliveries_user ON webhook_deliveries(user_id);
+        ---
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'report_certificates')
+        CREATE TABLE report_certificates (
+            id              INT IDENTITY(1,1) PRIMARY KEY,
+            verification_id NVARCHAR(64) NOT NULL UNIQUE,
+            document_id     NVARCHAR(255) NOT NULL,
+            user_id         INT NOT NULL REFERENCES users(id),
+            report_hash     NVARCHAR(128) NOT NULL,
+            score           FLOAT NOT NULL DEFAULT 0,
+            risk_level      NVARCHAR(20) NOT NULL DEFAULT 'LOW',
+            issued_at       DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+        );
+        ---
+        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_report_certs_doc_user')
+        CREATE INDEX idx_report_certs_doc_user ON report_certificates(document_id, user_id);
         """,
     ),
 ]

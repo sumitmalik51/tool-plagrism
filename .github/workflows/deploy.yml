@@ -1,9 +1,10 @@
 # ---------------------------------------------------------------------------
-# PlagiarismGuard — CI/CD Pipeline (Optimized)
+# PlagiarismGuard — V2 CI/CD Pipeline (Optimized)
 # Smart conditional execution based on what changed:
 #   - infra/** changed  → provision infra + deploy app (skip tests)
-#   - app/tests/etc     → run tests + deploy app (skip infra)
-#   - both changed      → tests + infra + deploy
+#   - app/tests/etc     → run backend tests + deploy backend (skip infra)
+#   - frontend/**       → lint/build + deploy Next.js frontend
+#   - both changed      → tests + infra + deploy affected apps
 #
 # Speed optimisations:
 #   1. .python_packages/ cached across runs (keyed on requirements-prod.txt)
@@ -28,6 +29,7 @@ concurrency:
 
 env:
   PYTHON_VERSION: "3.13"
+  NODE_VERSION: "22"
   AZURE_RESOURCE_GROUP: "rg-plagiarismguard"
   AZURE_LOCATION: "eastus"
 
@@ -41,6 +43,7 @@ jobs:
     outputs:
       infra: ${{ steps.filter.outputs.infra }}
       app: ${{ steps.filter.outputs.app }}
+      frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -60,11 +63,14 @@ jobs:
               - 'startup.sh'
               - 'pyproject.toml'
               - '.github/workflows/**'
-              - 'static/**'
+              - 'app/static/**'
               - 'openai-foundry.json'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/**'
 
   # -----------------------------------------------------------------------
-  # Job 1: Test (only when app code changed)
+  # Job 1: Backend tests (only when backend app code changed)
   # -----------------------------------------------------------------------
   test:
     name: Test
@@ -85,12 +91,47 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Compile Python sources
+        run: python -m compileall app tests
+
       - name: Run tests
         timeout-minutes: 10
         run: python -m pytest tests/ -v --tb=short --timeout=15
 
   # -----------------------------------------------------------------------
-  # Job 2: Provision Infrastructure (only when infra changed)
+  # Job 2: Frontend checks (only when Next.js frontend changed)
+  # -----------------------------------------------------------------------
+  frontend:
+    name: Frontend Lint & Build
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  # -----------------------------------------------------------------------
+  # Job 3: Provision Infrastructure (only when infra changed)
   # -----------------------------------------------------------------------
   infra:
     name: Provision Infrastructure
@@ -102,6 +143,9 @@ jobs:
 
     outputs:
       webAppName: ${{ steps.deploy-bicep.outputs.webAppName }}
+      webAppUrl: ${{ steps.deploy-bicep.outputs.webAppUrl }}
+      frontendWebAppName: ${{ steps.deploy-bicep.outputs.frontendWebAppName }}
+      frontendWebAppUrl: ${{ steps.deploy-bicep.outputs.frontendWebAppUrl }}
 
     steps:
       - name: Checkout code
@@ -131,6 +175,17 @@ jobs:
               --template-file infra/main.bicep \
               --parameters @infra/parameters.json
 
+      - name: Preview Bicep changes
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az deployment group what-if \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --template-file infra/main.bicep \
+              --parameters @infra/parameters.json \
+              --parameters bingApiKey='${{ secrets.PG_BING_API_KEY }}' \
+              --parameters googleClientId='${{ secrets.PG_GOOGLE_CLIENT_ID || secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}'
+
       - name: Deploy Bicep template
         id: deploy-bicep
         uses: azure/cli@v2
@@ -141,72 +196,111 @@ jobs:
               --template-file infra/main.bicep \
               --parameters @infra/parameters.json \
               --parameters bingApiKey='${{ secrets.PG_BING_API_KEY }}' \
+              --parameters googleClientId='${{ secrets.PG_GOOGLE_CLIENT_ID || secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}' \
               --query 'properties.outputs' \
               --output json)
 
             webAppName=$(echo $result | jq -r '.webAppName.value')
             webAppUrl=$(echo $result | jq -r '.webAppUrl.value')
+            frontendWebAppName=$(echo $result | jq -r '.frontendWebAppName.value')
+            frontendWebAppUrl=$(echo $result | jq -r '.frontendWebAppUrl.value')
 
             echo "webAppName=$webAppName" >> "$GITHUB_OUTPUT"
             echo "webAppUrl=$webAppUrl" >> "$GITHUB_OUTPUT"
+            echo "frontendWebAppName=$frontendWebAppName" >> "$GITHUB_OUTPUT"
+            echo "frontendWebAppUrl=$frontendWebAppUrl" >> "$GITHUB_OUTPUT"
             echo "### 🚀 Infrastructure Deployed" >> "$GITHUB_STEP_SUMMARY"
-            echo "- **Web App**: $webAppName" >> "$GITHUB_STEP_SUMMARY"
-            echo "- **URL**: $webAppUrl" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Backend Web App**: $webAppName" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Backend URL**: $webAppUrl" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Frontend Web App**: $frontendWebAppName" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Frontend URL**: $frontendWebAppUrl" >> "$GITHUB_STEP_SUMMARY"
 
   # -----------------------------------------------------------------------
-  # -----------------------------------------------------------------------
-  # Job 3: Deploy Application to Azure Web App
-  # - Deploys ONLY app code (~100 KB zip) — fast upload, no 504 timeout
-  # - Dependencies are installed by startup.sh into a persistent venv
-  #   at /home/site/venv/ (cached across restarts, ~5 min first boot)
-  # - Resolves app name inline (no separate job)
+  # Job 4: Deploy application to Azure Web Apps
+  # - Backend package contains only FastAPI app code; dependencies are installed
+  #   by startup.sh into a persistent venv at /home/site/venv/.
+  # - Frontend package contains the Next.js standalone server bundle.
+  # - Resolves app names inline (no separate job)
   # -----------------------------------------------------------------------
   deploy:
-    name: Deploy to Azure Web App
+    name: Deploy to Azure Web Apps
     runs-on: ubuntu-latest
-    needs: [changes, test, infra]
+    needs: [changes, test, frontend, infra]
     if: >-
       always() &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'workflow_dispatch' ||
        needs.changes.outputs.app == 'true' ||
+       needs.changes.outputs.frontend == 'true' ||
        needs.changes.outputs.infra == 'true') &&
       !contains(needs.*.result, 'failure') &&
       !contains(needs.*.result, 'cancelled')
 
     environment:
       name: production
-      url: ${{ steps.deploy-app.outputs.webapp-url }}
+      url: ${{ steps.resolve-names.outputs.frontendUrl }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # -- Resolve Web App name (from infra output or Azure query) ---------
+      # -- Resolve Web App names (from infra output or Azure query) --------
       - name: Login to Azure
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
           auth-type: SERVICE_PRINCIPAL
 
-      - name: Resolve Web App name
-        id: resolve-name
+      - name: Resolve Web App names
+        id: resolve-names
         run: |
-          INFRA_NAME="${{ needs.infra.outputs.webAppName }}"
-          if [ -n "$INFRA_NAME" ] && [ "$INFRA_NAME" != "" ]; then
-            echo "webAppName=$INFRA_NAME" >> "$GITHUB_OUTPUT"
-            echo "Resolved from infra job: $INFRA_NAME"
-          else
-            APP_NAME=$(az webapp list \
+          APP_BASE=$(jq -r '.parameters.appName.value // "plagiarismguard"' infra/parameters.json)
+
+          BACKEND_NAME="${{ needs.infra.outputs.webAppName }}"
+          FRONTEND_NAME="${{ needs.infra.outputs.frontendWebAppName }}"
+
+          if [ -z "$BACKEND_NAME" ] || [ "$BACKEND_NAME" = "" ]; then
+            BACKEND_NAME=$(az webapp list \
               --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-              --query '[0].name' \
-              --output tsv)
-            echo "webAppName=$APP_NAME" >> "$GITHUB_OUTPUT"
-            echo "Resolved from Azure: $APP_NAME"
+              --query "[].name" \
+              --output tsv | awk -v base="$APP_BASE" 'index($0, base "-") == 1 && index($0, base "-web-") != 1 { print; exit }')
           fi
 
-      # -- Package app code only (deps installed by startup.sh) -----------
-      - name: Create deployment package
+          if [ -z "$FRONTEND_NAME" ] || [ "$FRONTEND_NAME" = "" ]; then
+            FRONTEND_NAME=$(az webapp list \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --query "[].name" \
+              --output tsv | awk -v base="$APP_BASE" 'index($0, base "-web-") == 1 { print; exit }')
+          fi
+
+          if [ -z "$BACKEND_NAME" ]; then
+            echo "Could not resolve backend Web App name" >&2
+            exit 1
+          fi
+          if [ -z "$FRONTEND_NAME" ]; then
+            echo "Could not resolve frontend Web App name. Run this workflow with infra changes first." >&2
+            exit 1
+          fi
+
+          BACKEND_HOST=$(az webapp show \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name "$BACKEND_NAME" \
+            --query defaultHostName --output tsv)
+          FRONTEND_HOST=$(az webapp show \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name "$FRONTEND_NAME" \
+            --query defaultHostName --output tsv)
+
+          echo "backendName=$BACKEND_NAME" >> "$GITHUB_OUTPUT"
+          echo "backendUrl=https://$BACKEND_HOST" >> "$GITHUB_OUTPUT"
+          echo "frontendName=$FRONTEND_NAME" >> "$GITHUB_OUTPUT"
+          echo "frontendUrl=https://$FRONTEND_HOST" >> "$GITHUB_OUTPUT"
+          echo "Resolved backend: $BACKEND_NAME"
+          echo "Resolved frontend: $FRONTEND_NAME"
+
+      # -- Backend package/deploy -----------------------------------------
+      - name: Create backend deployment package
+        if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.app == 'true' || needs.changes.outputs.infra == 'true'
         run: |
           chmod +x startup.sh
           zip -r -q deploy.zip \
@@ -215,26 +309,28 @@ jobs:
             requirements-prod.txt \
             startup.sh \
             -x "app/__pycache__/*" "app/**/__pycache__/*" "*.pyc"
-          echo "📦 Package size: $(du -h deploy.zip | cut -f1)"
-          echo "📋 Zip contents:"
+          echo "📦 Backend package size: $(du -h deploy.zip | cut -f1)"
+          echo "📋 Backend zip contents:"
           unzip -l deploy.zip | tail -5
 
-      - name: Ensure startup command is set
+      - name: Ensure backend startup command is set
+        if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.app == 'true' || needs.changes.outputs.infra == 'true'
         run: |
           az webapp config set \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name ${{ steps.resolve-name.outputs.webAppName }} \
+            --name ${{ steps.resolve-names.outputs.backendName }} \
             --startup-file "bash /home/site/wwwroot/startup.sh" \
             --output none
 
-      - name: Deploy to Azure Web App
-        id: deploy-app
+      - name: Deploy backend to Azure Web App
+        id: deploy-backend
+        if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.app == 'true' || needs.changes.outputs.infra == 'true'
         run: |
           echo "Uploading deploy.zip ($(du -h deploy.zip | cut -f1))..."
 
           az webapp deploy \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name ${{ steps.resolve-name.outputs.webAppName }} \
+            --name ${{ steps.resolve-names.outputs.backendName }} \
             --src-path deploy.zip \
             --type zip \
             --clean true \
@@ -243,19 +339,88 @@ jobs:
           echo "🔄 Restarting app..."
           az webapp restart \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name ${{ steps.resolve-name.outputs.webAppName }}
+            --name ${{ steps.resolve-names.outputs.backendName }}
 
-          WEBAPP_URL=$(az webapp show \
+          echo "webapp-url=${{ steps.resolve-names.outputs.backendUrl }}" >> "$GITHUB_OUTPUT"
+
+      # -- Frontend package/deploy ----------------------------------------
+      - name: Set up Node.js ${{ env.NODE_VERSION }} for frontend deploy
+        if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.infra == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend standalone package
+        if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.infra == 'true'
+        env:
+          NEXT_PUBLIC_API_URL: ${{ steps.resolve-names.outputs.backendUrl }}
+          NEXT_PUBLIC_SITE_URL: ${{ steps.resolve-names.outputs.frontendUrl }}
+          NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ secrets.PG_GOOGLE_CLIENT_ID || secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: |
+          npm ci --prefix frontend
+          npm run build --prefix frontend
+
+          rm -rf frontend-deploy frontend-deploy.zip
+          mkdir -p frontend-deploy/.next
+          cp -R frontend/.next/standalone/. frontend-deploy/
+          cp -R frontend/.next/static frontend-deploy/.next/static
+          if [ -d frontend/public ]; then
+            cp -R frontend/public frontend-deploy/public
+          fi
+
+          (cd frontend-deploy && zip -r -q ../frontend-deploy.zip .)
+          echo "📦 Frontend package size: $(du -h frontend-deploy.zip | cut -f1)"
+
+      - name: Sync frontend runtime settings
+        if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.infra == 'true'
+        run: |
+          az webapp config appsettings set \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name ${{ steps.resolve-name.outputs.webAppName }} \
-            --query defaultHostName --output tsv)
-          echo "webapp-url=https://$WEBAPP_URL" >> "$GITHUB_OUTPUT"
+            --name ${{ steps.resolve-names.outputs.frontendName }} \
+            --settings \
+              NODE_ENV=production \
+              NEXT_TELEMETRY_DISABLED=1 \
+              NEXT_PUBLIC_API_URL=${{ steps.resolve-names.outputs.backendUrl }} \
+              NEXT_PUBLIC_SITE_URL=${{ steps.resolve-names.outputs.frontendUrl }} \
+              NEXT_PUBLIC_GOOGLE_CLIENT_ID='${{ secrets.PG_GOOGLE_CLIENT_ID || secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}' \
+            --output none
+
+          az webapp config set \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name ${{ steps.resolve-names.outputs.frontendName }} \
+            --startup-file "node server.js" \
+            --output none
+
+      - name: Deploy frontend to Azure Web App
+        id: deploy-frontend
+        if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.infra == 'true'
+        run: |
+          echo "Uploading frontend-deploy.zip ($(du -h frontend-deploy.zip | cut -f1))..."
+
+          az webapp deploy \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name ${{ steps.resolve-names.outputs.frontendName }} \
+            --src-path frontend-deploy.zip \
+            --type zip \
+            --clean true \
+            --async true
+
+          echo "🔄 Restarting frontend app..."
+          az webapp restart \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name ${{ steps.resolve-names.outputs.frontendName }}
+
+          echo "webapp-url=${{ steps.resolve-names.outputs.frontendUrl }}" >> "$GITHUB_OUTPUT"
 
       # -- Health check (first deploy takes ~8 min for pip install) --------
-      - name: Verify deployment
+      - name: Verify backend deployment
+        if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.app == 'true' || needs.changes.outputs.infra == 'true'
         run: |
-          url="${{ steps.deploy-app.outputs.webapp-url }}/health"
-          echo "Waiting for app at: $url"
+          url="${{ steps.resolve-names.outputs.backendUrl }}/health"
+          echo "Waiting for backend at: $url"
           echo "⏳ First deploy installs deps (~10-16 min). Polling for 20 min..."
 
           for i in $(seq 1 120); do
@@ -271,8 +436,36 @@ jobs:
 
           echo "⚠️ App did not return 200 after 1200s"
           echo "   This may be normal for the first deploy (installing ML deps)."
-          echo "   Check Docker logs: az webapp log tail -g ${{ env.AZURE_RESOURCE_GROUP }} -n ${{ steps.resolve-name.outputs.webAppName }}"
+          echo "   Check Docker logs: az webapp log tail -g ${{ env.AZURE_RESOURCE_GROUP }} -n ${{ steps.resolve-names.outputs.backendName }}"
 
-          echo "### 🏥 Deployment Health Check" >> "$GITHUB_STEP_SUMMARY"
+          echo "### 🏥 Backend Health Check" >> "$GITHUB_STEP_SUMMARY"
           echo "- **URL**: $url" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Status**: HTTP $status (may still be installing dependencies)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify frontend deployment
+        if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.infra == 'true'
+        run: |
+          url="${{ steps.resolve-names.outputs.frontendUrl }}/"
+          echo "Waiting for frontend at: $url"
+          echo "⏳ Polling for 10 min..."
+
+          for i in $(seq 1 60); do
+            sleep 10
+            status=$(curl -L -s -o /dev/null -w "%{http_code}" "$url" || echo "000")
+            echo "  Attempt $i/60 → HTTP $status  ($(( i * 10 ))s elapsed)"
+            if [ "$status" = "200" ]; then
+              echo "✅ Frontend health check passed!"
+              exit 0
+            fi
+          done
+
+          echo "❌ Frontend did not return 200 after 600s"
+          echo "   Check logs: az webapp log tail -g ${{ env.AZURE_RESOURCE_GROUP }} -n ${{ steps.resolve-names.outputs.frontendName }}"
+          exit 1
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "### 🚀 V2 Deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Backend**: ${{ steps.resolve-names.outputs.backendUrl }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Frontend**: ${{ steps.resolve-names.outputs.frontendUrl }}" >> "$GITHUB_STEP_SUMMARY"

@@ -28,10 +28,13 @@ export default function ThemeToggle({ className = "" }: { className?: string }) 
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const initial = getInitialTheme();
-    setTheme(initial);
-    applyTheme(initial, false);
-    setMounted(true);
+    const id = window.setTimeout(() => {
+      const initial = getInitialTheme();
+      setTheme(initial);
+      applyTheme(initial, false);
+      setMounted(true);
+    }, 0);
+    return () => window.clearTimeout(id);
   }, []);
 
   function toggle() {

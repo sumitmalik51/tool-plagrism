@@ -136,6 +136,10 @@ class PlagiarismReport(BaseModel):
     flagged_passages: list[FlaggedPassage] = Field(default_factory=list)
     agent_results: list[AgentOutput] = Field(default_factory=list)
     explanation: str = Field(default="", description="Human-readable summary")
+    partial_result: bool = Field(default=False, description="True when one or more analysis agents failed or timed out")
+    agents_failed: list[str] = Field(default_factory=list, description="Agents that failed or timed out")
+    analysis_warnings: list[str] = Field(default_factory=list, description="Warnings about bounded or partial analysis")
+    analysis_scope: dict[str, Any] = Field(default_factory=dict, description="Chunk counts and sampling metadata")
     empty_reason: Literal["no_matches", "weak_only", "no_corpus"] | None = Field(
         default=None,
         description=(

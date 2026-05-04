@@ -95,3 +95,41 @@ body {
 
 /* Generic fade-in */
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Progress bar — moving stripes (skin like a "filling" bar) */
+@keyframes progress-stripes {
+  from { background-position: 0 0; }
+  to   { background-position: 28px 0; }
+}
+.progress-stripes {
+  background-image: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.22) 25%,
+    transparent           25%,
+    transparent           50%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.22) 75%,
+    transparent           75%,
+    transparent
+  );
+  background-size: 28px 28px;
+  animation: progress-stripes 900ms linear infinite;
+}
+
+/* Progress bar — indeterminate sweep when % isn't moving yet */
+@keyframes progress-indeterminate {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+.progress-indeterminate {
+  animation: progress-indeterminate 1.6s ease-in-out infinite;
+}
+
+/* Progress bar — soft glow pulse on the leading edge */
+@keyframes progress-glow {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+.progress-glow {
+  animation: progress-glow 1.2s ease-in-out infinite;
+}

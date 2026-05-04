@@ -19,7 +19,9 @@ client = TestClient(app)
 def _clean_db():
     db = get_db()
     db.execute("DELETE FROM shared_reports")
+    db.execute("DELETE FROM report_certificates")
     db.execute("DELETE FROM payments")
+    db.execute("DELETE FROM word_topups")
     db.execute("DELETE FROM document_fingerprints")
     db.execute("DELETE FROM scans")
     db.execute("DELETE FROM documents")
@@ -162,3 +164,24 @@ def test_share_report_with_custom_expiry():
     row = db.fetch_one("SELECT expires_at FROM shared_reports WHERE share_id = ?", (share_id,))
     assert row is not None
     assert row["expires_at"] is not None
+
+
+def test_create_and_verify_report_certificate():
+    uid = _create_user("cert@test.com")
+    doc_id = "doc-cert-1"
+    _seed_scan(user_id=uid, document_id=doc_id)
+
+    resp = client.post(
+        f"/api/v1/report-certificate/{doc_id}",
+        headers=_auth_headers(uid, "cert@test.com"),
+    )
+
+    assert resp.status_code == 200
+    cert = resp.json()
+    assert cert["verification_id"]
+    assert len(cert["report_hash"]) == 64
+
+    verify = client.get(f"/api/v1/verify-report/{cert['verification_id']}")
+    assert verify.status_code == 200
+    assert verify.json()["valid"] is True
+    assert verify.json()["report_hash"] == cert["report_hash"]

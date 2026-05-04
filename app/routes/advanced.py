@@ -14,7 +14,15 @@ from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, stat
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.dependencies.rate_limit import enforce_scan_limit, enforce_usage_limit, record_scan, record_usage
+from app.dependencies.rate_limit import (
+    enforce_scan_limit,
+    enforce_usage_limit,
+    enforce_word_quota,
+    get_request_plan_type,
+    record_scan,
+    record_usage,
+    stored_text_excerpt,
+)
 from app.services import progress as scan_progress
 from app.services.ingestion import ingest_file
 from app.services.orchestrator import run_pipeline
@@ -24,7 +32,7 @@ from app.tools.citation_stripper import strip_reference_section
 from app.tools.reference_validator import validate_references, extract_references
 from app.tools.embedding_tool import generate_embeddings
 from app.tools.similarity_tool import cosine_similarity_matrix
-from app.tools.content_extractor_tool import chunk_text
+from app.tools.content_extractor_tool import chunk_text, sample_chunks_evenly
 from app.config import settings
 from app.utils.logger import get_logger
 
@@ -146,6 +154,9 @@ async def analyze_sections(
     """
     document_id = uuid.uuid4().hex
     user_id = getattr(request.state, "user_id", None)
+    plan_type = get_request_plan_type(request)
+    word_count = len(body.text.split())
+    enforce_word_quota(request, word_count, "document")
 
     logger.info(
         "section_analysis_started",
@@ -161,7 +172,7 @@ async def analyze_sections(
             filename=None,
             file_type="text",
             char_count=len(body.text),
-            text_content=body.text[:50000],
+            text_content=stored_text_excerpt(body.text),
         )
     except Exception as exc:
         logger.warning("document_save_failed", error=str(exc))
@@ -174,6 +185,7 @@ async def analyze_sections(
         document_id=document_id,
         text=body.text,
         excluded_domains=body.excluded_domains or None,
+        plan_type=plan_type,
     )
 
     # --- Analyze each section by mapping flagged passages to sections ----------
@@ -283,6 +295,9 @@ async def validate_references_endpoint(
     Useful for detecting fabricated citations in research papers.
     """
     logger.info("reference_validation_requested", text_length=len(body.text))
+    word_count = len(body.text.split())
+    if http_request:
+        enforce_word_quota(http_request, word_count, "reference validation")
 
     # Extract just the reference section for focused validation
     _, ref_section = strip_reference_section(body.text)
@@ -291,7 +306,7 @@ async def validate_references_endpoint(
     result = await validate_references(text_to_validate)
 
     if http_request:
-        record_usage(http_request, tool_type="reference_validation")
+        record_usage(http_request, tool_type="reference_validation", word_count=word_count)
 
     return result
 
@@ -331,6 +346,9 @@ async def compare_documents(
     import numpy as np
 
     start = _time.perf_counter()
+    word_count = len(body.text_a.split()) + len(body.text_b.split())
+    if http_request:
+        enforce_word_quota(http_request, word_count, "document comparison")
 
     logger.info(
         "cross_compare_started",
@@ -343,8 +361,19 @@ async def compare_documents(
     chunks_b_result = chunk_text(body.text_b, chunk_size=settings.chunk_size, overlap=settings.chunk_overlap)
     chunks_a = chunks_a_result["chunks"]
     chunks_b = chunks_b_result["chunks"]
+    original_chunks_a = len(chunks_a)
+    original_chunks_b = len(chunks_b)
+    analysis_truncated = False
+    if len(chunks_a) > settings.max_compare_chunks:
+        chunks_a = sample_chunks_evenly(chunks_a, settings.max_compare_chunks)
+        analysis_truncated = True
+    if len(chunks_b) > settings.max_compare_chunks:
+        chunks_b = sample_chunks_evenly(chunks_b, settings.max_compare_chunks)
+        analysis_truncated = True
 
     if not chunks_a or not chunks_b:
+        if http_request:
+            record_usage(http_request, tool_type="cross_compare", word_count=word_count)
         return {
             "similarity_score": 0.0,
             "overlap_percentage": 0.0,
@@ -404,7 +433,7 @@ async def compare_documents(
         summary = f"No significant overlap found between {body.label_a} and {body.label_b}."
 
     if http_request:
-        record_usage(http_request, tool_type="cross_compare")
+        record_usage(http_request, tool_type="cross_compare", word_count=word_count)
 
     logger.info(
         "cross_compare_complete",
@@ -420,6 +449,13 @@ async def compare_documents(
         "matched_passage_count": len(matched_passages),
         "chunks_a": len(chunks_a),
         "chunks_b": len(chunks_b),
+        "original_chunks_a": original_chunks_a,
+        "original_chunks_b": original_chunks_b,
+        "analysis_truncated": analysis_truncated,
+        "chunk_limit": settings.max_compare_chunks,
+        "warnings": [
+            "Very large comparison was sampled evenly to keep processing bounded."
+        ] if analysis_truncated else [],
         "label_a": body.label_a,
         "label_b": body.label_b,
         "matched_passages": matched_passages,
@@ -453,8 +489,9 @@ async def compare_files(
     try:
         bytes_a = await file_a.read()
         bytes_b = await file_b.read()
-        ingestion_a = await ingest_file(file_a.filename, bytes_a)
-        ingestion_b = await ingest_file(file_b.filename, bytes_b)
+        plan_type = get_request_plan_type(http_request) if http_request else "free"
+        ingestion_a = await ingest_file(file_a.filename, bytes_a, plan_type=plan_type)
+        ingestion_b = await ingest_file(file_b.filename, bytes_b, plan_type=plan_type)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -498,6 +535,9 @@ async def repository_check(
     from app.services.repository import find_similar_documents
 
     user_id = getattr(http_request.state, "user_id", None) if http_request else None
+    word_count = len(body.text.split())
+    if http_request:
+        enforce_word_quota(http_request, word_count, "repository check")
 
     matches = find_similar_documents(
         body.text,
@@ -505,6 +545,9 @@ async def repository_check(
         threshold=0.02,
         limit=15,
     )
+
+    if http_request:
+        record_usage(http_request, tool_type="repository_check", word_count=word_count)
 
     return {
         "matches": matches,
