@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.42.1.51946",
-      "templateHash": "1619304963295949696"
+      "templateHash": "18318538738226526041"
     }
   },
   "parameters": {
@@ -106,6 +106,34 @@
       "metadata": {
         "description": "Google OAuth client ID used by both backend token verification and frontend Google sign-in"
       }
+    },
+    "jwtSecret": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "JWT signing secret required by the backend in production"
+      }
+    },
+    "sqlConnectionString": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Azure SQL connection string required by the backend in production"
+      }
+    },
+    "azureOpenAiEndpoint": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Azure OpenAI endpoint used by backend AI features"
+      }
+    },
+    "azureOpenAiApiKey": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Azure OpenAI API key required by the backend in production"
+      }
     }
   },
   "variables": {
@@ -185,6 +213,22 @@
             {
               "name": "PG_GOOGLE_CLIENT_ID",
               "value": "[parameters('googleClientId')]"
+            },
+            {
+              "name": "PG_JWT_SECRET",
+              "value": "[parameters('jwtSecret')]"
+            },
+            {
+              "name": "PG_SQL_CONNECTION_STRING",
+              "value": "[parameters('sqlConnectionString')]"
+            },
+            {
+              "name": "PG_AZURE_OPENAI_ENDPOINT",
+              "value": "[parameters('azureOpenAiEndpoint')]"
+            },
+            {
+              "name": "PG_AZURE_OPENAI_API_KEY",
+              "value": "[parameters('azureOpenAiApiKey')]"
             },
             {
               "name": "WEBSITES_CONTAINER_START_TIME_LIMIT",

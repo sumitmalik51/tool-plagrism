@@ -46,6 +46,21 @@ param acsSenderEmail string = 'DoNotReply@plagiarismguard.com'
 @description('Google OAuth client ID used by both backend token verification and frontend Google sign-in')
 param googleClientId string = ''
 
+@description('JWT signing secret required by the backend in production')
+@secure()
+param jwtSecret string = ''
+
+@description('Azure SQL connection string required by the backend in production')
+@secure()
+param sqlConnectionString string = ''
+
+@description('Azure OpenAI endpoint used by backend AI features')
+param azureOpenAiEndpoint string = ''
+
+@description('Azure OpenAI API key required by the backend in production')
+@secure()
+param azureOpenAiApiKey string = ''
+
 // ---------------------------------------------------------------------------
 // Naming
 // ---------------------------------------------------------------------------
@@ -127,6 +142,22 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
         {
           name: 'PG_GOOGLE_CLIENT_ID'
           value: googleClientId
+        }
+        {
+          name: 'PG_JWT_SECRET'
+          value: jwtSecret
+        }
+        {
+          name: 'PG_SQL_CONNECTION_STRING'
+          value: sqlConnectionString
+        }
+        {
+          name: 'PG_AZURE_OPENAI_ENDPOINT'
+          value: azureOpenAiEndpoint
+        }
+        {
+          name: 'PG_AZURE_OPENAI_API_KEY'
+          value: azureOpenAiApiKey
         }
         {
           name: 'WEBSITES_CONTAINER_START_TIME_LIMIT'
